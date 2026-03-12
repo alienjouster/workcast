@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Workcast.Core\Workcast.Core.csproj" />
+    <ProjectReference Include="..\Workcast.Infrastructure\Workcast.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hangfire.Core provides AutomaticRetry and job activation infrastructure. -->
+    <PackageReference Include="Hangfire.Core" Version="1.8.14" />
+    <!--
+      AngleSharp: CSS selector-based HTML parsing used to extract job ad links from listing
+      pages and to locate next-page button hrefs. No BCL mechanism exists for CSS selector
+      queries against an HTML string. HtmlAgilityPack was considered but AngleSharp provides
+      a standards-compliant selector engine matching what Playwright itself uses.
+      Justification per CONVENTIONS.md: no equivalent approved package covers this need.
+    -->
+    <PackageReference Include="AngleSharp" Version="1.1.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+  </ItemGroup>
+
+</Project>

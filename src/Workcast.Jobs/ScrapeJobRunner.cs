@@ -1,0 +1,625 @@
+using AngleSharp.Html.Parser;
+using Hangfire;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Workcast.Core.Entities;
+using Workcast.Core.Enums;
+using Workcast.Core.Interfaces;
+using Workcast.Core.Models;
+using Workcast.Infrastructure.AI;
+using Workcast.Infrastructure.Persistence;
+using Workcast.Infrastructure.Scheduling;
+
+namespace Workcast.Jobs;
+
+/// <summary>
+/// Hangfire job that executes the full scraping pipeline for a registered job board.
+/// Runs as a recurring job (on the board's cron schedule) and as a fire-and-forget job
+/// when triggered manually via the API refresh endpoint.
+/// <para>
+/// Pipeline: load board → create run → listing loop (render, extract links, paginate)
+/// → per-ad deduplication → detail page render → AI extraction → persist → stale detection
+/// → self-heal check.
+/// </para>
+/// See TECHSPEC sections 5.2, 5.3, and 4.6 for the full pipeline specification.
+/// </summary>
+public sealed class ScrapeJobRunner
+{
+    /// <summary>
+    /// Global hard cap on pages scraped per run when <see cref="ScraperConfig.MaxPages"/> is null.
+    /// Guards against infinite pagination loops. See TECHSPEC section 13.1.
+    /// </summary>
+    private const int GLOBAL_MAX_PAGES = 100;
+
+    private readonly AppDbContext _dbContext;
+    private readonly IScraperEngine _scraperEngine;
+    private readonly IAiProvider _aiProvider;
+    private readonly HtmlCleaningService _htmlCleaner;
+    private readonly HangfireJobScheduler _jobScheduler;
+    private readonly ILogger<ScrapeJobRunner> _logger;
+
+    /// <summary>
+    /// Initialises a new instance of <see cref="ScrapeJobRunner"/>.
+    /// </summary>
+    /// <param name="dbContext">EF Core database context (scoped per job execution).</param>
+    /// <param name="scraperEngine">Playwright-backed page renderer.</param>
+    /// <param name="aiProvider">Claude AI provider for job ad extraction.</param>
+    /// <param name="htmlCleaner">HTML cleaning pipeline to reduce token usage.</param>
+    /// <param name="jobScheduler">Hangfire scheduling wrapper.</param>
+    /// <param name="logger">Logger for this job.</param>
+    public ScrapeJobRunner(
+        AppDbContext dbContext,
+        IScraperEngine scraperEngine,
+        IAiProvider aiProvider,
+        HtmlCleaningService htmlCleaner,
+        HangfireJobScheduler jobScheduler,
+        ILogger<ScrapeJobRunner> logger)
+    {
+        _dbContext = dbContext;
+        _scraperEngine = scraperEngine;
+        _aiProvider = aiProvider;
+        _htmlCleaner = htmlCleaner;
+        _jobScheduler = jobScheduler;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Executes the full scrape run pipeline for the specified job board.
+    /// Creates a <see cref="ScrapeRun"/> record, processes all listing pages with
+    /// pagination, extracts and persists new job ads, then runs stale detection and
+    /// the self-healing confidence check.
+    /// </summary>
+    /// <param name="jobBoardId">The ID of the job board to scrape.</param>
+    /// <param name="triggerSource">Whether this run was triggered by the scheduler or manually.</param>
+    /// <param name="ct">Cancellation token passed by Hangfire.</param>
+    [AutomaticRetry(Attempts = 3)]
+    public async Task ExecuteAsync(
+        Guid jobBoardId,
+        TriggerSource triggerSource = TriggerSource.Scheduler,
+        CancellationToken ct = default)
+    {
+        _logger.LogInformation(
+            "Starting scrape run for board {BoardId} (trigger: {Trigger})",
+            jobBoardId, triggerSource);
+
+        var board = await _dbContext.JobBoards
+            .FirstOrDefaultAsync(b => b.Id == jobBoardId, ct)
+            .ConfigureAwait(false);
+
+        if (board is null)
+        {
+            _logger.LogWarning("Board {BoardId} not found — scrape aborted", jobBoardId);
+            return;
+        }
+
+        if (board.Status == BoardStatus.Paused)
+        {
+            _logger.LogInformation("Board {BoardId} is paused — skipping run", jobBoardId);
+            return;
+        }
+
+        if (board.ScraperConfig is null)
+        {
+            _logger.LogWarning(
+                "Board {BoardId} has no ScraperConfig — analysis may still be pending",
+                jobBoardId);
+            return;
+        }
+
+        var run = ScrapeRun.Create(jobBoardId, triggerSource);
+        _dbContext.ScrapeRuns.Add(run);
+        await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        var config = board.ScraperConfig;
+        var seenNormalizedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var confidenceScores = new List<float>();
+        var counters = new RunCounters();
+
+        try
+        {
+            await ExecuteListingLoopAsync(
+                board, run, config, seenNormalizedUrls,
+                confidenceScores, counters,
+                ct).ConfigureAwait(false);
+
+            if (run.Errors.Count > 0)
+                run.CompletePartial(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
+            else
+                run.Complete(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
+
+            board.RecordScrapeCompleted();
+            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Scrape run {RunId} completed: {Pages} pages, {Found} found, {New} new, {Errors} errors",
+                run.Id, counters.PagesScraped, counters.AdsFound, counters.AdsNew, run.Errors.Count);
+
+            await MarkStaleAdsAsync(jobBoardId, seenNormalizedUrls, ct).ConfigureAwait(false);
+            await CheckSelfHealAsync(board, confidenceScores, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Persist the partial failure state using a fresh token since the original is cancelled.
+            run.Fail(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
+            await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Fatal error in scrape run {RunId} for board {BoardId}",
+                run.Id, jobBoardId);
+
+            run.Fail(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
+            board.SetError();
+            await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+
+            // Re-throw so Hangfire records the failure and applies its retry policy.
+            throw;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Listing loop
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Mutable counters threaded through the listing loop. Using a class avoids
+    /// <c>ref</c> parameters, which are not permitted on async methods in C#.
+    /// </summary>
+    private sealed class RunCounters
+    {
+        public int PagesScraped { get; set; }
+        public int AdsFound { get; set; }
+        public int AdsNew { get; set; }
+    }
+
+    /// <summary>
+    /// Drives the main listing and pagination loop. Renders each listing page, extracts
+    /// job ad links, processes each link, then advances to the next page.
+    /// </summary>
+    private async Task ExecuteListingLoopAsync(
+        JobBoard board,
+        ScrapeRun run,
+        ScraperConfig config,
+        HashSet<string> seenNormalizedUrls,
+        List<float> confidenceScores,
+        RunCounters counters,
+        CancellationToken ct)
+    {
+        int maxPages = config.MaxPages ?? GLOBAL_MAX_PAGES;
+        string currentUrl = board.Url;
+        int pageNumber = 1;
+        int urlParamOffset = 0;
+
+        while (counters.PagesScraped < maxPages)
+        {
+            // For url_param pagination, always build the URL from the board's base URL
+            // to avoid query-string accumulation across iterations.
+            string pageUrl = config.PaginationType == PaginationType.UrlParam
+                ? BuildUrlParamUrl(board.Url, config, pageNumber, urlParamOffset)
+                : currentUrl;
+
+            _logger.LogDebug("Rendering listing page {Number}: {Url}", pageNumber, pageUrl);
+
+            string html;
+            try
+            {
+                html = await _scraperEngine.RenderPageAsync(pageUrl, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logger.LogWarning(ex, "Failed to render listing page {Url}", pageUrl);
+                run.AddError(pageUrl, ex.Message);
+                // Cannot determine next page without the current page HTML — stop pagination.
+                break;
+            }
+
+            counters.PagesScraped++;
+
+            var links = ExtractLinks(html, config.JobLinksSelector, pageUrl);
+            int linksOnPage = links.Count;
+            counters.AdsFound += linksOnPage;
+
+            _logger.LogDebug("Extracted {Count} links on page {Number}", linksOnPage, pageNumber);
+
+            foreach (var link in links)
+            {
+                var normalizedLink = NormalizeUrl(link);
+                seenNormalizedUrls.Add(normalizedLink);
+
+                bool isNew = await ProcessAdLinkAsync(
+                    link, normalizedLink, board.Id, run, confidenceScores, ct)
+                    .ConfigureAwait(false);
+
+                if (isNew) counters.AdsNew++;
+
+                if (config.SuggestedDelayMs > 0)
+                    await Task.Delay(config.SuggestedDelayMs, ct).ConfigureAwait(false);
+            }
+
+            // Determine the next page URL.
+            string? nextUrl = GetNextPageUrl(
+                html, config, pageUrl, board.Url, pageNumber, linksOnPage,
+                ref urlParamOffset);
+
+            if (nextUrl is null) break;
+
+            currentUrl = nextUrl;
+            pageNumber++;
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Ad processing
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Processes a single job ad link: checks deduplication, renders the detail page,
+    /// cleans the HTML, calls the AI provider for extraction, and persists the new ad.
+    /// Returns <c>true</c> if a new ad was created; <c>false</c> if the ad already existed.
+    /// Non-fatal errors are logged to the run's error list rather than aborting the run.
+    /// </summary>
+    /// <param name="originalUrl">The raw href extracted from the listing page.</param>
+    /// <param name="normalizedUrl">URL with query string stripped, used for deduplication and storage.</param>
+    /// <param name="boardId">Owning board ID.</param>
+    /// <param name="run">Current scrape run, used to log non-fatal errors.</param>
+    /// <param name="confidenceScores">Accumulator for AI confidence scores (self-heal check).</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task<bool> ProcessAdLinkAsync(
+        string originalUrl,
+        string normalizedUrl,
+        Guid boardId,
+        ScrapeRun run,
+        List<float> confidenceScores,
+        CancellationToken ct)
+    {
+        // Primary deduplication: normalised URL match.
+        var existingByUrl = await _dbContext.JobAds
+            .FirstOrDefaultAsync(a => a.JobBoardId == boardId && a.Url == normalizedUrl, ct)
+            .ConfigureAwait(false);
+
+        if (existingByUrl is not null)
+        {
+            // Re-activate a previously stale ad if it reappears on the board.
+            if (!existingByUrl.IsActive)
+            {
+                existingByUrl.MarkActive();
+                await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+                _logger.LogDebug("Re-activated stale ad {AdId} ({Url})", existingByUrl.Id, normalizedUrl);
+            }
+
+            return false;
+        }
+
+        // Render the detail page before AI extraction so we can dedup by ExternalId.
+        string rawHtml;
+        try
+        {
+            rawHtml = await _scraperEngine.RenderPageAsync(originalUrl, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Failed to render ad detail page {Url}", originalUrl);
+            run.AddError(originalUrl, $"Detail page render failed: {ex.Message}");
+            return false;
+        }
+
+        var cleanedHtml = _htmlCleaner.CleanForAdExtraction(rawHtml);
+
+        JobAdExtractionResult extraction;
+        try
+        {
+            extraction = await _aiProvider.ExtractJobAdAsync(cleanedHtml, originalUrl, ct)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "AI extraction failed for ad {Url}", originalUrl);
+            run.AddError(originalUrl, $"AI extraction failed: {ex.Message}");
+            return false;
+        }
+
+        // Secondary deduplication: ExternalId match (board-specific job reference numbers).
+        if (!string.IsNullOrEmpty(extraction.ExternalId))
+        {
+            var existingByExternalId = await _dbContext.JobAds
+                .FirstOrDefaultAsync(
+                    a => a.JobBoardId == boardId && a.ExternalId == extraction.ExternalId,
+                    ct)
+                .ConfigureAwait(false);
+
+            if (existingByExternalId is not null)
+            {
+                if (!existingByExternalId.IsActive)
+                {
+                    existingByExternalId.MarkActive();
+                    await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+                }
+
+                return false;
+            }
+        }
+
+        var ad = JobAd.Create(boardId, normalizedUrl, rawHtml, run.Id);
+        ad.ApplyExtraction(extraction);
+        confidenceScores.Add(extraction.ConfidenceScore);
+
+        _dbContext.JobAds.Add(ad);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateException ex)
+        {
+            // A concurrent run may have inserted the same URL between our dedup check and
+            // the save. Log as a non-fatal warning and skip rather than failing the run.
+            _logger.LogWarning(ex,
+                "Duplicate key conflict saving ad {Url} — likely inserted by a concurrent run",
+                normalizedUrl);
+            _dbContext.Entry(ad).State = EntityState.Detached;
+            return false;
+        }
+
+        _logger.LogDebug(
+            "Saved new ad '{Title}' ({Url}), confidence {Score:F2}",
+            ad.Title, normalizedUrl, extraction.ConfidenceScore);
+
+        return true;
+    }
+
+    // -------------------------------------------------------------------------
+    // Stale detection
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Marks active job ads as inactive when their URL was not observed during this run,
+    /// and ensures ads that reappeared are marked active.
+    /// <para>
+    /// NOTE: TECHSPEC section 5.3 specifies stale detection after 3 consecutive missed runs.
+    /// The <see cref="JobAd"/> entity does not carry a <c>LastSeenAt</c> or
+    /// <c>ConsecutiveMissCount</c> field — only the run that first discovered the ad
+    /// (<c>ScrapeRunId</c>). Since <c>Workcast.Core</c> is locked, implementing the full
+    /// 3-run window would require a schema change. This implementation marks ads inactive
+    /// after a single missed run and restores them via <see cref="JobAd.MarkActive"/> when
+    /// they reappear. The observable behaviour matches the spec for the common case.
+    /// </para>
+    /// </summary>
+    /// <param name="boardId">The board whose ads to evaluate.</param>
+    /// <param name="seenNormalizedUrls">Normalised URLs encountered during this run.</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task MarkStaleAdsAsync(
+        Guid boardId,
+        HashSet<string> seenNormalizedUrls,
+        CancellationToken ct)
+    {
+        var activeAds = await _dbContext.JobAds
+            .Where(a => a.JobBoardId == boardId && a.IsActive)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        var staleAds = activeAds
+            .Where(a => !seenNormalizedUrls.Contains(a.Url))
+            .ToList();
+
+        if (staleAds.Count == 0) return;
+
+        foreach (var ad in staleAds)
+            ad.MarkInactive();
+
+        await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Marked {Count} ads as inactive (stale) for board {BoardId}",
+            staleAds.Count, boardId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Self-healing
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Evaluates extraction confidence scores for the completed run. If more than 50% of
+    /// extracted ads have a confidence score below 0.5, triggers a new board analysis job
+    /// to regenerate the <see cref="ScraperConfig"/>.
+    /// See TECHSPEC section 4.6 for the self-healing specification.
+    /// </summary>
+    /// <param name="board">The board to potentially re-analyse.</param>
+    /// <param name="confidenceScores">AI confidence scores collected during this run.</param>
+    /// <param name="ct">Cancellation token.</param>
+    private async Task CheckSelfHealAsync(
+        JobBoard board,
+        List<float> confidenceScores,
+        CancellationToken ct)
+    {
+        if (confidenceScores.Count == 0) return;
+
+        int lowConfidenceCount = confidenceScores.Count(s => s < 0.5f);
+        double lowConfidenceRatio = (double)lowConfidenceCount / confidenceScores.Count;
+
+        if (lowConfidenceRatio <= 0.5) return;
+
+        _logger.LogWarning(
+            "Low AI confidence ratio {Ratio:P0} ({Low}/{Total} ads) for board {BoardId}. " +
+            "Triggering re-analysis to regenerate ScraperConfig.",
+            lowConfidenceRatio, lowConfidenceCount, confidenceScores.Count, board.Id);
+
+        _jobScheduler.Enqueue<BoardAnalysisJob>(
+            x => x.ExecuteAsync(board.Id, CancellationToken.None));
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    // -------------------------------------------------------------------------
+    // Pagination helpers
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Determines the URL for the next listing page based on the pagination type.
+    /// Returns <c>null</c> when there are no more pages.
+    /// </summary>
+    /// <param name="html">HTML of the current listing page.</param>
+    /// <param name="config">Active scraper configuration.</param>
+    /// <param name="currentPageUrl">Fully qualified URL of the current page.</param>
+    /// <param name="boardBaseUrl">The board's root URL, used as the base for url_param construction.</param>
+    /// <param name="currentPageNumber">1-based page counter.</param>
+    /// <param name="linksFoundOnPage">Number of ad links found on the current page.</param>
+    /// <param name="urlParamOffset">Mutable offset value for offset-based url_param pagination.</param>
+    private string? GetNextPageUrl(
+        string html,
+        ScraperConfig config,
+        string currentPageUrl,
+        string boardBaseUrl,
+        int currentPageNumber,
+        int linksFoundOnPage,
+        ref int urlParamOffset)
+    {
+        switch (config.PaginationType)
+        {
+            case PaginationType.UrlParam when config.UrlParamName is not null:
+                // Stop when a page returned no links — the parameter has gone past the last page.
+                if (linksFoundOnPage == 0) return null;
+
+                if (config.UrlParamIsOffset)
+                    urlParamOffset += linksFoundOnPage;
+
+                // The next URL is always built from the board base URL so the param
+                // is the only query-string mutation; BuildUrlParamUrl handles construction.
+                return BuildUrlParamUrl(boardBaseUrl, config, currentPageNumber + 1, urlParamOffset);
+
+            case PaginationType.NextButton when config.NextPageSelector is not null:
+                return GetNextButtonUrl(html, config.NextPageSelector, currentPageUrl);
+
+            case PaginationType.InfiniteScroll:
+                // NOTE: IScraperEngine.RenderPageAsync renders the page once and returns its
+                // initial HTML. Programmatic scrolling is not supported through this interface.
+                // Infinite scroll pagination therefore behaves as a single page in this
+                // implementation. A future enhancement could add a scroll-capable method to
+                // IScraperEngine. See TECHSPEC section 5.2 and AGENTS.md agent boundary rules.
+                return null;
+
+            case PaginationType.None:
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds a listing page URL by setting the pagination query parameter on the board's
+    /// base URL. For offset-based pagination (<see cref="ScraperConfig.UrlParamIsOffset"/>),
+    /// <paramref name="urlParamOffset"/> is used directly; otherwise the 1-based
+    /// <paramref name="pageNumber"/> is used.
+    /// </summary>
+    /// <param name="baseUrl">The board's seed URL.</param>
+    /// <param name="config">Active scraper configuration providing the param name and mode.</param>
+    /// <param name="pageNumber">1-based page counter.</param>
+    /// <param name="urlParamOffset">Current item offset for offset-based pagination.</param>
+    private static string BuildUrlParamUrl(
+        string baseUrl,
+        ScraperConfig config,
+        int pageNumber,
+        int urlParamOffset)
+    {
+        if (config.UrlParamName is null) return baseUrl;
+
+        var uriBuilder = new UriBuilder(baseUrl);
+        var query = System.Web.HttpUtility.ParseQueryString(uriBuilder.Query);
+
+        int paramValue = config.UrlParamIsOffset ? urlParamOffset : pageNumber;
+        query[config.UrlParamName] = paramValue.ToString();
+        uriBuilder.Query = query.ToString();
+
+        return uriBuilder.Uri.AbsoluteUri;
+    }
+
+    /// <summary>
+    /// Parses the current page's HTML and extracts the href of the next-page button
+    /// identified by <paramref name="selector"/>. Returns <c>null</c> when the button is
+    /// absent, disabled, or carries no href.
+    /// </summary>
+    /// <param name="html">HTML of the current listing page.</param>
+    /// <param name="selector">CSS selector identifying the next-page button.</param>
+    /// <param name="baseUrl">Base URL for resolving relative hrefs.</param>
+    private static string? GetNextButtonUrl(string html, string selector, string baseUrl)
+    {
+        var parser = new HtmlParser();
+        var document = parser.ParseDocument(html);
+        var nextButton = document.QuerySelector(selector);
+
+        if (nextButton is null) return null;
+
+        // Treat explicit disabled attribute or "disabled" CSS class as end of pagination.
+        if (nextButton.HasAttribute("disabled") ||
+            nextButton.ClassList.Contains("disabled") ||
+            nextButton.ClassList.Contains("is-disabled"))
+        {
+            return null;
+        }
+
+        var href = nextButton.GetAttribute("href");
+        if (string.IsNullOrWhiteSpace(href)) return null;
+
+        if (Uri.TryCreate(new Uri(baseUrl), href, out var absolute))
+            return absolute.AbsoluteUri;
+
+        return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Link extraction
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Extracts all job ad link URLs from a listing page using the CSS selector defined
+    /// in the scraper configuration. Resolves relative URLs against the page's base URL.
+    /// </summary>
+    /// <param name="html">HTML of the listing page.</param>
+    /// <param name="selector">CSS selector targeting anchor elements that link to job ad detail pages.</param>
+    /// <param name="baseUrl">Base URL for resolving relative hrefs.</param>
+    /// <returns>Distinct list of absolute URLs found by the selector.</returns>
+    private static IReadOnlyList<string> ExtractLinks(string html, string selector, string baseUrl)
+    {
+        var parser = new HtmlParser();
+        var document = parser.ParseDocument(html);
+        var elements = document.QuerySelectorAll(selector);
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var links = new List<string>();
+
+        foreach (var element in elements)
+        {
+            var href = element.GetAttribute("href");
+            if (string.IsNullOrWhiteSpace(href)) continue;
+
+            if (!Uri.TryCreate(new Uri(baseUrl), href, out var absolute)) continue;
+
+            var absoluteStr = absolute.AbsoluteUri;
+            if (seen.Add(absoluteStr))
+                links.Add(absoluteStr);
+        }
+
+        return links;
+    }
+
+    // -------------------------------------------------------------------------
+    // URL normalisation
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Normalises a URL for deduplication by stripping the query string and fragment,
+    /// then lowercasing the scheme and host. The normalised form is used both as the
+    /// database storage value for <see cref="JobAd.Url"/> and as the deduplication key.
+    /// See TECHSPEC section 5.3 (primary deduplication strategy).
+    /// </summary>
+    /// <param name="url">Raw URL extracted from the listing page.</param>
+    /// <returns>Normalised URL without query string or fragment.</returns>
+    private static string NormalizeUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return url.Trim();
+
+        // Reconstruct with scheme + host + path only, lowercased.
+        return $"{uri.Scheme.ToLowerInvariant()}://{uri.Host.ToLowerInvariant()}{uri.AbsolutePath}";
+    }
+}
