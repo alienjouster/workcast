@@ -1,0 +1,6 @@
+volumes/
+.env
+**/bin/
+**/obj/
+**/node_modules/
+.next/
