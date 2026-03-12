@@ -4,18 +4,11 @@ COPY . .
 RUN dotnet publish src/Workcast.Api/Workcast.Api.csproj \
     -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+# mcr.microsoft.com/playwright/dotnet includes the ASP.NET Core runtime,
+# all Playwright system dependencies, and pre-installed browser binaries.
+# This replaces the manual apt-get + playwright install steps from the spec,
+# which relied on the now-removed Microsoft.Playwright.CLI dotnet tool.
+FROM mcr.microsoft.com/playwright/dotnet:v1.44.0-jammy AS runtime
 WORKDIR /app
-# Playwright system dependencies
-RUN apt-get update && apt-get install -y \
-    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
-    libcups2 libdrm2 libxkbcommon0 libxcomposite1 \
-    libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
-    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
-# Install Playwright browsers — uses PLAYWRIGHT_BROWSERS_PATH env var
-# Browsers are stored in the external volume, so this only runs
-# on first start or if the volume is empty.
-RUN dotnet tool install --global Microsoft.Playwright.CLI \
-    && ~/.dotnet/tools/playwright install chromium
 ENTRYPOINT ["dotnet", "Workcast.Api.dll"]

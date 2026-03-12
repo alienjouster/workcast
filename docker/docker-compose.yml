@@ -23,10 +23,11 @@ services:
       ConnectionStrings__Default: "Host=db;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY}
       Anthropic__Model: claude-sonnet-4-5
-      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
       ASPNETCORE_URLS: http://+:8080
-    volumes:
-      - ../volumes/playwright:/ms-playwright
+    # Playwright browsers are baked into the mcr.microsoft.com/playwright/dotnet base image.
+    # A bind-mount over /ms-playwright would shadow those binaries, so the volume is omitted here.
+    # Docker layer caching avoids re-downloading browsers on rebuild as long as the base image tag
+    # does not change.
     ports:
       - "8080:8080"
     depends_on:
