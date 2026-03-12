@@ -33,15 +33,16 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
-  web:
-    build:
-      context: ../web
-      dockerfile: ../docker/web.Dockerfile
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8080
-      API_INTERNAL_URL: http://api:8080
-    ports:
-      - "3000:3000"
-    depends_on:
-      - api
-    restart: unless-stopped
+  # web service is enabled by Agent 5 once the Next.js app exists in web/
+  # web:
+  #   build:
+  #     context: ../web
+  #     dockerfile: ../docker/web.Dockerfile
+  #   environment:
+  #     NEXT_PUBLIC_API_URL: http://localhost:8080
+  #     API_INTERNAL_URL: http://api:8080
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - api
+  #   restart: unless-stopped
