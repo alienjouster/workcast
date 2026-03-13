@@ -1,3 +1,4 @@
+using Workcast.Api.DTOs.Requests;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Core.Entities;
 using Workcast.Core.Enums;
@@ -140,6 +141,55 @@ public static class MappingExtensions
             Page = error.Page,
             Message = error.Message,
             Timestamp = error.Timestamp,
+        };
+    }
+
+    /// <summary>
+    /// Maps an <see cref="UpdateScraperConfigRequest"/> DTO to a <see cref="ScraperConfig"/> domain model.
+    /// ConfidenceScore is set to 1.0 to indicate the config was manually verified by the user.
+    /// </summary>
+    /// <param name="request">The incoming update request.</param>
+    /// <returns>A new <see cref="ScraperConfig"/> ready to be stored on the board.</returns>
+    public static ScraperConfig ToDomain(this UpdateScraperConfigRequest request)
+    {
+        return new ScraperConfig
+        {
+            PaginationType = request.PaginationType switch
+            {
+                "url_param"       => PaginationType.UrlParam,
+                "next_button"     => PaginationType.NextButton,
+                "infinite_scroll" => PaginationType.InfiniteScroll,
+                _                 => PaginationType.None,
+            },
+            JobCardSelector  = request.JobCardSelector,
+            FieldSelectors   = request.FieldSelectors.ToDomain(),
+            NextPageSelector = request.NextPageSelector,
+            UrlParamName     = request.UrlParamName,
+            UrlParamIsOffset = request.UrlParamIsOffset,
+            MaxPages         = request.MaxPages,
+            RequiresJs       = request.RequiresJs,
+            SuggestedDelayMs = request.SuggestedDelayMs,
+            ConfidenceScore  = 1.0f,
+            AnalyzerNotes    = request.AnalyzerNotes,
+            GeneratedAt      = DateTimeOffset.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// Maps a <see cref="FieldSelectorMapRequest"/> DTO to a <see cref="FieldSelectorMap"/> domain model.
+    /// </summary>
+    public static FieldSelectorMap ToDomain(this FieldSelectorMapRequest request)
+    {
+        return new FieldSelectorMap
+        {
+            DetailUrl           = request.DetailUrl,
+            Title               = request.Title,
+            Company             = request.Company,
+            Location            = request.Location,
+            SalaryRaw           = request.SalaryRaw,
+            PostedAt            = request.PostedAt,
+            DescriptionSnippet  = request.DescriptionSnippet,
+            ExternalId          = request.ExternalId,
         };
     }
 

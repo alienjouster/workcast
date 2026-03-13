@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Hangfire;
+using Hangfire.Storage.Monitoring;
 
 namespace Workcast.Infrastructure.Scheduling;
 
@@ -50,4 +51,40 @@ public sealed class HangfireJobScheduler
     {
         BackgroundJob.Enqueue<T>(methodCall);
     }
+
+    /// <summary>
+    /// Cancels all enqueued, scheduled, and processing Hangfire jobs whose first argument
+    /// matches <paramref name="boardId"/>. Covers both <c>BoardAnalysisJob</c> and
+    /// <c>ScrapeJobRunner</c> fire-and-forget jobs enqueued for this board.
+    /// Note: a job already being executed by a worker is marked Deleted but cannot be
+    /// interrupted mid-execution — that is a Hangfire platform limitation.
+    /// </summary>
+    /// <param name="boardId">The board ID to match against job arguments.</param>
+    public void DeleteBoardJobs(Guid boardId)
+    {
+        var monitoring = JobStorage.Current.GetMonitoringApi();
+        var toDelete = new List<string>();
+
+        foreach (var queue in monitoring.Queues())
+        {
+            var enqueued = monitoring.EnqueuedJobs(queue.Name, 0, 1000);
+            toDelete.AddRange(enqueued
+                .Where(kvp => IsBoardJob(kvp.Value.Job, boardId))
+                .Select(kvp => kvp.Key));
+        }
+
+        toDelete.AddRange(monitoring.ScheduledJobs(0, 1000)
+            .Where(kvp => IsBoardJob(kvp.Value.Job, boardId))
+            .Select(kvp => kvp.Key));
+
+        toDelete.AddRange(monitoring.ProcessingJobs(0, 1000)
+            .Where(kvp => IsBoardJob(kvp.Value.Job, boardId))
+            .Select(kvp => kvp.Key));
+
+        foreach (var jobId in toDelete)
+            BackgroundJob.Delete(jobId);
+    }
+
+    private static bool IsBoardJob(Hangfire.Common.Job? job, Guid boardId) =>
+        job?.Args?.Count > 0 && job.Args[0] is Guid id && id == boardId;
 }

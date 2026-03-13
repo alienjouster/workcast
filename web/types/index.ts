@@ -2,9 +2,21 @@ export type BoardStatus = 'pending' | 'active' | 'paused' | 'error';
 export type RunStatus = 'running' | 'completed' | 'failed' | 'partial';
 export type TriggeredBy = 'scheduler' | 'manual';
 
+export interface FieldSelectorMap {
+  detailUrl: string | null;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  salaryRaw: string | null;
+  postedAt: string | null;
+  descriptionSnippet: string | null;
+  externalId: string | null;
+}
+
 export interface ScraperConfig {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'none';
-  jobLinksSelector: string;
+  jobCardSelector: string;
+  fieldSelectors: FieldSelectorMap;
   nextPageSelector: string | null;
   urlParamName: string | null;
   urlParamIsOffset: boolean;
@@ -80,4 +92,26 @@ export interface UpdateJobBoardRequest {
   name?: string;
   scheduleCron?: string;
   status?: 'active' | 'paused';
+}
+
+export interface UpdateScraperConfigRequest {
+  paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'none';
+  jobCardSelector: string;
+  fieldSelectors: {
+    detailUrl: string | null;
+    title: string | null;
+    company: string | null;
+    location: string | null;
+    salaryRaw: string | null;
+    postedAt: string | null;
+    descriptionSnippet: string | null;
+    externalId: string | null;
+  };
+  nextPageSelector: string | null;
+  urlParamName: string | null;
+  urlParamIsOffset: boolean;
+  maxPages: number | null;
+  requiresJs: boolean;
+  suggestedDelayMs: number;
+  analyzerNotes: string | null;
 }

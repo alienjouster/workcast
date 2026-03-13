@@ -211,15 +211,14 @@ public sealed class ScrapeJobRunner
             var cards = ExtractAdsFromPage(html, config, pageUrl);
             int cardsOnPage = cards.Count;
 
-            // Self-heal: if the first page returns no cards the selector is likely stale —
-            // re-enqueue BoardAnalysisJob to regenerate the config and abort this run.
+            // If the first page returns no cards the selector is likely stale — log and stop.
+            // Re-analysis must be triggered manually via the Re-analyze button.
             if (cardsOnPage == 0 && pageNumber == 1)
             {
                 _logger.LogWarning(
-                    "Selector matched 0 cards on first page — triggering re-analysis for board {BoardId}",
+                    "Selector matched 0 cards on first page for board {BoardId}. " +
+                    "The scraper config may be stale — use the Re-analyze action to regenerate it.",
                     board.Id);
-                _jobScheduler.Enqueue<BoardAnalysisJob>(
-                    x => x.ExecuteAsync(board.Id, CancellationToken.None));
                 return;
             }
 

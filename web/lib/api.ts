@@ -5,6 +5,7 @@ import type {
   PagedResponse,
   CreateJobBoardRequest,
   UpdateJobBoardRequest,
+  UpdateScraperConfigRequest,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -50,6 +51,11 @@ export const api = {
       apiFetch<void>(`/api/job-boards/${id}/refresh`, { method: 'POST' }),
     reanalyze: (id: string) =>
       apiFetch<void>(`/api/job-boards/${id}/reanalyze`, { method: 'POST' }),
+    updateScraperConfig: (id: string, data: UpdateScraperConfigRequest) =>
+      apiFetch<JobBoard>(`/api/job-boards/${id}/scraper-config`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
     listRuns: (id: string, limit?: number) =>
       apiFetch<ScrapeRun[]>(`/api/job-boards/${id}/runs${limit ? `?limit=${limit}` : ''}`),
   },

@@ -50,7 +50,7 @@ public sealed class BoardAnalysisJob
     /// </summary>
     /// <param name="jobBoardId">The ID of the job board to analyse.</param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
-    [AutomaticRetry(Attempts = 1)]
+    [AutomaticRetry(Attempts = 0)]
     public async Task ExecuteAsync(Guid jobBoardId, CancellationToken ct = default)
     {
         _logger.LogInformation("Starting board analysis for board {BoardId}", jobBoardId);

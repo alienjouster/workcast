@@ -74,7 +74,7 @@ public sealed class JobBoardsController : ControllerBase
         _logger.LogInformation("Registered job board {BoardId} at {Url}, board analysis enqueued.", board.Id, board.Url);
 
         return AcceptedAtAction(
-            nameof(GetAsync),
+            nameof(GetAsync)[..^"Async".Length],
             new { id = board.Id },
             board.ToResponse(adCount: 0, includeScraperConfig: false));
     }
@@ -214,9 +214,10 @@ public sealed class JobBoardsController : ControllerBase
                         detail: $"Status '{request.Status}' is not valid. Accepted values: 'active', 'paused'.");
             }
         }
-        else if (scheduleChanged && board.Status == Workcast.Core.Enums.BoardStatus.Active)
+        else if (scheduleChanged && board.Status != Workcast.Core.Enums.BoardStatus.Paused)
         {
-            // Cron changed and board is active — re-register with the new schedule.
+            // Cron changed and board is not paused — re-register with the new schedule.
+            // Covers Active and Error states (error boards may recover via re-analysis).
             _scheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
                 jobId,
                 j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, CancellationToken.None),
@@ -251,6 +252,7 @@ public sealed class JobBoardsController : ControllerBase
         }
 
         _scheduler.RemoveIfExists($"scrape-{board.Id}");
+        _scheduler.DeleteBoardJobs(board.Id);
 
         _db.JobBoards.Remove(board);
         await _db.SaveChangesAsync(ct);
@@ -286,6 +288,45 @@ public sealed class JobBoardsController : ControllerBase
         _logger.LogInformation("Manual scrape refresh enqueued for board {BoardId}.", id);
 
         return Accepted();
+    }
+
+    /// <summary>
+    /// Replaces the scraper configuration for a job board with a manually supplied one.
+    /// The new config takes effect on the next scrape run. No Hangfire job is triggered.
+    /// </summary>
+    /// <param name="id">The job board identifier.</param>
+    /// <param name="request">The full replacement scraper configuration.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPut("{id:guid}/scraper-config")]
+    [ProducesResponseType(typeof(JobBoardResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateScraperConfigAsync(
+        Guid id,
+        [FromBody] UpdateScraperConfigRequest request,
+        CancellationToken ct)
+    {
+        var board = await _db.JobBoards.FindAsync(new object[] { id }, ct);
+
+        if (board is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job board '{id}' was not found.");
+        }
+
+        board.UpdateScraperConfig(request.ToDomain());
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Scraper config manually updated for board {BoardId}.", id);
+
+        var adCount = await _db.JobBoards
+            .Where(b => b.Id == id)
+            .Select(b => b.JobAds.Count)
+            .FirstAsync(ct);
+
+        return Ok(board.ToResponse(adCount, includeScraperConfig: true));
     }
 
     /// <summary>

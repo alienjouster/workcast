@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CreateJobBoardRequest, UpdateJobBoardRequest } from '@/types';
+import type { CreateJobBoardRequest, UpdateJobBoardRequest, UpdateScraperConfigRequest } from '@/types';
 
 export function useJobBoards() {
   return useQuery({
@@ -60,6 +60,14 @@ export function useRefreshBoard() {
       qc.invalidateQueries({ queryKey: ['job-boards', id] });
       qc.invalidateQueries({ queryKey: ['scrape-runs', id] });
     },
+  });
+}
+
+export function useUpdateScraperConfig(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: UpdateScraperConfigRequest) => api.boards.updateScraperConfig(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-boards', id] }),
   });
 }
 

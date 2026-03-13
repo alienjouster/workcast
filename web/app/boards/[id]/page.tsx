@@ -228,7 +228,7 @@ export default function BoardDetailPage() {
       {board.scraperConfig && (
         <Card>
           <CardBody>
-            <ScraperConfigView config={board.scraperConfig} />
+            <ScraperConfigView boardId={id} config={board.scraperConfig} />
           </CardBody>
         </Card>
       )}
