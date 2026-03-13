@@ -1,0 +1,47 @@
+services:
+  db:
+    container_name: workcast-db
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ../volumes/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+  api:
+    container_name: workcast-api
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    shm_size: '256mb'
+    environment:
+      ConnectionStrings__Default: "Host=db;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY}
+      Anthropic__Model: claude-sonnet-4-5
+      ASPNETCORE_URLS: http://+:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    container_name: workcast-web
+    build:
+      context: ../web
+      dockerfile: ../docker/web.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      API_INTERNAL_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
