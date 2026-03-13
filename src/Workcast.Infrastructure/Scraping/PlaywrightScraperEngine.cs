@@ -86,6 +86,12 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
             _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
             {
                 Headless = true,
+                // Required for Docker: containers lack the Linux user-namespace capabilities
+                // that Chrome's sandbox mechanism needs. Without --no-sandbox the zygote
+                // process crashes with SIGBUS (exit code 135) immediately on launch.
+                // --disable-dev-shm-usage makes Chrome write shared memory to /tmp instead
+                // of /dev/shm, avoiding SIGBUS when Docker's default 64 MB /dev/shm fills up.
+                Args = ["--no-sandbox", "--disable-dev-shm-usage"],
             }).ConfigureAwait(false);
 
             return _browser;

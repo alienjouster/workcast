@@ -1,6 +1,6 @@
-version: "3.9"
 services:
   db:
+    container_name: workcast-db
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -16,34 +16,32 @@ services:
       retries: 5
     restart: unless-stopped
   api:
+    container_name: workcast-api
     build:
       context: ..
       dockerfile: docker/api.Dockerfile
+    shm_size: '256mb'
     environment:
       ConnectionStrings__Default: "Host=db;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
       Anthropic__ApiKey: ${ANTHROPIC_API_KEY}
       Anthropic__Model: claude-sonnet-4-5
       ASPNETCORE_URLS: http://+:8080
-    # Playwright browsers are baked into the mcr.microsoft.com/playwright/dotnet base image.
-    # A bind-mount over /ms-playwright would shadow those binaries, so the volume is omitted here.
-    # Docker layer caching avoids re-downloading browsers on rebuild as long as the base image tag
-    # does not change.
     ports:
       - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
     restart: unless-stopped
-  # web service is enabled by Agent 5 once the Next.js app exists in web/
-  # web:
-  #   build:
-  #     context: ../web
-  #     dockerfile: ../docker/web.Dockerfile
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:8080
-  #     API_INTERNAL_URL: http://api:8080
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api
-  #   restart: unless-stopped
+  web:
+    container_name: workcast-web
+    build:
+      context: ../web
+      dockerfile: ../docker/web.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      API_INTERNAL_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
