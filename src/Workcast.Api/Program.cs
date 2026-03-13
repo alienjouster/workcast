@@ -19,7 +19,12 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddJobs();
 
 builder.Services.AddHttpClient("UrlValidation")
-    .ConfigureHttpClient(c => c.Timeout = TimeSpan.FromSeconds(10));
+    .ConfigureHttpClient(c =>
+    {
+        c.Timeout = TimeSpan.FromSeconds(10);
+        c.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (compatible; Workcast/1.0)");
+    });
 
 var app = builder.Build();
 

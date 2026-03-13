@@ -363,9 +363,11 @@ public sealed class JobBoardsController : ControllerBase
             using var request = new HttpRequestMessage(HttpMethod.Head, url);
             using var response = await client.SendAsync(request, ct);
 
-            // 405 means the server is alive but doesn't support HEAD — treat as reachable.
+            // 405 = server alive but rejects HEAD; 406 = server alive but rejects Accept headers.
+            // Both mean the server is reachable.
             return response.IsSuccessStatusCode
-                || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed;
+                || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed
+                || response.StatusCode == System.Net.HttpStatusCode.NotAcceptable;
         }
         catch (Exception ex)
         {

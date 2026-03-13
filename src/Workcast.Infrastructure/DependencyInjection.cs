@@ -78,8 +78,9 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
         });
 
-        // ClaudeAiProvider is Scoped — registered via typed HttpClient above.
-        services.AddScoped<IAiProvider, ClaudeAiProvider>();
+        // IAiProvider resolves to the typed-client registration above.
+        // Do NOT add a second AddScoped here — that would inject a plain HttpClient with no headers.
+        services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ClaudeAiProvider>());
 
         // HtmlCleaningService is Singleton — stateless, all state is compiled regexes.
         services.AddSingleton<HtmlCleaningService>();
