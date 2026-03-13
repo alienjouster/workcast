@@ -1,4 +1,5 @@
 using Hangfire;
+using Hangfire.Dashboard;
 using Microsoft.EntityFrameworkCore;
 using Workcast.Infrastructure;
 using Workcast.Infrastructure.Persistence;
@@ -32,7 +33,12 @@ using (var scope = app.Services.CreateScope())
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Workcast API v1"));
 
-app.UseHangfireDashboard("/hangfire");
+// NOTE: No auth filter for local dev — the default LocalRequestsOnlyAuthorizationFilter
+// blocks requests arriving via Docker port-mapping. Add proper auth before any non-local deployment.
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = Array.Empty<IDashboardAuthorizationFilter>(),
+});
 
 app.UseExceptionHandler();
 app.MapControllers();
