@@ -14,7 +14,9 @@ namespace Workcast.Infrastructure.AI;
 /// <summary>
 /// Anthropic Claude implementation of <see cref="IAiProvider"/>.
 /// Uses the Claude Tool Use API to guarantee structured, machine-readable responses.
-/// Both operations force a specific tool call so Claude cannot return free-form text.
+/// The board analysis operation forces a specific tool call so Claude cannot return free-form text.
+/// Job ad field extraction is fully deterministic via the CSS selectors returned by board analysis —
+/// no per-ad AI call is made.
 /// See TECHSPEC sections 4.2–4.7 for the full specification.
 /// </summary>
 public sealed class ClaudeAiProvider : IAiProvider
@@ -68,7 +70,16 @@ public sealed class ClaudeAiProvider : IAiProvider
 
             Examine the HTML below and call the save_board_config tool with a complete configuration
             describing how to scrape job listings from this board. Focus on:
-            - How to find job ad links on the listing page (CSS selector)
+            - The CSS selector that identifies each job card element on the listing page (job_card_selector)
+            - Per-field CSS selectors relative to each job card (field_selectors):
+                detail_url: selector whose href attribute is the job ad URL
+                title: selector for the job title text
+                company: selector for the company name text
+                location: selector for the location text
+                salary_raw: selector for raw salary text (null if absent)
+                posted_at: selector for the posting date (null if absent)
+                description_snippet: selector for a short description preview (null if absent)
+                external_id: selector or attribute expression for a board-specific job ID (null if absent)
             - How pagination works
             - Whether JavaScript is required
             - A safe request delay
@@ -79,31 +90,6 @@ public sealed class ClaudeAiProvider : IAiProvider
 
         var input = await CallWithRetryAsync(prompt, tool, "save_board_config", ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
-    }
-
-    /// <inheritdoc />
-    public async Task<JobAdExtractionResult> ExtractJobAdAsync(
-        string html,
-        string url,
-        CancellationToken ct = default)
-    {
-        var tool = BuildJobAdExtractionTool();
-        var prompt = $"""
-            You are extracting structured data from a job advertisement page.
-
-            URL: {url}
-
-            Read the HTML below and call the save_job_ad tool with all fields you can identify.
-            Extract: job title, company name, location, salary (raw text), full description,
-            posted date, and any board-specific job ID. Set confidence_score to reflect
-            how complete and reliable your extraction is.
-
-            HTML:
-            {html}
-            """;
-
-        var input = await CallWithRetryAsync(prompt, tool, "save_job_ad", ct).ConfigureAwait(false);
-        return DeserializeJobAdExtractionResult(input);
     }
 
     private async Task<JsonObject> CallWithRetryAsync(
@@ -190,11 +176,24 @@ public sealed class ClaudeAiProvider : IAiProvider
             _ => PaginationType.None,
         };
 
+        var fieldSelectorsNode = input["field_selectors"] as JsonObject;
+
         return new BoardAnalysisResult
         {
             PaginationType = paginationType,
-            JobLinksSelector = input["job_links_selector"]?.GetValue<string>()
-                ?? throw new InvalidOperationException("Claude did not return job_links_selector."),
+            JobCardSelector = input["job_card_selector"]?.GetValue<string>()
+                ?? throw new InvalidOperationException("Claude did not return job_card_selector."),
+            FieldSelectors = new FieldSelectorMap
+            {
+                DetailUrl = fieldSelectorsNode?["detail_url"]?.GetValue<string?>(),
+                Title = fieldSelectorsNode?["title"]?.GetValue<string?>(),
+                Company = fieldSelectorsNode?["company"]?.GetValue<string?>(),
+                Location = fieldSelectorsNode?["location"]?.GetValue<string?>(),
+                SalaryRaw = fieldSelectorsNode?["salary_raw"]?.GetValue<string?>(),
+                PostedAt = fieldSelectorsNode?["posted_at"]?.GetValue<string?>(),
+                DescriptionSnippet = fieldSelectorsNode?["description_snippet"]?.GetValue<string?>(),
+                ExternalId = fieldSelectorsNode?["external_id"]?.GetValue<string?>(),
+            },
             NextPageSelector = input["next_page_selector"]?.GetValue<string?>(),
             UrlParamName = input["url_param_name"]?.GetValue<string?>(),
             UrlParamIsOffset = input["url_param_is_offset"]?.GetValue<bool>() ?? false,
@@ -203,22 +202,6 @@ public sealed class ClaudeAiProvider : IAiProvider
             SuggestedDelayMs = input["suggested_delay_ms"]?.GetValue<int>() ?? 500,
             ConfidenceScore = (float)(input["confidence_score"]?.GetValue<double>() ?? 0.0),
             AnalyzerNotes = input["analyzer_notes"]?.GetValue<string?>(),
-        };
-    }
-
-    private static JobAdExtractionResult DeserializeJobAdExtractionResult(JsonObject input)
-    {
-        return new JobAdExtractionResult
-        {
-            Title = input["title"]?.GetValue<string>()
-                ?? throw new InvalidOperationException("Claude did not return title."),
-            Company = input["company"]?.GetValue<string?>(),
-            Location = input["location"]?.GetValue<string?>(),
-            SalaryRaw = input["salary_raw"]?.GetValue<string?>(),
-            Description = input["description"]?.GetValue<string?>(),
-            PostedAt = input["posted_at"]?.GetValue<string?>(),
-            ExternalId = input["external_id"]?.GetValue<string?>(),
-            ConfidenceScore = (float)(input["confidence_score"]?.GetValue<double>() ?? 0.0),
         };
     }
 
@@ -231,11 +214,27 @@ public sealed class ClaudeAiProvider : IAiProvider
             InputSchema = new
             {
                 type = "object",
-                required = new[] { "pagination_type", "job_links_selector", "requires_js", "suggested_delay_ms", "confidence_score" },
+                required = new[] { "pagination_type", "job_card_selector", "field_selectors", "requires_js", "suggested_delay_ms", "confidence_score" },
                 properties = new
                 {
                     pagination_type = new { type = "string", @enum = new[] { "url_param", "next_button", "infinite_scroll", "none" } },
-                    job_links_selector = new { type = "string" },
+                    job_card_selector = new { type = "string", description = "CSS selector matching each job card element on the listing page." },
+                    field_selectors = new
+                    {
+                        type = "object",
+                        description = "CSS selectors for individual fields, evaluated relative to each job card element.",
+                        properties = new
+                        {
+                            detail_url = new { type = new[] { "string", "null" }, description = "Selector whose href is the job detail URL." },
+                            title = new { type = new[] { "string", "null" } },
+                            company = new { type = new[] { "string", "null" } },
+                            location = new { type = new[] { "string", "null" } },
+                            salary_raw = new { type = new[] { "string", "null" } },
+                            posted_at = new { type = new[] { "string", "null" } },
+                            description_snippet = new { type = new[] { "string", "null" } },
+                            external_id = new { type = new[] { "string", "null" } },
+                        },
+                    },
                     next_page_selector = new { type = new[] { "string", "null" } },
                     url_param_name = new { type = new[] { "string", "null" } },
                     url_param_is_offset = new { type = "boolean" },
@@ -244,31 +243,6 @@ public sealed class ClaudeAiProvider : IAiProvider
                     suggested_delay_ms = new { type = "integer", minimum = 0, maximum = 10000 },
                     confidence_score = new { type = "number", minimum = 0, maximum = 1 },
                     analyzer_notes = new { type = new[] { "string", "null" } },
-                },
-            },
-        };
-    }
-
-    private static ClaudeTool BuildJobAdExtractionTool()
-    {
-        return new ClaudeTool
-        {
-            Name = "save_job_ad",
-            Description = "Save the extracted structured data from a job advertisement page.",
-            InputSchema = new
-            {
-                type = "object",
-                required = new[] { "title", "confidence_score" },
-                properties = new
-                {
-                    title = new { type = "string" },
-                    company = new { type = new[] { "string", "null" } },
-                    location = new { type = new[] { "string", "null" } },
-                    salary_raw = new { type = new[] { "string", "null" } },
-                    description = new { type = new[] { "string", "null" } },
-                    posted_at = new { type = new[] { "string", "null" }, format = "date-time" },
-                    external_id = new { type = new[] { "string", "null" } },
-                    confidence_score = new { type = "number", minimum = 0, maximum = 1 },
                 },
             },
         };

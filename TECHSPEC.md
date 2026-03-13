@@ -4,9 +4,9 @@ Technical Specification Document
 
 |             |                                |
 |-------------|--------------------------------|
-| **Version** | 1.0                            |
+| **Version** | 1.1                            |
 | **Status**  | Draft — For Engineering Review |
-| **Date**    | March 12, 2026                 |
+| **Date**    | March 13, 2026                 |
 | **Author**  | Solutions Architecture         |
 
 *CONFIDENTIAL — INTERNAL USE ONLY*
@@ -201,12 +201,10 @@ ScrapeRun 1 ──────&lt; JobAd (optional fk, tracks which run discover
 | Title             | VARCHAR(512) — Nullable                                      |
 | Company           | VARCHAR(255) — Nullable                                      |
 | Location          | VARCHAR(255) — Nullable                                      |
-| SalaryRaw         | VARCHAR(255) — Nullable, stored as-is from page              |
-| Description       | TEXT — Nullable                                              |
+| SalaryRaw         | VARCHAR(255) — Nullable, stored as-is from listing page      |
+| Description       | TEXT — Nullable, short snippet if visible on listing page    |
 | PostedAt          | TIMESTAMPTZ — Nullable                                       |
 | ScrapedAt         | TIMESTAMPTZ — NOT NULL, default NOW()                        |
-| RawHtml           | TEXT — NOT NULL, stored for potential re-extraction          |
-| AiConfidenceScore | FLOAT — 0.0–1.0, flags low-quality extractions               |
 | IsActive          | BOOLEAN — default TRUE, set FALSE if ad disappears           |
 
 **3.4 ScrapeRun**
@@ -232,7 +230,17 @@ The ScraperConfig column on JobBoard stores a structured object validated agains
 ```
 {
 "pagination_type": "url_param" | "next_button" | "infinite_scroll" | "none",
-"job_links_selector": "string (CSS selector to find ad links on listing page)",
+"job_card_selector": "string (CSS selector matching each job card container on the listing page)",
+"field_selectors": {
+  "detail_url": "string | null (CSS selector within card for the <a> link; null = first <a> in card)",
+  "title":       "string | null (CSS selector within card for job title text)",
+  "company":     "string | null",
+  "location":    "string | null",
+  "salary_raw":  "string | null",
+  "posted_at":   "string | null",
+  "description_snippet": "string | null (short summary if visible on listing page)",
+  "external_id": "string | null (CSS selector for a stable board-specific job ID; null if not present)"
+},
 "next_page_selector": "string | null (CSS selector for next button)",
 "url_param_name": "string | null (e.g. 'page', 'offset')",
 "url_param_is_offset": "boolean (true if param is item count, not page number)",
@@ -244,6 +252,8 @@ The ScraperConfig column on JobBoard stores a structured object validated agains
 "generated_at": "ISO8601 timestamp"
 }
 ```
+
+The `job_card_selector` replaces the former `job_links_selector`. Instead of selecting only the `<a>` link, it selects the entire card container. All field selectors are evaluated relative to each matched card element, enabling full job ad data extraction from the listing page alone — no detail page visits are required.
 
 **3.6 Indexes**
 
@@ -266,15 +276,11 @@ All AI interactions are routed through a single interface. This decouples busine
 ```
 public interface IAiProvider
 {
-// Called once when a job board is first registered.
-// Returns a structured config describing how to scrape the board.
+// Called once when a job board is first registered (or re-analyzed).
+// Returns a structured config describing how to scrape the board,
+// including card-level CSS selectors for extracting all job ad fields
+// directly from the listing page — no detail page visits required.
 Task&lt;BoardAnalysisResult&gt; AnalyzeBoardAsync(
-string html,
-string url,
-CancellationToken ct = default);
-// Called for each job ad detail page during a scrape run.
-// Returns structured field extraction from the raw HTML.
-Task&lt;JobAdExtractionResult&gt; ExtractJobAdAsync(
 string html,
 string url,
 CancellationToken ct = default);
@@ -296,45 +302,50 @@ A plain "return JSON" instruction yields inconsistent field names, missing requi
 Tool name: "save_board_config"
 {
 "type": "object",
-"required": ["pagination_type", "job_links_selector", "requires_js",
-"suggested_delay_ms", "confidence_score"],
+"required": ["pagination_type", "job_card_selector", "field_selectors",
+"requires_js", "suggested_delay_ms", "confidence_score"],
 "properties": {
 "pagination_type": {
-"type": "string",
-"enum": ["url_param", "next_button", "infinite_scroll", "none"]
+  "type": "string",
+  "enum": ["url_param", "next_button", "infinite_scroll", "none"]
 },
-"job_links_selector": { "type": "string" },
-"next_page_selector": { "type": ["string", "null"] },
-"url_param_name": { "type": ["string", "null"] },
+"job_card_selector": { "type": "string" },
+"field_selectors": {
+  "type": "object",
+  "required": ["title"],
+  "properties": {
+    "detail_url":           { "type": ["string", "null"] },
+    "title":                { "type": "string" },
+    "company":              { "type": ["string", "null"] },
+    "location":             { "type": ["string", "null"] },
+    "salary_raw":           { "type": ["string", "null"] },
+    "posted_at":            { "type": ["string", "null"] },
+    "description_snippet":  { "type": ["string", "null"] },
+    "external_id":          { "type": ["string", "null"] }
+  }
+},
+"next_page_selector":  { "type": ["string", "null"] },
+"url_param_name":      { "type": ["string", "null"] },
 "url_param_is_offset": { "type": "boolean" },
-"max_pages": { "type": ["integer", "null"], "minimum": 1 },
-"requires_js": { "type": "boolean" },
-"suggested_delay_ms": { "type": "integer", "minimum": 0, "maximum": 10000 },
-"confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
-"analyzer_notes": { "type": ["string", "null"] }
+"max_pages":           { "type": ["integer", "null"], "minimum": 1 },
+"requires_js":         { "type": "boolean" },
+"suggested_delay_ms":  { "type": "integer", "minimum": 0, "maximum": 10000 },
+"confidence_score":    { "type": "number", "minimum": 0, "maximum": 1 },
+"analyzer_notes":      { "type": ["string", "null"] }
 }
 }
 ```
 
-**4.4 Job Ad Extraction — Tool Schema**
+**4.4 Job Ad Extraction — Deterministic CSS Extraction (No AI)**
 
-```
-Tool name: "save_job_ad"
-{
-"type": "object",
-"required": ["title", "confidence_score"],
-"properties": {
-"title": { "type": "string" },
-"company": { "type": ["string", "null"] },
-"location": { "type": ["string", "null"] },
-"salary_raw": { "type": ["string", "null"] },
-"description": { "type": ["string", "null"] },
-"posted_at": { "type": ["string", "null"], "format": "date-time" },
-"external_id": { "type": ["string", "null"] },
-"confidence_score": { "type": "number", "minimum": 0, "maximum": 1 }
-}
-}
-```
+Job ad data is extracted entirely from the listing page using the `field_selectors` map generated during board analysis. For each element matching `job_card_selector`, the scraper evaluates each selector relative to the card element and reads the text content of the matched node. No AI call is made per ad.
+
+This approach means:
+- Zero AI calls per scrape run (after initial board analysis)
+- Detail pages are never visited; the user opens the ad URL directly in their browser
+- If a selector stops matching (board redesigned), self-healing triggers a new board analysis
+
+The `JobAdExtractionResult` model and the `ExtractJobAdAsync` method on `IAiProvider` are removed in this architecture.
 
 **4.5 HTML Pre-Processing (Cost Optimisation)**
 
@@ -352,13 +363,15 @@ Raw Playwright HTML can exceed 500KB (roughly 125,000 tokens). Before sending HT
 
 6.  Strip non-visible attributes (data-\*, aria-\* where not essential)
 
-7.  For ad detail extraction: attempt to isolate the main content subtree using heuristics (largest text block, \<main\>, \<article\> elements)
+7.  Cleaning is applied to listing pages sent to `AnalyzeBoardAsync` only. No cleaning is needed per ad since there are no per-ad AI calls.
 
 Target: under 10,000 tokens per API call after cleaning.
 
 **4.6 Self-Healing**
 
-If a scrape run returns a confidence score below 0.5 for more than 50% of extracted ads, the system automatically triggers a new board analysis to regenerate the ScraperConfig. The JobBoard status is set to "error" if the re-analysis also fails.
+Since there are no per-ad AI calls, there are no per-ad confidence scores. Self-healing is instead triggered structurally: if `job_card_selector` matches zero elements on the first listing page of a scrape run, the system automatically enqueues a new `BoardAnalysisJob` to regenerate the `ScraperConfig`. This indicates the board's HTML structure has changed and the selectors are stale.
+
+The `JobBoard` status is set to `error` if the re-analysis also fails.
 
 **4.7 Claude API Configuration**
 
@@ -404,36 +417,39 @@ ScrapeJobRunner.ExecuteAsync(jobBoardId):
 │
 ├─ LISTING LOOP:
 │ ├─ Playwright renders current page URL
-│ ├─ Extract job ad links using job_links_selector
-│ ├─ For each link:
-│ │ ├─ Check dedup (URL and ExternalId lookup)
+│ ├─ Find all elements matching job_card_selector
+│ ├─ If 0 cards found on page 1 → trigger self-heal (re-analysis), stop run
+│ ├─ For each card element:
+│ │ ├─ Extract detail URL (field_selectors.detail_url or first <a> in card)
+│ │ ├─ Normalize URL (strip query string, lowercase)
+│ │ ├─ Check dedup (normalized URL lookup; ExternalId if field_selectors.external_id set)
 │ │ ├─ Skip if already exists
-│ │ ├─ Playwright renders detail page
-│ │ ├─ Clean HTML
-│ │ ├─ ClaudeAiProvider.ExtractJobAdAsync()
-│ │ ├─ Persist JobAd (confidence stored)
-│ │ └─ Delay(suggested_delay_ms)
+│ │ ├─ Extract fields from card: title, company, location, salary_raw,
+│ │ │   posted_at, description_snippet, external_id
+│ │ └─ Persist JobAd
 │ │
-│ └─ PAGINATION:
+│ └─ PAGINATION: (unchanged)
 │ ├─ url_param → increment param, build next URL
 │ ├─ next_button → find selector, check disabled, get href
-│ ├─ infinite_scroll → scroll, wait, check for new items
+│ ├─ infinite_scroll → single page only (not supported)
 │ └─ none → stop
 │
 ├─ Update ScrapeRun (status: "completed", counts)
 ├─ Update JobBoard.LastScrapedAt
-└─ Evaluate confidence → trigger self-heal if needed
+└─ Apply stale detection (ads not seen this run → IsActive = false)
 ```
+
+No AI calls are made during a scrape run. All extraction is deterministic CSS-based logic using the selectors generated during board analysis. The `suggested_delay_ms` applies between listing pages, not between ads.
 
 **5.3 Deduplication Strategy**
 
 Deduplication is applied before rendering the detail page to avoid unnecessary Playwright and Claude API calls:
 
-- **Primary:** Exact URL match — JobAd.Url = link href (normalised, query strings stripped for comparison)
+- **Primary:** Exact URL match — JobAd.Url = detail link href (normalised, query strings stripped for comparison)
 
-- **Secondary:** ExternalId match — if the AI extracts an external_id (e.g. a job reference number), this is also used as a unique key per board
+- **Secondary:** ExternalId match — if `field_selectors.external_id` is set in the `ScraperConfig`, the extracted value is also used as a unique key per board
 
-- **Stale detection:** Ads not seen in the last 3 consecutive scrape runs are marked IsActive = false
+- **Stale detection:** Ads whose normalized URL was not seen in the current scrape run are marked `IsActive = false`
 
 **5.4 Playwright Configuration**
 
@@ -707,8 +723,8 @@ web/
 | **Page**                     | **Functionality**                                                                                                                                                                  |
 | Boards List /boards          | List all boards with status badge, last scraped time, ad count. "Add Board" button opens inline form (just a URL field). Status polling for boards in "pending" state.             |
 | Board Detail /boards/\[id\]  | Displays name, URL, status, cron schedule (editable), scraper_config (collapsible JSON view). Buttons: Manual Refresh, Re-analyze, Pause/Resume, Delete. Recent run history table. |
-| Board Ads /boards/\[id\]/ads | Paginated ad table for this board. Columns: title, company, location, scraped_at, confidence score, link. Click to expand description.                                             |
-| Global Ads /ads              | Same as above but across all boards. Adds a board filter dropdown.                                                                                                                 |
+| Board Ads /boards/\[id\]/ads | Paginated ad table for this board. Columns: title, company, location, salary_raw, scraped_at, link. The link opens the original job ad URL in a new browser tab. |
+| Global Ads /ads              | Same as above but across all boards. Adds a board filter dropdown.                                                                                                |
 | Run Detail /runs/\[id\]      | Shows run metadata, pages scraped, ads found/new, and error log (if any) with page URL and error message.                                                                          |
 | Hangfire Dashboard /hangfire | Exposed directly from the API container. Links to it from the admin nav.                                                                                                           |
 
@@ -726,14 +742,14 @@ Since there is no WebSocket or SSE implementation in v1, the frontend uses clien
 
 **10.1 Call Volume Model**
 
-Assumptions: 20 job boards, each refreshed hourly, initially returning 10 ads per board. From Day 2 onward, each board publishes one new ad per day.
+Assumptions: 20 job boards, each refreshed hourly. All extraction is deterministic after board analysis — no AI calls are made during scrape runs.
 
-|                         |                 |                                                      |
-|-------------------------|-----------------|------------------------------------------------------|
-| **Phase**               | **Calls / Day** | **Breakdown**                                        |
-| Board setup (one-off)   | 20 total        | 1 analysis call per board                            |
-| Day 1 — full extraction | 5,280           | 20 boards × 24 runs × 11 calls (1 listing + 10 ads)  |
-| Day 2+ — incremental    | 960             | 20 boards × 24 runs × 2 calls (1 listing + 1 new ad) |
+|                       |                 |                                                         |
+|-----------------------|-----------------|---------------------------------------------------------|
+| **Phase**             | **Calls / Day** | **Breakdown**                                           |
+| Board setup (one-off) | 20 total        | 1 analysis call per board                               |
+| Recurring scrapes     | 0               | No AI per scrape run — CSS extraction only              |
+| Self-heal (rare)      | ~1–2 total      | Only when a board redesigns its listing page structure  |
 
 **10.2 Cost Estimate**
 
@@ -742,14 +758,16 @@ Based on Claude claude-sonnet-4-5 pricing (~\$3 per million input tokens) and an
 |                       |                            |
 |-----------------------|----------------------------|
 | **Phase**             | **Estimated Cost**         |
-| Board setup           | ~\$0.12 total (negligible) |
-| Day 1                 | ~\$16/day                  |
-| Day 2+ (steady state) | ~\$3/day                   |
-| Monthly steady state  | ~\$90/month                |
+| Board setup (20)      | ~\$0.12 total (negligible) |
+| Steady state          | ~\$0.00/day                |
+| Monthly steady state  | ~\$0.12 total (one-off)    |
 
 ```
-Key cost lever: HTML pre-processing
-Raw page HTML can exceed 500KB (~125,000 tokens). Aggressive HTML cleaning (removing scripts, styles, SVGs, collapsing whitespace, isolating main content) targets under 10,000 tokens per call. This can reduce costs by 5–10x. Implement and measure the cleaning pipeline early.
+Key architectural decision: listing-page-only extraction
+By generating field-level CSS selectors during board analysis, all subsequent
+scrape runs require zero AI calls. Claude is only invoked once per board (on
+registration or re-analysis). This reduces operational AI cost to near-zero
+regardless of scrape frequency or ad volume.
 ```
 
 **11. Non-Functional Requirements**
@@ -776,9 +794,9 @@ Raw page HTML can exceed 500KB (~125,000 tokens). Aggressive HTML cleaning (remo
 
 - AI provider is fully abstracted — adding a new provider requires only implementing IAiProvider and updating DI registration
 
-- Raw HTML is stored on every JobAd, enabling re-extraction without re-scraping if the AI prompt is improved
+- ScraperConfig (including field selectors) is stored as JSONB on JobBoard — triggering re-analysis regenerates it without any code change
 
-- Confidence scores flag low-quality extractions for review without requiring a full re-scrape
+- Self-healing is structural (selector yields 0 results) rather than probabilistic (confidence scores), making it deterministic and observable in logs
 
 **11.4 Security (Local Dev Scope)**
 
@@ -830,31 +848,31 @@ The recommended build order minimises integration risk by establishing the data 
 
 - **Goal:** Analyze a board URL and extract job ads with Claude
 
-- IAiProvider interface
+- IAiProvider interface (AnalyzeBoardAsync only)
 
-- ClaudeAiProvider — AnalyzeBoardAsync with tool use
-
-- ClaudeAiProvider — ExtractJobAdAsync with tool use
+- ClaudeAiProvider — AnalyzeBoardAsync with updated tool use schema (includes field_selectors)
 
 - BoardAnalysisJob implementation
 
-- AiExtractionService — orchestrates cleaning + extraction
+- AiExtractionService — orchestrates HTML cleaning + board analysis
 
-- C# records: BoardAnalysisResult, JobAdExtractionResult
+- C# records: BoardAnalysisResult (with FieldSelectors), ScraperConfig updated
 
-- Integration test: analyze a real job board URL
+- Integration test: analyze a real job board URL, assert field selectors returned
 
 **Phase 4 — Scraping Pipeline**
 
 - **Goal:** Full scrape run end-to-end with deduplication
 
-- ScrapeJobRunner — full pipeline: listing → pagination → detail → extract → dedup → persist
+- ScrapeJobRunner — listing-only pipeline: render listing page → CSS-extract all cards → dedup → persist
+
+- Deterministic field extraction using field_selectors from ScraperConfig (AngleSharp CSS queries)
 
 - Deduplication logic (URL normalisation, ExternalId check)
 
 - ScrapeRun tracking (counts, errors, status)
 
-- Self-healing trigger on low confidence
+- Self-healing trigger: 0 cards matched on first page → enqueue BoardAnalysisJob
 
 - Stale ad detection (IsActive flag)
 

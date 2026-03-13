@@ -43,11 +43,6 @@ public sealed class HtmlCleaningService
         @"(\r?\n){3,}",
         RegexOptions.Compiled);
 
-    // Heuristic: try to find the main content block for ad detail pages.
-    private static readonly Regex MainContentRegex = new(
-        @"<(?:main|article)(?:\s[^>]*)?>[\s\S]*?</(?:main|article)>",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
     /// <summary>
     /// Cleans a raw HTML string for use in board analysis prompts.
     /// Removes scripts, styles, SVGs, comments, and non-essential attributes,
@@ -58,24 +53,6 @@ public sealed class HtmlCleaningService
     public string CleanForBoardAnalysis(string html)
     {
         return ApplyBaseCleaning(html);
-    }
-
-    /// <summary>
-    /// Cleans a raw HTML string for use in job ad extraction prompts.
-    /// Applies the base cleaning pipeline and additionally attempts to isolate
-    /// the main content subtree using <c>&lt;main&gt;</c> or <c>&lt;article&gt;</c> heuristics,
-    /// which significantly reduces token usage for detail pages.
-    /// </summary>
-    /// <param name="html">Raw HTML from Playwright.</param>
-    /// <returns>Cleaned HTML, narrowed to main content where possible.</returns>
-    public string CleanForAdExtraction(string html)
-    {
-        var cleaned = ApplyBaseCleaning(html);
-
-        // Attempt to isolate the main content block. If found, use only that subtree
-        // to reduce token count further. Fall back to the full cleaned HTML if not found.
-        var match = MainContentRegex.Match(cleaned);
-        return match.Success ? match.Value : cleaned;
     }
 
     private static string ApplyBaseCleaning(string html)

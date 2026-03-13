@@ -42,9 +42,7 @@ export interface JobAd {
   description: string | null;
   postedAt: string | null;
   scrapedAt: string;
-  aiConfidenceScore: number;
   isActive: boolean;
-  rawHtml: string | null;
 }
 
 export interface ScrapeRunError {

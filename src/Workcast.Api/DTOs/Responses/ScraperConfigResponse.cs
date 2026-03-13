@@ -8,8 +8,11 @@ public record ScraperConfigResponse
     /// <summary>Gets the pagination strategy used by this board (e.g. "url_param", "next_button", "infinite_scroll", "none").</summary>
     public required string PaginationType { get; init; }
 
-    /// <summary>Gets the CSS selector used to locate job ad links on listing pages.</summary>
-    public required string JobLinksSelector { get; init; }
+    /// <summary>Gets the CSS selector that identifies each job card element on a listing page.</summary>
+    public required string JobCardSelector { get; init; }
+
+    /// <summary>Gets the per-field CSS selectors applied relative to each job card element.</summary>
+    public required FieldSelectorMapResponse FieldSelectors { get; init; }
 
     /// <summary>Gets the CSS selector for the "next page" button, if applicable.</summary>
     public string? NextPageSelector { get; init; }

@@ -39,9 +39,8 @@ public static class MappingExtensions
     /// Maps a <see cref="JobAd"/> entity to a <see cref="JobAdResponse"/> DTO.
     /// </summary>
     /// <param name="ad">The job ad entity to map.</param>
-    /// <param name="includeRawHtml">When true, <see cref="JobAdResponse.RawHtml"/> is populated. Omitted from list responses.</param>
     /// <returns>A populated <see cref="JobAdResponse"/>.</returns>
-    public static JobAdResponse ToResponse(this JobAd ad, bool includeRawHtml = false)
+    public static JobAdResponse ToResponse(this JobAd ad)
     {
         return new JobAdResponse
         {
@@ -57,9 +56,7 @@ public static class MappingExtensions
             Description = ad.Description,
             PostedAt = ad.PostedAt,
             ScrapedAt = ad.ScrapedAt,
-            AiConfidenceScore = ad.AiConfidenceScore,
             IsActive = ad.IsActive,
-            RawHtml = includeRawHtml ? ad.RawHtml : null,
         };
     }
 
@@ -97,7 +94,8 @@ public static class MappingExtensions
         return new ScraperConfigResponse
         {
             PaginationType = ToSnakeCase(config.PaginationType),
-            JobLinksSelector = config.JobLinksSelector,
+            JobCardSelector = config.JobCardSelector,
+            FieldSelectors = config.FieldSelectors.ToResponse(),
             NextPageSelector = config.NextPageSelector,
             UrlParamName = config.UrlParamName,
             UrlParamIsOffset = config.UrlParamIsOffset,
@@ -107,6 +105,26 @@ public static class MappingExtensions
             ConfidenceScore = config.ConfidenceScore,
             AnalyzerNotes = config.AnalyzerNotes,
             GeneratedAt = config.GeneratedAt,
+        };
+    }
+
+    /// <summary>
+    /// Maps a <see cref="FieldSelectorMap"/> model to a <see cref="FieldSelectorMapResponse"/> DTO.
+    /// </summary>
+    /// <param name="map">The field selector map to map.</param>
+    /// <returns>A populated <see cref="FieldSelectorMapResponse"/>.</returns>
+    public static FieldSelectorMapResponse ToResponse(this FieldSelectorMap map)
+    {
+        return new FieldSelectorMapResponse
+        {
+            DetailUrl = map.DetailUrl,
+            Title = map.Title,
+            Company = map.Company,
+            Location = map.Location,
+            SalaryRaw = map.SalaryRaw,
+            PostedAt = map.PostedAt,
+            DescriptionSnippet = map.DescriptionSnippet,
+            ExternalId = map.ExternalId,
         };
     }
 

@@ -2,6 +2,8 @@ namespace Workcast.Api.DTOs.Responses;
 
 /// <summary>
 /// Response representation of a scraped job advertisement.
+/// Field values are extracted deterministically from the listing page via CSS selectors —
+/// no per-ad AI call is made.
 /// </summary>
 public record JobAdResponse
 {
@@ -14,39 +16,33 @@ public record JobAdResponse
     /// <summary>Gets the identifier of the scrape run that discovered this ad, if available.</summary>
     public Guid? ScrapeRunId { get; init; }
 
-    /// <summary>Gets the board-specific external identifier for deduplication, if the AI extracted one.</summary>
+    /// <summary>Gets the board-specific external identifier for deduplication, if extracted.</summary>
     public string? ExternalId { get; init; }
 
     /// <summary>Gets the URL of the job ad detail page.</summary>
     public required string Url { get; init; }
 
-    /// <summary>Gets the job title extracted by AI.</summary>
+    /// <summary>Gets the job title extracted via CSS selector.</summary>
     public string? Title { get; init; }
 
-    /// <summary>Gets the company name extracted by AI.</summary>
+    /// <summary>Gets the company name extracted via CSS selector.</summary>
     public string? Company { get; init; }
 
-    /// <summary>Gets the location extracted by AI.</summary>
+    /// <summary>Gets the location extracted via CSS selector.</summary>
     public string? Location { get; init; }
 
-    /// <summary>Gets the raw salary string as it appeared on the page.</summary>
+    /// <summary>Gets the raw salary string as it appeared on the listing page.</summary>
     public string? SalaryRaw { get; init; }
 
-    /// <summary>Gets the job description extracted by AI.</summary>
+    /// <summary>Gets the description snippet extracted via CSS selector from the listing page.</summary>
     public string? Description { get; init; }
 
-    /// <summary>Gets the date the ad was originally posted, if the AI could determine it.</summary>
+    /// <summary>Gets the date the ad was originally posted, if extracted and parseable.</summary>
     public DateTimeOffset? PostedAt { get; init; }
 
     /// <summary>Gets the UTC timestamp when this ad was scraped.</summary>
     public required DateTimeOffset ScrapedAt { get; init; }
 
-    /// <summary>Gets the AI confidence score for the extraction, from 0.0 to 1.0.</summary>
-    public required float AiConfidenceScore { get; init; }
-
     /// <summary>Gets a value indicating whether this ad is still active on the board.</summary>
     public required bool IsActive { get; init; }
-
-    /// <summary>Gets the raw HTML of the ad detail page. Only included in single-resource responses.</summary>
-    public string? RawHtml { get; init; }
 }

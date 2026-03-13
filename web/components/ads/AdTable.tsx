@@ -9,12 +9,6 @@ interface AdTableProps {
   ads: JobAd[];
 }
 
-function confidenceColor(score: number) {
-  if (score >= 0.8) return 'text-green-600';
-  if (score >= 0.5) return 'text-yellow-600';
-  return 'text-red-600';
-}
-
 export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const deleteAd = useDeleteAd();
@@ -30,7 +24,6 @@ export function AdTable({ ads }: AdTableProps) {
             <th className="px-4 py-3 text-left font-medium text-gray-500">Company</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Location</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Scraped</th>
-            <th className="px-4 py-3 text-left font-medium text-gray-500">Score</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Actions</th>
           </tr>
         </thead>
@@ -65,9 +58,6 @@ export function AdTable({ ads }: AdTableProps) {
                 <td className="px-4 py-3 text-gray-500">
                   {new Date(ad.scrapedAt).toLocaleDateString()}
                 </td>
-                <td className={`px-4 py-3 font-medium ${confidenceColor(ad.aiConfidenceScore)}`}>
-                  {(ad.aiConfidenceScore * 100).toFixed(0)}%
-                </td>
                 <td className="px-4 py-3">
                   <Button
                     variant="ghost"
@@ -86,7 +76,7 @@ export function AdTable({ ads }: AdTableProps) {
               </tr>
               {expandedId === ad.id && (
                 <tr key={`${ad.id}-expand`}>
-                  <td colSpan={6} className="px-4 py-4 bg-gray-50">
+                  <td colSpan={5} className="px-4 py-4 bg-gray-50">
                     {ad.description ? (
                       <p className="text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
                         {ad.description}

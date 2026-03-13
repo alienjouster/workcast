@@ -31,7 +31,6 @@ public sealed class JobAdsController : ControllerBase
     /// <summary>
     /// Returns a paginated list of job ads, optionally filtered by board, search term, and active status.
     /// Uses cursor-based pagination ordered by ScrapedAt DESC, then Id DESC.
-    /// RawHtml is not included in list responses.
     /// </summary>
     /// <param name="boardId">Optional filter: only ads from this board.</param>
     /// <param name="search">Optional filter: case-insensitive substring match against title, company, or location.</param>
@@ -119,7 +118,7 @@ public sealed class JobAdsController : ControllerBase
 
         var response = new PagedResponse<JobAdResponse>
         {
-            Items = items.Select(a => a.ToResponse(includeRawHtml: false)).ToList(),
+            Items = items.Select(a => a.ToResponse()).ToList(),
             NextCursor = nextCursor,
             Count = items.Count,
         };
@@ -128,7 +127,7 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
-    /// Returns a single job ad by ID, including the full RawHtml field.
+    /// Returns a single job ad by ID.
     /// </summary>
     /// <param name="id">The job ad identifier.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -148,7 +147,7 @@ public sealed class JobAdsController : ControllerBase
                 detail: $"Job ad '{id}' was not found.");
         }
 
-        return Ok(ad.ToResponse(includeRawHtml: true));
+        return Ok(ad.ToResponse());
     }
 
     /// <summary>

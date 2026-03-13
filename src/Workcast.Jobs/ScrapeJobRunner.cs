@@ -1,3 +1,4 @@
+using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -6,7 +7,6 @@ using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
-using Workcast.Infrastructure.AI;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Infrastructure.Scheduling;
 
@@ -17,11 +17,13 @@ namespace Workcast.Jobs;
 /// Runs as a recurring job (on the board's cron schedule) and as a fire-and-forget job
 /// when triggered manually via the API refresh endpoint.
 /// <para>
-/// Pipeline: load board → create run → listing loop (render, extract links, paginate)
-/// → per-ad deduplication → detail page render → AI extraction → persist → stale detection
-/// → self-heal check.
+/// Pipeline: load board → create run → listing loop (render, extract job cards, paginate)
+/// → per-card deterministic field extraction via CSS selectors → deduplication → persist
+/// → stale detection.
 /// </para>
-/// See TECHSPEC sections 5.2, 5.3, and 4.6 for the full pipeline specification.
+/// Job ad fields are extracted from each job card element using the <see cref="FieldSelectorMap"/>
+/// stored in <see cref="ScraperConfig.FieldSelectors"/>. No per-ad AI call is made.
+/// See TECHSPEC sections 5.2, 5.3 for the full pipeline specification.
 /// </summary>
 public sealed class ScrapeJobRunner
 {
@@ -33,8 +35,6 @@ public sealed class ScrapeJobRunner
 
     private readonly AppDbContext _dbContext;
     private readonly IScraperEngine _scraperEngine;
-    private readonly IAiProvider _aiProvider;
-    private readonly HtmlCleaningService _htmlCleaner;
     private readonly HangfireJobScheduler _jobScheduler;
     private readonly ILogger<ScrapeJobRunner> _logger;
 
@@ -43,22 +43,16 @@ public sealed class ScrapeJobRunner
     /// </summary>
     /// <param name="dbContext">EF Core database context (scoped per job execution).</param>
     /// <param name="scraperEngine">Playwright-backed page renderer.</param>
-    /// <param name="aiProvider">Claude AI provider for job ad extraction.</param>
-    /// <param name="htmlCleaner">HTML cleaning pipeline to reduce token usage.</param>
     /// <param name="jobScheduler">Hangfire scheduling wrapper.</param>
     /// <param name="logger">Logger for this job.</param>
     public ScrapeJobRunner(
         AppDbContext dbContext,
         IScraperEngine scraperEngine,
-        IAiProvider aiProvider,
-        HtmlCleaningService htmlCleaner,
         HangfireJobScheduler jobScheduler,
         ILogger<ScrapeJobRunner> logger)
     {
         _dbContext = dbContext;
         _scraperEngine = scraperEngine;
-        _aiProvider = aiProvider;
-        _htmlCleaner = htmlCleaner;
         _jobScheduler = jobScheduler;
         _logger = logger;
     }
@@ -66,13 +60,13 @@ public sealed class ScrapeJobRunner
     /// <summary>
     /// Executes the full scrape run pipeline for the specified job board.
     /// Creates a <see cref="ScrapeRun"/> record, processes all listing pages with
-    /// pagination, extracts and persists new job ads, then runs stale detection and
-    /// the self-healing confidence check.
+    /// pagination, extracts and persists new job ads from job card elements, then runs
+    /// stale detection.
     /// </summary>
     /// <param name="jobBoardId">The ID of the job board to scrape.</param>
     /// <param name="triggerSource">Whether this run was triggered by the scheduler or manually.</param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
-    [AutomaticRetry(Attempts = 3)]
+    [AutomaticRetry(Attempts = 1)]
     public async Task ExecuteAsync(
         Guid jobBoardId,
         TriggerSource triggerSource = TriggerSource.Scheduler,
@@ -112,14 +106,12 @@ public sealed class ScrapeJobRunner
 
         var config = board.ScraperConfig;
         var seenNormalizedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var confidenceScores = new List<float>();
         var counters = new RunCounters();
 
         try
         {
             await ExecuteListingLoopAsync(
-                board, run, config, seenNormalizedUrls,
-                confidenceScores, counters,
+                board, run, config, seenNormalizedUrls, counters,
                 ct).ConfigureAwait(false);
 
             if (run.Errors.Count > 0)
@@ -135,7 +127,6 @@ public sealed class ScrapeJobRunner
                 run.Id, counters.PagesScraped, counters.AdsFound, counters.AdsNew, run.Errors.Count);
 
             await MarkStaleAdsAsync(jobBoardId, seenNormalizedUrls, ct).ConfigureAwait(false);
-            await CheckSelfHealAsync(board, confidenceScores, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -176,14 +167,14 @@ public sealed class ScrapeJobRunner
 
     /// <summary>
     /// Drives the main listing and pagination loop. Renders each listing page, extracts
-    /// job ad links, processes each link, then advances to the next page.
+    /// job card elements and their fields via CSS selectors, processes each card, then
+    /// advances to the next page.
     /// </summary>
     private async Task ExecuteListingLoopAsync(
         JobBoard board,
         ScrapeRun run,
         ScraperConfig config,
         HashSet<string> seenNormalizedUrls,
-        List<float> confidenceScores,
         RunCounters counters,
         CancellationToken ct)
     {
@@ -217,19 +208,31 @@ public sealed class ScrapeJobRunner
 
             counters.PagesScraped++;
 
-            var links = ExtractLinks(html, config.JobLinksSelector, pageUrl);
-            int linksOnPage = links.Count;
-            counters.AdsFound += linksOnPage;
+            var cards = ExtractAdsFromPage(html, config, pageUrl);
+            int cardsOnPage = cards.Count;
 
-            _logger.LogDebug("Extracted {Count} links on page {Number}", linksOnPage, pageNumber);
-
-            foreach (var link in links)
+            // Self-heal: if the first page returns no cards the selector is likely stale —
+            // re-enqueue BoardAnalysisJob to regenerate the config and abort this run.
+            if (cardsOnPage == 0 && pageNumber == 1)
             {
-                var normalizedLink = NormalizeUrl(link);
-                seenNormalizedUrls.Add(normalizedLink);
+                _logger.LogWarning(
+                    "Selector matched 0 cards on first page — triggering re-analysis for board {BoardId}",
+                    board.Id);
+                _jobScheduler.Enqueue<BoardAnalysisJob>(
+                    x => x.ExecuteAsync(board.Id, CancellationToken.None));
+                return;
+            }
 
-                bool isNew = await ProcessAdLinkAsync(
-                    link, normalizedLink, board.Id, run, confidenceScores, ct)
+            counters.AdsFound += cardsOnPage;
+
+            _logger.LogDebug("Extracted {Count} job cards on page {Number}", cardsOnPage, pageNumber);
+
+            foreach (var card in cards)
+            {
+                var normalizedUrl = NormalizeUrl(card.Url);
+                seenNormalizedUrls.Add(normalizedUrl);
+
+                bool isNew = await ProcessAdCardAsync(card, normalizedUrl, board.Id, run, ct)
                     .ConfigureAwait(false);
 
                 if (isNew) counters.AdsNew++;
@@ -240,7 +243,7 @@ public sealed class ScrapeJobRunner
 
             // Determine the next page URL.
             string? nextUrl = GetNextPageUrl(
-                html, config, pageUrl, board.Url, pageNumber, linksOnPage,
+                html, config, pageUrl, board.Url, pageNumber, cardsOnPage,
                 ref urlParamOffset);
 
             if (nextUrl is null) break;
@@ -255,23 +258,34 @@ public sealed class ScrapeJobRunner
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Processes a single job ad link: checks deduplication, renders the detail page,
-    /// cleans the HTML, calls the AI provider for extraction, and persists the new ad.
+    /// A job ad extracted from a listing page, containing all fields resolved via CSS selectors.
+    /// </summary>
+    private sealed record ExtractedAdData(
+        string Url,
+        string? Title,
+        string? Company,
+        string? Location,
+        string? SalaryRaw,
+        string? PostedAt,
+        string? ExternalId,
+        string? DescriptionSnippet);
+
+    /// <summary>
+    /// Processes a single extracted ad: checks deduplication and, if new, persists the ad with
+    /// the field values already extracted via CSS selectors.
     /// Returns <c>true</c> if a new ad was created; <c>false</c> if the ad already existed.
     /// Non-fatal errors are logged to the run's error list rather than aborting the run.
     /// </summary>
-    /// <param name="originalUrl">The raw href extracted from the listing page.</param>
+    /// <param name="card">Extracted ad data with all field values.</param>
     /// <param name="normalizedUrl">URL with query string stripped, used for deduplication and storage.</param>
     /// <param name="boardId">Owning board ID.</param>
     /// <param name="run">Current scrape run, used to log non-fatal errors.</param>
-    /// <param name="confidenceScores">Accumulator for AI confidence scores (self-heal check).</param>
     /// <param name="ct">Cancellation token.</param>
-    private async Task<bool> ProcessAdLinkAsync(
-        string originalUrl,
+    private async Task<bool> ProcessAdCardAsync(
+        ExtractedAdData card,
         string normalizedUrl,
         Guid boardId,
         ScrapeRun run,
-        List<float> confidenceScores,
         CancellationToken ct)
     {
         // Primary deduplication: normalised URL match.
@@ -292,40 +306,12 @@ public sealed class ScrapeJobRunner
             return false;
         }
 
-        // Render the detail page before AI extraction so we can dedup by ExternalId.
-        string rawHtml;
-        try
-        {
-            rawHtml = await _scraperEngine.RenderPageAsync(originalUrl, ct).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex, "Failed to render ad detail page {Url}", originalUrl);
-            run.AddError(originalUrl, $"Detail page render failed: {ex.Message}");
-            return false;
-        }
-
-        var cleanedHtml = _htmlCleaner.CleanForAdExtraction(rawHtml);
-
-        JobAdExtractionResult extraction;
-        try
-        {
-            extraction = await _aiProvider.ExtractJobAdAsync(cleanedHtml, originalUrl, ct)
-                .ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            _logger.LogWarning(ex, "AI extraction failed for ad {Url}", originalUrl);
-            run.AddError(originalUrl, $"AI extraction failed: {ex.Message}");
-            return false;
-        }
-
         // Secondary deduplication: ExternalId match (board-specific job reference numbers).
-        if (!string.IsNullOrEmpty(extraction.ExternalId))
+        if (!string.IsNullOrEmpty(card.ExternalId))
         {
             var existingByExternalId = await _dbContext.JobAds
                 .FirstOrDefaultAsync(
-                    a => a.JobBoardId == boardId && a.ExternalId == extraction.ExternalId,
+                    a => a.JobBoardId == boardId && a.ExternalId == card.ExternalId,
                     ct)
                 .ConfigureAwait(false);
 
@@ -341,9 +327,15 @@ public sealed class ScrapeJobRunner
             }
         }
 
-        var ad = JobAd.Create(boardId, normalizedUrl, rawHtml, run.Id);
-        ad.ApplyExtraction(extraction);
-        confidenceScores.Add(extraction.ConfidenceScore);
+        var ad = JobAd.Create(boardId, normalizedUrl, run.Id);
+        ad.ApplyExtraction(
+            card.Title,
+            card.Company,
+            card.Location,
+            card.SalaryRaw,
+            card.PostedAt,
+            card.ExternalId,
+            card.DescriptionSnippet);
 
         _dbContext.JobAds.Add(ad);
 
@@ -362,9 +354,7 @@ public sealed class ScrapeJobRunner
             return false;
         }
 
-        _logger.LogDebug(
-            "Saved new ad '{Title}' ({Url}), confidence {Score:F2}",
-            ad.Title, normalizedUrl, extraction.ConfidenceScore);
+        _logger.LogDebug("Saved new ad '{Title}' ({Url})", ad.Title, normalizedUrl);
 
         return true;
     }
@@ -374,14 +364,13 @@ public sealed class ScrapeJobRunner
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Marks active job ads as inactive when their URL was not observed during this run,
-    /// and ensures ads that reappeared are marked active.
+    /// Marks active job ads as inactive when their URL was not observed during this run.
     /// <para>
-    /// NOTE: TECHSPEC section 5.3 specifies stale detection after 3 consecutive missed runs.
+    /// NOTE: TECHSPEC section 5.3 specifies stale detection after 1 consecutive missed runs.
     /// The <see cref="JobAd"/> entity does not carry a <c>LastSeenAt</c> or
     /// <c>ConsecutiveMissCount</c> field — only the run that first discovered the ad
     /// (<c>ScrapeRunId</c>). Since <c>Workcast.Core</c> is locked, implementing the full
-    /// 3-run window would require a schema change. This implementation marks ads inactive
+    /// 1-run window would require a schema change. This implementation marks ads inactive
     /// after a single missed run and restores them via <see cref="JobAd.MarkActive"/> when
     /// they reappear. The observable behaviour matches the spec for the common case.
     /// </para>
@@ -416,42 +405,6 @@ public sealed class ScrapeJobRunner
     }
 
     // -------------------------------------------------------------------------
-    // Self-healing
-    // -------------------------------------------------------------------------
-
-    /// <summary>
-    /// Evaluates extraction confidence scores for the completed run. If more than 50% of
-    /// extracted ads have a confidence score below 0.5, triggers a new board analysis job
-    /// to regenerate the <see cref="ScraperConfig"/>.
-    /// See TECHSPEC section 4.6 for the self-healing specification.
-    /// </summary>
-    /// <param name="board">The board to potentially re-analyse.</param>
-    /// <param name="confidenceScores">AI confidence scores collected during this run.</param>
-    /// <param name="ct">Cancellation token.</param>
-    private async Task CheckSelfHealAsync(
-        JobBoard board,
-        List<float> confidenceScores,
-        CancellationToken ct)
-    {
-        if (confidenceScores.Count == 0) return;
-
-        int lowConfidenceCount = confidenceScores.Count(s => s < 0.5f);
-        double lowConfidenceRatio = (double)lowConfidenceCount / confidenceScores.Count;
-
-        if (lowConfidenceRatio <= 0.5) return;
-
-        _logger.LogWarning(
-            "Low AI confidence ratio {Ratio:P0} ({Low}/{Total} ads) for board {BoardId}. " +
-            "Triggering re-analysis to regenerate ScraperConfig.",
-            lowConfidenceRatio, lowConfidenceCount, confidenceScores.Count, board.Id);
-
-        _jobScheduler.Enqueue<BoardAnalysisJob>(
-            x => x.ExecuteAsync(board.Id, CancellationToken.None));
-
-        await Task.CompletedTask.ConfigureAwait(false);
-    }
-
-    // -------------------------------------------------------------------------
     // Pagination helpers
     // -------------------------------------------------------------------------
 
@@ -464,7 +417,7 @@ public sealed class ScrapeJobRunner
     /// <param name="currentPageUrl">Fully qualified URL of the current page.</param>
     /// <param name="boardBaseUrl">The board's root URL, used as the base for url_param construction.</param>
     /// <param name="currentPageNumber">1-based page counter.</param>
-    /// <param name="linksFoundOnPage">Number of ad links found on the current page.</param>
+    /// <param name="cardsFoundOnPage">Number of job cards found on the current page.</param>
     /// <param name="urlParamOffset">Mutable offset value for offset-based url_param pagination.</param>
     private string? GetNextPageUrl(
         string html,
@@ -472,17 +425,17 @@ public sealed class ScrapeJobRunner
         string currentPageUrl,
         string boardBaseUrl,
         int currentPageNumber,
-        int linksFoundOnPage,
+        int cardsFoundOnPage,
         ref int urlParamOffset)
     {
         switch (config.PaginationType)
         {
             case PaginationType.UrlParam when config.UrlParamName is not null:
-                // Stop when a page returned no links — the parameter has gone past the last page.
-                if (linksFoundOnPage == 0) return null;
+                // Stop when a page returned no cards — the parameter has gone past the last page.
+                if (cardsFoundOnPage == 0) return null;
 
                 if (config.UrlParamIsOffset)
-                    urlParamOffset += linksFoundOnPage;
+                    urlParamOffset += cardsFoundOnPage;
 
                 // The next URL is always built from the board base URL so the param
                 // is the only query-string mutation; BuildUrlParamUrl handles construction.
@@ -567,39 +520,93 @@ public sealed class ScrapeJobRunner
     }
 
     // -------------------------------------------------------------------------
-    // Link extraction
+    // Card extraction
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Extracts all job ad link URLs from a listing page using the CSS selector defined
-    /// in the scraper configuration. Resolves relative URLs against the page's base URL.
+    /// Extracts job ads from a listing page using the CSS selectors in the scraper config.
+    /// For each element matched by <see cref="ScraperConfig.JobCardSelector"/>, applies
+    /// <see cref="ScraperConfig.FieldSelectors"/> to resolve the detail URL and all
+    /// extractable fields.
+    /// <para>
+    /// Detail URL resolution: uses <see cref="FieldSelectorMap.DetailUrl"/> when set;
+    /// otherwise falls back to the first <c>&lt;a&gt;</c> element within the card.
+    /// Cards where no href can be resolved are skipped.
+    /// </para>
     /// </summary>
     /// <param name="html">HTML of the listing page.</param>
-    /// <param name="selector">CSS selector targeting anchor elements that link to job ad detail pages.</param>
+    /// <param name="config">Active scraper configuration providing card and field selectors.</param>
     /// <param name="baseUrl">Base URL for resolving relative hrefs.</param>
-    /// <returns>Distinct list of absolute URLs found by the selector.</returns>
-    private static IReadOnlyList<string> ExtractLinks(string html, string selector, string baseUrl)
+    /// <returns>Distinct list of extracted ad data with resolved field values.</returns>
+    private static IReadOnlyList<ExtractedAdData> ExtractAdsFromPage(
+        string html,
+        ScraperConfig config,
+        string baseUrl)
     {
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
-        var elements = document.QuerySelectorAll(selector);
+        var cardElements = document.QuerySelectorAll(config.JobCardSelector);
+        var fieldSelectors = config.FieldSelectors;
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var links = new List<string>();
+        var cards = new List<ExtractedAdData>();
 
-        foreach (var element in elements)
+        foreach (var card in cardElements)
         {
-            var href = element.GetAttribute("href");
-            if (string.IsNullOrWhiteSpace(href)) continue;
+            // Resolve the detail URL via the configured selector, or fall back to the first <a>.
+            string? detailUrl = null;
+            var baseUri = new Uri(baseUrl);
 
-            if (!Uri.TryCreate(new Uri(baseUrl), href, out var absolute)) continue;
+            if (fieldSelectors.DetailUrl is not null)
+            {
+                var href = card.QuerySelector(fieldSelectors.DetailUrl)?.GetAttribute("href");
+                if (!string.IsNullOrWhiteSpace(href) &&
+                    Uri.TryCreate(baseUri, href, out var absolute))
+                {
+                    detailUrl = absolute.AbsoluteUri;
+                }
+            }
 
-            var absoluteStr = absolute.AbsoluteUri;
-            if (seen.Add(absoluteStr))
-                links.Add(absoluteStr);
+            // Fallback: first <a> in the card element.
+            if (detailUrl is null)
+            {
+                var href = card.QuerySelector("a")?.GetAttribute("href");
+                if (!string.IsNullOrWhiteSpace(href) &&
+                    Uri.TryCreate(baseUri, href, out var absolute))
+                {
+                    detailUrl = absolute.AbsoluteUri;
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(detailUrl)) continue;
+            if (!seen.Add(detailUrl)) continue; // Deduplicate within page.
+
+            cards.Add(new ExtractedAdData(
+                Url: detailUrl,
+                Title: GetElementText(card, fieldSelectors.Title),
+                Company: GetElementText(card, fieldSelectors.Company),
+                Location: GetElementText(card, fieldSelectors.Location),
+                SalaryRaw: GetElementText(card, fieldSelectors.SalaryRaw),
+                PostedAt: GetElementText(card, fieldSelectors.PostedAt),
+                ExternalId: GetElementText(card, fieldSelectors.ExternalId),
+                DescriptionSnippet: GetElementText(card, fieldSelectors.DescriptionSnippet)));
         }
 
-        return links;
+        return cards;
+    }
+
+    /// <summary>
+    /// Evaluates a CSS selector relative to <paramref name="element"/> and returns the matched
+    /// element's trimmed text content. Returns <c>null</c> when the selector is null, the
+    /// element is not found, or the text content is empty.
+    /// </summary>
+    /// <param name="element">Root element to query from.</param>
+    /// <param name="selector">CSS selector, or null to skip.</param>
+    private static string? GetElementText(IElement element, string? selector)
+    {
+        if (selector is null) return null;
+        var text = element.QuerySelector(selector)?.TextContent.Trim();
+        return string.IsNullOrEmpty(text) ? null : text;
     }
 
     // -------------------------------------------------------------------------

@@ -6,14 +6,19 @@ namespace Workcast.Core.Models;
 /// Structured result returned by the AI provider after analyzing a job board page.
 /// Maps directly to the <c>save_board_config</c> tool schema defined in TECHSPEC section 4.3.
 /// The Infrastructure layer enriches this with <see cref="ScraperConfig.GeneratedAt"/> before persisting.
+/// Job ad fields are extracted deterministically from the listing page using <see cref="FieldSelectors"/>
+/// applied to each <see cref="JobCardSelector"/> element — no per-ad AI call is made.
 /// </summary>
 public record BoardAnalysisResult
 {
     /// <summary>Pagination strategy detected on this board.</summary>
     public required PaginationType PaginationType { get; init; }
 
-    /// <summary>CSS selector that identifies job ad links on a listing page.</summary>
-    public required string JobLinksSelector { get; init; }
+    /// <summary>CSS selector that identifies each job card element on a listing page.</summary>
+    public required string JobCardSelector { get; init; }
+
+    /// <summary>Per-field CSS selectors applied relative to each job card element.</summary>
+    public required FieldSelectorMap FieldSelectors { get; init; }
 
     /// <summary>CSS selector for the "next page" button, or null if not applicable.</summary>
     public string? NextPageSelector { get; init; }
@@ -43,7 +48,8 @@ public record BoardAnalysisResult
     public ScraperConfig ToScraperConfig() => new()
     {
         PaginationType = PaginationType,
-        JobLinksSelector = JobLinksSelector,
+        JobCardSelector = JobCardSelector,
+        FieldSelectors = FieldSelectors,
         NextPageSelector = NextPageSelector,
         UrlParamName = UrlParamName,
         UrlParamIsOffset = UrlParamIsOffset,

@@ -1,30 +1,28 @@
-using Workcast.Core.Models;
-
 namespace Workcast.Core.Entities;
 
 /// <summary>
 /// Represents a single job advertisement scraped from a registered job board.
+/// Fields are populated deterministically via CSS selectors defined in the board's
+/// <see cref="Workcast.Core.Models.ScraperConfig.FieldSelectors"/> — no per-ad AI call is made.
 /// </summary>
 public class JobAd
 {
     private JobAd() { }
 
     /// <summary>
-    /// Creates a new <see cref="JobAd"/> with the raw HTML preserved for potential re-extraction.
-    /// Extraction results are applied separately via <see cref="ApplyExtraction"/>.
+    /// Creates a new <see cref="JobAd"/> shell for a discovered job card.
+    /// Field values are applied separately via <see cref="ApplyExtraction"/>.
     /// </summary>
     /// <param name="jobBoardId">The board this ad belongs to.</param>
     /// <param name="url">The canonical URL of this job ad's detail page.</param>
-    /// <param name="rawHtml">The raw HTML of the detail page, stored for re-extraction.</param>
     /// <param name="scrapeRunId">The run that discovered this ad, or null.</param>
-    public static JobAd Create(Guid jobBoardId, string url, string rawHtml, Guid? scrapeRunId = null)
+    public static JobAd Create(Guid jobBoardId, string url, Guid? scrapeRunId = null)
     {
         return new JobAd
         {
             JobBoardId = jobBoardId,
             ScrapeRunId = scrapeRunId,
             Url = url,
-            RawHtml = rawHtml,
             ScrapedAt = DateTimeOffset.UtcNow,
             IsActive = true,
         };
@@ -39,38 +37,32 @@ public class JobAd
     /// <summary>Foreign key to the <see cref="ScrapeRun"/> that discovered this ad. Nullable (SET NULL on run delete).</summary>
     public Guid? ScrapeRunId { get; private set; }
 
-    /// <summary>Board-specific identifier extracted by the AI, used as a secondary deduplication key.</summary>
+    /// <summary>Board-specific identifier extracted from the job card, used as a secondary deduplication key.</summary>
     public string? ExternalId { get; private set; }
 
     /// <summary>Canonical URL of this job ad's detail page.</summary>
     public string Url { get; private set; } = string.Empty;
 
-    /// <summary>Job title extracted by the AI.</summary>
+    /// <summary>Job title extracted from the job card via CSS selector.</summary>
     public string? Title { get; private set; }
 
-    /// <summary>Company name extracted by the AI.</summary>
+    /// <summary>Company name extracted from the job card via CSS selector.</summary>
     public string? Company { get; private set; }
 
-    /// <summary>Location string extracted by the AI.</summary>
+    /// <summary>Location string extracted from the job card via CSS selector.</summary>
     public string? Location { get; private set; }
 
-    /// <summary>Raw salary text as it appears on the page.</summary>
+    /// <summary>Raw salary text as it appears on the listing page.</summary>
     public string? SalaryRaw { get; private set; }
 
-    /// <summary>Full job description extracted by the AI.</summary>
+    /// <summary>Short description snippet extracted from the job card via CSS selector.</summary>
     public string? Description { get; private set; }
 
-    /// <summary>Date/time the ad was originally posted, as parsed from the AI extraction.</summary>
+    /// <summary>Date/time the ad was originally posted, parsed from the raw value extracted via CSS selector.</summary>
     public DateTimeOffset? PostedAt { get; private set; }
 
     /// <summary>UTC timestamp when this ad was scraped.</summary>
     public DateTimeOffset ScrapedAt { get; private set; }
-
-    /// <summary>Raw HTML of the detail page, stored to allow re-extraction without re-scraping.</summary>
-    public string RawHtml { get; private set; } = string.Empty;
-
-    /// <summary>AI confidence in the extraction quality, from 0.0 to 1.0.</summary>
-    public float AiConfidenceScore { get; private set; }
 
     /// <summary>
     /// False when the ad is no longer visible on the board
@@ -85,21 +77,35 @@ public class JobAd
     public ScrapeRun? ScrapeRun { get; private set; }
 
     /// <summary>
-    /// Applies the AI extraction result to this ad's fields.
-    /// Called after the AI provider returns a <see cref="JobAdExtractionResult"/>.
+    /// Applies deterministically-extracted field values from the job card to this ad.
+    /// All values are obtained via CSS selectors — no AI call is involved.
+    /// <paramref name="postedAt"/> is parsed leniently; if parsing fails the field is left null.
     /// </summary>
-    public void ApplyExtraction(JobAdExtractionResult result)
+    /// <param name="title">Job title text.</param>
+    /// <param name="company">Company name text.</param>
+    /// <param name="location">Location text.</param>
+    /// <param name="salaryRaw">Raw salary text as it appears on the page.</param>
+    /// <param name="postedAt">Date/time string for when the ad was posted.</param>
+    /// <param name="externalId">Board-specific job identifier for deduplication.</param>
+    /// <param name="descriptionSnippet">Short description snippet from the listing page.</param>
+    public void ApplyExtraction(
+        string? title,
+        string? company,
+        string? location,
+        string? salaryRaw,
+        string? postedAt,
+        string? externalId,
+        string? descriptionSnippet)
     {
-        Title = result.Title;
-        Company = result.Company;
-        Location = result.Location;
-        SalaryRaw = result.SalaryRaw;
-        Description = result.Description;
-        ExternalId = result.ExternalId;
-        AiConfidenceScore = result.ConfidenceScore;
+        Title = title;
+        Company = company;
+        Location = location;
+        SalaryRaw = salaryRaw;
+        ExternalId = externalId;
+        Description = descriptionSnippet;
 
-        if (result.PostedAt is not null &&
-            DateTimeOffset.TryParse(result.PostedAt, out var parsedDate))
+        if (postedAt is not null &&
+            DateTimeOffset.TryParse(postedAt, out var parsedDate))
         {
             PostedAt = parsedDate;
         }

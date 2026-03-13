@@ -66,14 +66,6 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasColumnType("timestamptz")
             .IsRequired();
 
-        builder.Property(a => a.RawHtml)
-            .HasColumnName("raw_html")
-            .HasColumnType("text")
-            .IsRequired();
-
-        builder.Property(a => a.AiConfidenceScore)
-            .HasColumnName("ai_confidence_score");
-
         builder.Property(a => a.IsActive)
             .HasColumnName("is_active")
             .HasDefaultValue(true)

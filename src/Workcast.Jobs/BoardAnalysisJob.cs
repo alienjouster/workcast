@@ -50,7 +50,7 @@ public sealed class BoardAnalysisJob
     /// </summary>
     /// <param name="jobBoardId">The ID of the job board to analyse.</param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
-    [AutomaticRetry(Attempts = 3)]
+    [AutomaticRetry(Attempts = 1)]
     public async Task ExecuteAsync(Guid jobBoardId, CancellationToken ct = default)
     {
         _logger.LogInformation("Starting board analysis for board {BoardId}", jobBoardId);
@@ -79,7 +79,7 @@ public sealed class BoardAnalysisJob
                 jobBoardId,
                 result.ConfidenceScore,
                 result.PaginationType,
-                result.JobLinksSelector);
+                result.JobCardSelector);
 
             // Register the recurring scrape job using the board's cron schedule.
             // Using the stable ID "scrape-{boardId}" means a re-register on schedule
@@ -111,7 +111,7 @@ public sealed class BoardAnalysisJob
             await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
 
             // Re-throw so Hangfire records the failure and applies the retry policy
-            // (3 attempts with exponential backoff, per TECHSPEC section 11.2).
+            // (1 attempts with exponential backoff, per TECHSPEC section 11.2).
             throw;
         }
     }
