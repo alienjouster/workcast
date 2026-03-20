@@ -4,3 +4,4 @@ volumes/
 **/obj/
 **/node_modules/
 .next/
+**/appsettings.Development.json
