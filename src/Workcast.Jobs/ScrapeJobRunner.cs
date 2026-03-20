@@ -208,7 +208,7 @@ public sealed class ScrapeJobRunner
 
             counters.PagesScraped++;
 
-            var cards = ExtractAdsFromPage(html, config, pageUrl);
+            var cards = ExtractAdsFromPage(html, config, pageUrl, board.Name ?? board.Url);
             int cardsOnPage = cards.Count;
 
             // If the first page returns no cards the selector is likely stale — log and stop.
@@ -540,7 +540,8 @@ public sealed class ScrapeJobRunner
     private static IReadOnlyList<ExtractedAdData> ExtractAdsFromPage(
         string html,
         ScraperConfig config,
-        string baseUrl)
+        string baseUrl,
+        string companyFallback)
     {
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
@@ -588,7 +589,7 @@ public sealed class ScrapeJobRunner
             cards.Add(new ExtractedAdData(
                 Url: detailUrl,
                 Title: GetElementText(card, fieldSelectors.Title),
-                Company: GetElementText(card, fieldSelectors.Company),
+                Company: GetElementText(card, fieldSelectors.Company) ?? companyFallback,
                 Location: GetElementText(card, fieldSelectors.Location),
                 SalaryRaw: GetElementText(card, fieldSelectors.SalaryRaw),
                 PostedAt: GetElementText(card, fieldSelectors.PostedAt),
