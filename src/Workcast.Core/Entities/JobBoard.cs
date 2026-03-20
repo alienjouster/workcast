@@ -103,6 +103,12 @@ public class JobBoard
         Status = BoardStatus.Active;
     }
 
+    /// <summary>Updates the seed URL of this board.</summary>
+    public void UpdateUrl(string url)
+    {
+        Url = url;
+    }
+
     /// <summary>
     /// Updates the display name of this board.
     /// </summary>

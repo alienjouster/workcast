@@ -30,6 +30,8 @@ export default function BoardDetailPage() {
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlValue, setUrlValue] = useState('');
   const [editingCron, setEditingCron] = useState(false);
   const [cronValue, setCronValue] = useState('');
 
@@ -51,6 +53,11 @@ export default function BoardDetailPage() {
   async function handleSaveName() {
     await updateBoard.mutateAsync({ name: nameValue });
     setEditingName(false);
+  }
+
+  async function handleSaveUrl() {
+    await updateBoard.mutateAsync({ url: urlValue });
+    setEditingUrl(false);
   }
 
   async function handleSaveCron() {
@@ -86,35 +93,8 @@ export default function BoardDetailPage() {
             </h1>
             <Badge status={board.status} />
           </div>
-          {board.name && (
-            <p className="text-sm text-gray-500">{board.url}</p>
-          )}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => refreshBoard.mutate(id)}
-            loading={refreshBoard.isPending}
-          >
-            Manual Refresh
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => reanalyzeBoard.mutate(id)}
-            loading={reanalyzeBoard.isPending}
-          >
-            Re-analyze
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleTogglePause}
-            loading={updateBoard.isPending}
-          >
-            {board.status === 'paused' ? 'Resume' : 'Pause'}
-          </Button>
           <Button
             variant="danger"
             size="sm"
@@ -163,35 +143,92 @@ export default function BoardDetailPage() {
             )}
           </div>
 
-          {/* Schedule */}
+          {/* URL */}
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Schedule (cron)</label>
-            {editingCron ? (
+            <label className="block text-xs font-medium text-gray-500 mb-1">URL</label>
+            {editingUrl ? (
               <div className="flex items-center gap-2">
                 <input
-                  className="rounded border border-gray-300 px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={cronValue}
-                  onChange={(e) => setCronValue(e.target.value)}
+                  className="rounded border border-gray-300 px-2 py-1 text-sm font-mono w-96 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={urlValue}
+                  onChange={(e) => setUrlValue(e.target.value)}
                   autoFocus
                 />
-                <Button size="sm" variant="primary" onClick={handleSaveCron} loading={updateBoard.isPending}>
+                <Button size="sm" variant="primary" onClick={handleSaveUrl} loading={updateBoard.isPending}>
                   Save
                 </Button>
-                <Button size="sm" variant="secondary" onClick={() => setEditingCron(false)}>
+                <Button size="sm" variant="secondary" onClick={() => setEditingUrl(false)}>
                   Cancel
                 </Button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-sm font-mono text-gray-900">{board.scheduleCron}</span>
+                <a
+                  href={board.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-mono text-indigo-600 hover:underline"
+                >
+                  {board.url}
+                </a>
                 <button
-                  onClick={() => { setCronValue(board.scheduleCron); setEditingCron(true); }}
+                  onClick={() => { setUrlValue(board.url); setEditingUrl(true); }}
                   className="text-xs text-indigo-500 hover:underline"
                 >
                   Edit
                 </button>
               </div>
             )}
+          </div>
+
+          {/* Schedule */}
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Schedule (cron)</label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                {editingCron ? (
+                  <>
+                    <input
+                      className="rounded border border-gray-300 px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      value={cronValue}
+                      onChange={(e) => setCronValue(e.target.value)}
+                      autoFocus
+                    />
+                    <Button size="sm" variant="primary" onClick={handleSaveCron} loading={updateBoard.isPending}>
+                      Save
+                    </Button>
+                    <Button size="sm" variant="secondary" onClick={() => setEditingCron(false)}>
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-mono text-gray-900">{board.scheduleCron}</span>
+                    <button
+                      onClick={() => { setCronValue(board.scheduleCron); setEditingCron(true); }}
+                      className="text-xs text-indigo-500 hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </>
+                )}
+              </div>
+              <button
+                role="switch"
+                aria-checked={board.status !== 'paused'}
+                onClick={handleTogglePause}
+                disabled={updateBoard.isPending}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${
+                  board.status !== 'paused' ? 'bg-indigo-600' : 'bg-gray-200'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    board.status !== 'paused' ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
@@ -227,6 +264,27 @@ export default function BoardDetailPage() {
       {/* Scraper Config */}
       {board.scraperConfig && (
         <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-gray-900">Scraper Configuration</h2>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => reanalyzeBoard.mutate(id)}
+                loading={reanalyzeBoard.isPending}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-4 h-4 mr-1.5 inline-block"
+                >
+                  <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
+                </svg>
+                Re-analyze
+              </Button>
+            </div>
+          </CardHeader>
           <CardBody>
             <ScraperConfigView boardId={id} config={board.scraperConfig} />
           </CardBody>
@@ -242,7 +300,17 @@ export default function BoardDetailPage() {
       {/* Run History */}
       <Card>
         <CardHeader>
-          <h2 className="font-semibold text-gray-900">Recent Scrape Runs</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-gray-900">Recent Scrape Runs</h2>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => refreshBoard.mutate(id)}
+              loading={refreshBoard.isPending}
+            >
+              Manual Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardBody className="p-0">
           {!runs || runs.length === 0 ? (

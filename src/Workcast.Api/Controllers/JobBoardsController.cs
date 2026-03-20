@@ -172,6 +172,11 @@ public sealed class JobBoardsController : ControllerBase
         var jobId = $"scrape-{board.Id}";
         var scheduleChanged = false;
 
+        if (request.Url is not null)
+        {
+            board.UpdateUrl(request.Url);
+        }
+
         if (request.Name is not null)
         {
             board.UpdateName(request.Name);

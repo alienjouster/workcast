@@ -5,6 +5,9 @@ namespace Workcast.Api.DTOs.Requests;
 /// </summary>
 public record UpdateJobBoardRequest
 {
+    /// <summary>Gets the updated seed URL. Pass null to leave unchanged.</summary>
+    public string? Url { get; init; }
+
     /// <summary>Gets the updated human-readable name. Pass null to leave unchanged.</summary>
     public string? Name { get; init; }
 

@@ -89,6 +89,7 @@ export interface CreateJobBoardRequest {
 }
 
 export interface UpdateJobBoardRequest {
+  url?: string;
   name?: string;
   scheduleCron?: string;
   status?: 'active' | 'paused';
