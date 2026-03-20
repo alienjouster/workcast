@@ -2,7 +2,8 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useJobBoard,
   useUpdateBoard,
@@ -27,6 +28,26 @@ export default function BoardDetailPage() {
   const deleteBoard = useDeleteBoard();
   const refreshBoard = useRefreshBoard();
   const reanalyzeBoard = useReanalyzeBoard();
+
+  const qc = useQueryClient();
+  const [awaitingRun, setAwaitingRun] = useState(false);
+
+  // Poll every 2 s after a manual refresh until Hangfire creates the run.
+  // Once a 'running' run appears the useScrapeRuns refetchInterval takes over.
+  useEffect(() => {
+    if (!awaitingRun) return;
+    const interval = setInterval(
+      () => qc.refetchQueries({ queryKey: ['scrape-runs', id, 10] }),
+      2000,
+    );
+    return () => clearInterval(interval);
+  }, [awaitingRun, id, qc]);
+
+  useEffect(() => {
+    if (awaitingRun && runs?.some((r) => r.status === 'running')) {
+      setAwaitingRun(false);
+    }
+  }, [runs, awaitingRun]);
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
@@ -305,7 +326,7 @@ export default function BoardDetailPage() {
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => refreshBoard.mutate(id)}
+              onClick={() => { setAwaitingRun(true); refreshBoard.mutate(id); }}
               loading={refreshBoard.isPending}
             >
               Manual Refresh
