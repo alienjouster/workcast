@@ -566,10 +566,15 @@ public sealed class ScrapeJobRunner
                 }
             }
 
-            // Fallback: first <a> in the card element.
+            // Fallback: the card element itself if it is an <a>, otherwise the first <a> inside it.
+            // When the JobCardSelector targets <a> elements directly (e.g. "a.JobCard"), the card
+            // IS the anchor — QuerySelector("a") would search for a descendant and find nothing.
             if (detailUrl is null)
             {
-                var href = card.QuerySelector("a")?.GetAttribute("href");
+                var anchor = card.TagName.Equals("A", StringComparison.OrdinalIgnoreCase)
+                    ? card
+                    : card.QuerySelector("a");
+                var href = anchor?.GetAttribute("href");
                 if (!string.IsNullOrWhiteSpace(href) &&
                     Uri.TryCreate(baseUri, href, out var absolute))
                 {
