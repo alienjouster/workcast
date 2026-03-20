@@ -20,7 +20,10 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     private bool _disposed;
 
     /// <inheritdoc />
-    public async Task<string> RenderPageAsync(string url, CancellationToken ct = default)
+    public async Task<string> RenderPageAsync(
+        string url,
+        string? waitForSelector = null,
+        CancellationToken ct = default)
     {
         var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
 
@@ -38,6 +41,27 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
                 WaitUntil = WaitUntilState.NetworkIdle,
                 Timeout = PageLoadTimeoutMs,
             }).ConfigureAwait(false);
+
+            // For JS-heavy SPAs (e.g. Workday) that populate the job list via a secondary
+            // API call after the initial network-idle event, wait for the job card selector
+            // to appear in the DOM before capturing the HTML.
+            // Non-fatal: if the selector never appears (wrong config or static page),
+            // log a warning and return whatever HTML was already loaded.
+            if (!string.IsNullOrEmpty(waitForSelector))
+            {
+                try
+                {
+                    await page.WaitForSelectorAsync(waitForSelector, new PageWaitForSelectorOptions
+                    {
+                        State = WaitForSelectorState.Attached,
+                        Timeout = 15_000,
+                    }).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    // Selector did not appear within the extra budget — proceed with current HTML.
+                }
+            }
 
             return await page.ContentAsync().ConfigureAwait(false);
         }

@@ -31,7 +31,7 @@ public sealed class AiExtractionService : IJobBoardAnalyzer
     /// <inheritdoc />
     public async Task<BoardAnalysisResult> AnalyzeAsync(string url, CancellationToken ct = default)
     {
-        var rawHtml = await _scraperEngine.RenderPageAsync(url, ct).ConfigureAwait(false);
+        var rawHtml = await _scraperEngine.RenderPageAsync(url, null, ct).ConfigureAwait(false);
         var cleanedHtml = _htmlCleaner.CleanForBoardAnalysis(rawHtml);
         return await _aiProvider.AnalyzeBoardAsync(cleanedHtml, url, ct).ConfigureAwait(false);
     }

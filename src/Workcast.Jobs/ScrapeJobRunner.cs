@@ -196,7 +196,7 @@ public sealed class ScrapeJobRunner
             string html;
             try
             {
-                html = await _scraperEngine.RenderPageAsync(pageUrl, ct).ConfigureAwait(false);
+                html = await _scraperEngine.RenderPageAsync(pageUrl, config.JobCardSelector, ct).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
