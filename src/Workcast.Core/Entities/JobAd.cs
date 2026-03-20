@@ -107,7 +107,7 @@ public class JobAd
         if (postedAt is not null &&
             DateTimeOffset.TryParse(postedAt, out var parsedDate))
         {
-            PostedAt = parsedDate;
+            PostedAt = parsedDate.ToUniversalTime();
         }
     }
 
