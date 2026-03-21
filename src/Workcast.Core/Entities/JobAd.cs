@@ -75,6 +75,12 @@ public class JobAd
     /// </summary>
     public bool IsPinned { get; private set; }
 
+    /// <summary>
+    /// True when the user has opened or explicitly marked this ad as read.
+    /// Defaults to false so freshly scraped ads appear as unread.
+    /// </summary>
+    public bool IsRead { get; private set; }
+
     /// <summary>Navigation property — the owning job board.</summary>
     public JobBoard? JobBoard { get; private set; }
 
@@ -141,5 +147,17 @@ public class JobAd
     public void Unpin()
     {
         IsPinned = false;
+    }
+
+    /// <summary>Marks this ad as read.</summary>
+    public void MarkRead()
+    {
+        IsRead = true;
+    }
+
+    /// <summary>Marks this ad as unread.</summary>
+    public void MarkUnread()
+    {
+        IsRead = false;
     }
 }

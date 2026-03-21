@@ -1,6 +1,6 @@
 'use client';
 
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 interface UseJobAdsParams {
@@ -33,5 +33,36 @@ export function usePinAd() {
     mutationFn: ({ id, pinned }: { id: string; pinned: boolean }) =>
       pinned ? api.ads.unpin(id) : api.ads.pin(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+  });
+}
+
+export function useMarkAdRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, read }: { id: string; read: boolean }) =>
+      read ? api.ads.markUnread(id) : api.ads.markRead(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    },
+  });
+}
+
+export function useMarkAllRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (boardId?: string) => api.ads.markAllRead(boardId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    },
+  });
+}
+
+export function useUnreadCount() {
+  return useQuery({
+    queryKey: ['job-ads-unread-count'],
+    queryFn: () => api.ads.unreadCount(),
+    refetchInterval: 60_000,
   });
 }

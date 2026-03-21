@@ -48,4 +48,7 @@ public record JobAdResponse
 
     /// <summary>Gets a value indicating whether this ad is pinned to the top of the list.</summary>
     public required bool IsPinned { get; init; }
+
+    /// <summary>Gets a value indicating whether the user has read this ad.</summary>
+    public required bool IsRead { get; init; }
 }

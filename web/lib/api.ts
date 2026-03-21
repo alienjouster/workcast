@@ -83,6 +83,13 @@ export const api = {
       apiFetch<JobAd>(`/api/job-ads/${id}/pin`, { method: 'PATCH' }),
     unpin: (id: string) =>
       apiFetch<JobAd>(`/api/job-ads/${id}/unpin`, { method: 'PATCH' }),
+    markRead: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/read`, { method: 'PATCH' }),
+    markUnread: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/unread`, { method: 'PATCH' }),
+    markAllRead: (boardId?: string) =>
+      apiFetch<void>(`/api/job-ads/mark-all-read${boardId ? `?boardId=${boardId}` : ''}`, { method: 'POST' }),
+    unreadCount: () => apiFetch<number>('/api/job-ads/unread-count'),
   },
   runs: {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),

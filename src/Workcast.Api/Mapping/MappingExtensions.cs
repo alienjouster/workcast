@@ -59,6 +59,7 @@ public static class MappingExtensions
             ScrapedAt = ad.ScrapedAt,
             IsActive = ad.IsActive,
             IsPinned = ad.IsPinned,
+            IsRead = ad.IsRead,
         };
     }
 

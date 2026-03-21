@@ -3,7 +3,7 @@
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useState } from 'react';
-import { useJobAds } from '@/lib/hooks/useJobAds';
+import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { AdTable } from '@/components/ads/AdTable';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -16,6 +16,7 @@ export default function BoardAdsPage() {
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useJobAds({ boardId: id, search, isActive });
+  const markAllRead = useMarkAllRead();
 
   const allAds = data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -28,8 +29,9 @@ export default function BoardAdsPage() {
         <h1 className="text-2xl font-bold text-gray-900 mt-2">Job Ads</h1>
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 mb-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
         <input
           type="text"
           placeholder="Search title, company, location…"
@@ -48,6 +50,15 @@ export default function BoardAdsPage() {
           <option value="true">Active only</option>
           <option value="false">Inactive only</option>
         </select>
+      </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => markAllRead.mutate(id)}
+          loading={markAllRead.isPending}
+        >
+          Mark all as read
+        </Button>
       </div>
 
       {isLoading ? (

@@ -213,6 +213,95 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
+    /// Marks a job ad as read.
+    /// </summary>
+    /// <param name="id">The job ad identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPatch("{id:guid}/read")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> MarkReadAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+
+        if (ad is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job ad '{id}' was not found.");
+        }
+
+        ad.MarkRead();
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>
+    /// Marks a job ad as unread.
+    /// </summary>
+    /// <param name="id">The job ad identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPatch("{id:guid}/unread")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> MarkUnreadAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+
+        if (ad is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job ad '{id}' was not found.");
+        }
+
+        ad.MarkUnread();
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>
+    /// Returns the total count of unread job ads.
+    /// </summary>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet("unread-count")]
+    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+    public async Task<IActionResult> UnreadCountAsync(CancellationToken ct)
+    {
+        var count = await _db.JobAds.CountAsync(a => !a.IsRead, ct);
+        return Ok(count);
+    }
+
+    /// <summary>
+    /// Marks all job ads as read, optionally scoped to a specific board.
+    /// </summary>
+    /// <param name="boardId">Optional filter: only ads from this board.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPost("mark-all-read")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> MarkAllReadAsync(
+        [FromQuery] Guid? boardId,
+        CancellationToken ct)
+    {
+        var query = _db.JobAds.Where(a => !a.IsRead);
+
+        if (boardId.HasValue)
+        {
+            query = query.Where(a => a.JobBoardId == boardId.Value);
+        }
+
+        await query.ExecuteUpdateAsync(s => s.SetProperty(a => a.IsRead, true), ct);
+
+        return NoContent();
+    }
+
+    /// <summary>
     /// Hard-deletes a job ad by ID.
     /// </summary>
     /// <param name="id">The job ad identifier.</param>

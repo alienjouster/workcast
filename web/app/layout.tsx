@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import './globals.css';
 import { Providers } from './providers';
+import { NavJobAdsLink } from '@/components/ui/NavJobAdsLink';
 
 export const metadata: Metadata = {
   title: 'Workcast',
@@ -34,12 +35,7 @@ export default function RootLayout({
                     >
                       Boards
                     </Link>
-                    <Link
-                      href="/ads"
-                      className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
-                    >
-                      Job Ads
-                    </Link>
+                    <NavJobAdsLink />
                   </div>
                 </div>
                 <a

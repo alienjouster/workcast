@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
-import { useJobAds } from '@/lib/hooks/useJobAds';
+import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { AdTable } from '@/components/ads/AdTable';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -16,6 +16,7 @@ export default function AdsPage() {
   const { data: boards } = useJobBoards();
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useJobAds({ boardId, search, isActive });
+  const markAllRead = useMarkAllRead();
 
   const allAds = data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -26,6 +27,14 @@ export default function AdsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Job Ads</h1>
           <p className="text-sm text-gray-500 mt-1">Browse all scraped job ads across all boards</p>
         </div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => markAllRead.mutate(boardId)}
+          loading={markAllRead.isPending}
+        >
+          Mark all as read
+        </Button>
       </div>
 
       {/* Filters */}
