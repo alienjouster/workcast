@@ -26,4 +26,26 @@ public interface IScraperEngine
         string url,
         string? waitForSelector = null,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Renders a URL using a headless browser, then repeatedly clicks a "load more" button
+    /// that appends items to the current page without URL navigation. Stops when the button
+    /// disappears from the DOM or <paramref name="maxClicks"/> is reached.
+    /// Returns the final accumulated HTML containing all loaded items.
+    /// </summary>
+    /// <param name="url">The URL to render.</param>
+    /// <param name="loadMoreSelector">CSS selector identifying the load-more button.</param>
+    /// <param name="waitForSelector">
+    /// Optional CSS selector to wait for after the initial page load (same semantics as
+    /// <see cref="RenderPageAsync"/>).
+    /// </param>
+    /// <param name="maxClicks">Upper bound on the number of button clicks.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The fully-rendered HTML after all load-more clicks, containing all accumulated items.</returns>
+    Task<string> RenderWithLoadMoreAsync(
+        string url,
+        string loadMoreSelector,
+        string? waitForSelector = null,
+        int maxClicks = 20,
+        CancellationToken ct = default);
 }

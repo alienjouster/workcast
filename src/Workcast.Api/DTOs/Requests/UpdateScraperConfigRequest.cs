@@ -6,7 +6,7 @@ namespace Workcast.Api.DTOs.Requests;
 /// </summary>
 public record UpdateScraperConfigRequest
 {
-    /// <summary>Gets the pagination strategy (url_param | next_button | infinite_scroll | none).</summary>
+    /// <summary>Gets the pagination strategy (url_param | next_button | infinite_scroll | load_more_button | none).</summary>
     public required string PaginationType { get; init; }
 
     /// <summary>Gets the CSS selector that matches each job card container on the listing page.</summary>

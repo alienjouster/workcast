@@ -70,7 +70,9 @@ public sealed class ClaudeAiProvider : IAiProvider
 
             Examine the HTML below and call the save_board_config tool with a complete configuration
             describing how to scrape job listings from this board. Focus on:
+
             - The CSS selector that identifies each job card element on the listing page (job_card_selector)
+
             - Per-field CSS selectors relative to each job card (field_selectors):
                 detail_url: selector whose href attribute is the job ad URL
                 title: selector for the job title text
@@ -80,9 +82,26 @@ public sealed class ClaudeAiProvider : IAiProvider
                 posted_at: selector for the posting date (null if absent)
                 description_snippet: selector for a short description preview (null if absent)
                 external_id: selector or attribute expression for a board-specific job ID (null if absent)
-            - How pagination works
-            - Whether JavaScript is required
-            - A safe request delay
+
+            - How pagination works. Identify the pagination_type using these exact rules:
+                url_param: the listing URL contains a page or offset query parameter (e.g. ?page=2,
+                           ?start=20). Set url_param_name to the parameter name. Set
+                           url_param_is_offset=true if it is an item offset rather than a page number.
+                next_button: there is a "Next" link or button whose href attribute navigates to the
+                             next page URL. Set next_page_selector to its CSS selector.
+                load_more_button: there is a "Load more", "Show more", or similar button that, when
+                                  clicked, appends more job listings to the current page WITHOUT
+                                  navigating to a new URL. Set next_page_selector to its CSS selector.
+                                  This is distinct from next_button — the key difference is that
+                                  existing items remain on the page and new ones are added below them.
+                infinite_scroll: new listings load automatically as the user scrolls down, with no
+                                 button to click.
+                none: all listings are visible on a single page with no pagination mechanism.
+
+            - Whether JavaScript is required to render the job listings
+
+            - A safe request delay in milliseconds (be conservative — prefer 1000ms or more for
+              sites that may rate-limit scrapers)
 
             HTML:
             {html}
@@ -173,6 +192,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             "url_param" => PaginationType.UrlParam,
             "next_button" => PaginationType.NextButton,
             "infinite_scroll" => PaginationType.InfiniteScroll,
+            "load_more_button" => PaginationType.LoadMoreButton,
             _ => PaginationType.None,
         };
 
@@ -217,7 +237,7 @@ public sealed class ClaudeAiProvider : IAiProvider
                 required = new[] { "pagination_type", "job_card_selector", "field_selectors", "requires_js", "suggested_delay_ms", "confidence_score" },
                 properties = new
                 {
-                    pagination_type = new { type = "string", @enum = new[] { "url_param", "next_button", "infinite_scroll", "none" } },
+                    pagination_type = new { type = "string", @enum = new[] { "url_param", "next_button", "infinite_scroll", "load_more_button", "none" }, description = "The pagination mechanism. Use load_more_button (not next_button) when a button appends items to the current page without URL navigation." },
                     job_card_selector = new { type = "string", description = "CSS selector matching each job card element on the listing page." },
                     field_selectors = new
                     {
@@ -235,7 +255,7 @@ public sealed class ClaudeAiProvider : IAiProvider
                             external_id         = new { type = new[] { "string", "null" } },
                         },
                     },
-                    next_page_selector = new { type = new[] { "string", "null" } },
+                    next_page_selector = new { type = new[] { "string", "null" }, description = "CSS selector for the Next page link (next_button) or Load more button (load_more_button). Null for all other pagination types." },
                     url_param_name = new { type = new[] { "string", "null" } },
                     url_param_is_offset = new { type = "boolean" },
                     max_pages = new { type = new[] { "integer", "null" }, minimum = 1 },

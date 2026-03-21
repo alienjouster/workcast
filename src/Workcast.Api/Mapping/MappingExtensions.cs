@@ -158,10 +158,11 @@ public static class MappingExtensions
         {
             PaginationType = request.PaginationType switch
             {
-                "url_param"       => PaginationType.UrlParam,
-                "next_button"     => PaginationType.NextButton,
-                "infinite_scroll" => PaginationType.InfiniteScroll,
-                _                 => PaginationType.None,
+                "url_param"        => PaginationType.UrlParam,
+                "next_button"      => PaginationType.NextButton,
+                "infinite_scroll"  => PaginationType.InfiniteScroll,
+                "load_more_button" => PaginationType.LoadMoreButton,
+                _                  => PaginationType.None,
             },
             JobCardSelector  = request.JobCardSelector,
             FieldSelectors   = request.FieldSelectors.ToDomain(),
@@ -206,6 +207,7 @@ public static class MappingExtensions
             PaginationType.UrlParam => "url_param",
             PaginationType.NextButton => "next_button",
             PaginationType.InfiniteScroll => "infinite_scroll",
+            PaginationType.LoadMoreButton => "load_more_button",
             PaginationType.None => "none",
             // NOTE: Exhaustive match. Any future enum value added to PaginationType will cause a
             // compile warning; fall back to a safe lower-invariant conversion.

@@ -14,7 +14,7 @@ export interface FieldSelectorMap {
 }
 
 export interface ScraperConfig {
-  paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'none';
+  paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;
   fieldSelectors: FieldSelectorMap;
   nextPageSelector: string | null;
@@ -98,7 +98,7 @@ export interface UpdateJobBoardRequest {
 }
 
 export interface UpdateScraperConfigRequest {
-  paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'none';
+  paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;
   fieldSelectors: {
     detailUrl: string | null;

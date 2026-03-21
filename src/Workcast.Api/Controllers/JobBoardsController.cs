@@ -345,8 +345,8 @@ public sealed class JobBoardsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ReanalyzeAsync(Guid id, CancellationToken ct)
     {
-        var exists = await _db.JobBoards.AnyAsync(b => b.Id == id, ct);
-        if (!exists)
+        var board = await _db.JobBoards.FindAsync([id], ct);
+        if (board is null)
         {
             return Problem(
                 type: $"{ERROR_TYPE_BASE}not-found",
@@ -354,6 +354,9 @@ public sealed class JobBoardsController : ControllerBase
                 statusCode: StatusCodes.Status404NotFound,
                 detail: $"Job board '{id}' was not found.");
         }
+
+        board.SetPending();
+        await _db.SaveChangesAsync(ct);
 
         _scheduler.Enqueue<BoardAnalysisJob>(j => j.ExecuteAsync(id, CancellationToken.None));
 

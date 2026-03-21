@@ -73,6 +73,11 @@ public class JobBoard
     /// Marks the board as active after a successful board analysis.
     /// Sets the <see cref="ScraperConfig"/> and transitions status to <see cref="BoardStatus.Active"/>.
     /// </summary>
+    public void SetPending()
+    {
+        Status = BoardStatus.Pending;
+    }
+
     public void Activate(ScraperConfig config)
     {
         ScraperConfig = config;

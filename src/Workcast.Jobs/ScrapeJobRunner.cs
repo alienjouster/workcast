@@ -193,6 +193,58 @@ public sealed class ScrapeJobRunner
 
             _logger.LogDebug("Rendering listing page {Number}: {Url}", pageNumber, pageUrl);
 
+            // LoadMoreButton: one Playwright session clicks the button repeatedly,
+            // accumulating all items in the DOM. The final HTML contains everything.
+            if (config.PaginationType == PaginationType.LoadMoreButton)
+            {
+                if (config.NextPageSelector is null) break;
+
+                string loadMoreHtml;
+                try
+                {
+                    loadMoreHtml = await _scraperEngine.RenderWithLoadMoreAsync(
+                        pageUrl,
+                        config.NextPageSelector,
+                        config.JobCardSelector,
+                        config.MaxPages ?? GLOBAL_MAX_PAGES,
+                        ct).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogWarning(ex, "Failed to render load-more page {Url}", pageUrl);
+                    run.AddError(pageUrl, ex.Message);
+                    break;
+                }
+
+                counters.PagesScraped++;
+
+                var loadMoreCards = ExtractAdsFromPage(loadMoreHtml, config, pageUrl, board.Name ?? board.Url);
+
+                if (loadMoreCards.Count == 0)
+                {
+                    _logger.LogWarning(
+                        "Selector matched 0 cards for load-more board {BoardId}. " +
+                        "The scraper config may be stale — use the Re-analyze action to regenerate it.",
+                        board.Id);
+                    return;
+                }
+
+                counters.AdsFound += loadMoreCards.Count;
+                _logger.LogDebug("Extracted {Count} job cards from accumulated load-more HTML", loadMoreCards.Count);
+
+                foreach (var card in loadMoreCards)
+                {
+                    var normalizedUrl = NormalizeUrl(card.Url);
+                    seenNormalizedUrls.Add(normalizedUrl);
+
+                    bool isNew = await ProcessAdCardAsync(card, normalizedUrl, board.Id, run, ct)
+                        .ConfigureAwait(false);
+                    if (isNew) counters.AdsNew++;
+                }
+
+                break;
+            }
+
             string html;
             try
             {
@@ -451,6 +503,11 @@ public sealed class ScrapeJobRunner
                 // IScraperEngine. See TECHSPEC section 5.2 and AGENTS.md agent boundary rules.
                 return null;
 
+            case PaginationType.LoadMoreButton:
+                // All load-more clicks are handled inside RenderWithLoadMoreAsync on the first
+                // (and only) iteration. The listing loop never needs a second page URL.
+                return null;
+
             case PaginationType.None:
             default:
                 return null;
@@ -497,7 +554,18 @@ public sealed class ScrapeJobRunner
     {
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
-        var nextButton = document.QuerySelector(selector);
+
+        IElement? nextButton;
+        try
+        {
+            nextButton = document.QuerySelector(selector);
+        }
+        catch (DomException)
+        {
+            // Selector contains characters invalid in CSS (e.g. Tailwind utility classes
+            // with un-escaped ':' like "hover:bg-black-600"). Treat as no next page.
+            return null;
+        }
 
         if (nextButton is null) return null;
 
@@ -537,7 +605,7 @@ public sealed class ScrapeJobRunner
     /// <param name="config">Active scraper configuration providing card and field selectors.</param>
     /// <param name="baseUrl">Base URL for resolving relative hrefs.</param>
     /// <returns>Distinct list of extracted ad data with resolved field values.</returns>
-    private static IReadOnlyList<ExtractedAdData> ExtractAdsFromPage(
+    private IReadOnlyList<ExtractedAdData> ExtractAdsFromPage(
         string html,
         ScraperConfig config,
         string baseUrl,
@@ -545,11 +613,22 @@ public sealed class ScrapeJobRunner
     {
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
-        var cardElements = document.QuerySelectorAll(config.JobCardSelector);
+
+        IHtmlCollection<IElement> cardElements;
+        try
+        {
+            cardElements = document.QuerySelectorAll(config.JobCardSelector);
+        }
+        catch (DomException)
+        {
+            return [];
+        }
         var fieldSelectors = config.FieldSelectors;
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cards = new List<ExtractedAdData>();
+        int skippedNoUrl = 0;
+        int skippedDuplicate = 0;
 
         foreach (var card in cardElements)
         {
@@ -559,7 +638,9 @@ public sealed class ScrapeJobRunner
 
             if (fieldSelectors.DetailUrl is not null)
             {
-                var href = card.QuerySelector(fieldSelectors.DetailUrl)?.GetAttribute("href");
+                string? href = null;
+                try { href = card.QuerySelector(fieldSelectors.DetailUrl)?.GetAttribute("href"); }
+                catch (DomException) { /* invalid selector — fall through to anchor fallback */ }
                 if (!string.IsNullOrWhiteSpace(href) &&
                     Uri.TryCreate(baseUri, href, out var absolute))
                 {
@@ -583,8 +664,8 @@ public sealed class ScrapeJobRunner
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(detailUrl)) continue;
-            if (!seen.Add(detailUrl)) continue; // Deduplicate within page.
+            if (string.IsNullOrWhiteSpace(detailUrl)) { skippedNoUrl++; continue; }
+            if (!seen.Add(detailUrl)) { skippedDuplicate++; continue; }
 
             cards.Add(new ExtractedAdData(
                 Url: detailUrl,
@@ -596,6 +677,11 @@ public sealed class ScrapeJobRunner
                 ExternalId: GetElementText(card, fieldSelectors.ExternalId),
                 DescriptionSnippet: GetElementText(card, fieldSelectors.DescriptionSnippet)));
         }
+
+        if (skippedNoUrl > 0 || skippedDuplicate > 0)
+            _logger.LogDebug(
+                "ExtractAdsFromPage: {Total} elements → {Kept} kept, {NoUrl} skipped (no URL), {Dupe} skipped (duplicate URL)",
+                cardElements.Length, cards.Count, skippedNoUrl, skippedDuplicate);
 
         return cards;
     }
@@ -610,8 +696,15 @@ public sealed class ScrapeJobRunner
     private static string? GetElementText(IElement element, string? selector)
     {
         if (selector is null) return null;
-        var text = element.QuerySelector(selector)?.TextContent.Trim();
-        return string.IsNullOrEmpty(text) ? null : text;
+        try
+        {
+            var text = element.QuerySelector(selector)?.TextContent.Trim();
+            return string.IsNullOrEmpty(text) ? null : text;
+        }
+        catch (DomException)
+        {
+            return null;
+        }
     }
 
     // -------------------------------------------------------------------------

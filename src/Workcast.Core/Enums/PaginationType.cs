@@ -16,4 +16,10 @@ public enum PaginationType
 
     /// <summary>All job listings appear on a single page with no pagination.</summary>
     None,
+
+    /// <summary>
+    /// Pagination is driven by clicking a "load more" button that appends items to the
+    /// current page without navigating to a new URL.
+    /// </summary>
+    LoadMoreButton,
 }

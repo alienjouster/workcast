@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
 using Workcast.Core.Interfaces;
 
@@ -17,7 +18,14 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private readonly SemaphoreSlim _initLock = new(1, 1);
+    private readonly ILogger<PlaywrightScraperEngine> _logger;
     private bool _disposed;
+
+    /// <summary>Initialises a new instance of <see cref="PlaywrightScraperEngine"/>.</summary>
+    public PlaywrightScraperEngine(ILogger<PlaywrightScraperEngine> logger)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc />
     public async Task<string> RenderPageAsync(
@@ -62,6 +70,141 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
                     // Selector did not appear within the extra budget — proceed with current HTML.
                 }
             }
+
+            return await page.ContentAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            await page.CloseAsync().ConfigureAwait(false);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<string> RenderWithLoadMoreAsync(
+        string url,
+        string loadMoreSelector,
+        string? waitForSelector = null,
+        int maxClicks = 20,
+        CancellationToken ct = default)
+    {
+        var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
+
+        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize = new ViewportSize { Width = ViewportWidth, Height = ViewportHeight },
+        }).ConfigureAwait(false);
+
+        var page = await context.NewPageAsync().ConfigureAwait(false);
+
+        try
+        {
+            await page.GotoAsync(url, new PageGotoOptions
+            {
+                WaitUntil = WaitUntilState.NetworkIdle,
+                Timeout = PageLoadTimeoutMs,
+            }).ConfigureAwait(false);
+
+            if (!string.IsNullOrEmpty(waitForSelector))
+            {
+                try
+                {
+                    await page.WaitForSelectorAsync(waitForSelector, new PageWaitForSelectorOptions
+                    {
+                        State = WaitForSelectorState.Attached,
+                        Timeout = 15_000,
+                    }).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    _logger.LogWarning(
+                        "LoadMore: waitForSelector '{Selector}' did not appear within 15s after initial load",
+                        waitForSelector);
+                }
+            }
+
+            int initialItemCount = string.IsNullOrEmpty(waitForSelector) ? -1
+                : await page.Locator(waitForSelector).CountAsync().ConfigureAwait(false);
+
+            _logger.LogDebug(
+                "LoadMore: page loaded. selector='{Selector}' maxClicks={MaxClicks} initialItems={InitialItems} url={Url}",
+                loadMoreSelector, maxClicks, initialItemCount, url);
+
+            for (int click = 0; click < maxClicks; click++)
+            {
+                ct.ThrowIfCancellationRequested();
+
+                int buttonCount = await page.Locator(loadMoreSelector).CountAsync().ConfigureAwait(false);
+
+                _logger.LogDebug(
+                    "LoadMore: click attempt {Click}/{Max} — button count={Count}",
+                    click + 1, maxClicks, buttonCount);
+
+                if (buttonCount == 0)
+                {
+                    _logger.LogDebug("LoadMore: button not found in DOM — stopping");
+                    break;
+                }
+
+                int itemsBefore = string.IsNullOrEmpty(waitForSelector) ? -1
+                    : await page.Locator(waitForSelector).CountAsync().ConfigureAwait(false);
+
+                _logger.LogDebug("LoadMore: dispatching MouseEvent (items before={ItemsBefore})", itemsBefore);
+
+                // Dispatch a bubbling MouseEvent rather than calling .click() directly.
+                // Many SPA frameworks (Vue, React) use event delegation and respond more
+                // reliably to a properly constructed MouseEvent than to a synthetic .click().
+                await page.EvalOnSelectorAsync(
+                    loadMoreSelector,
+                    "el => el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))")
+                    .ConfigureAwait(false);
+
+                _logger.LogDebug("LoadMore: event dispatched, waiting for new items");
+
+                if (itemsBefore >= 0)
+                {
+                    // Wait for the item count to increase — more reliable than networkidle
+                    // because the DOM may update after the network goes idle.
+                    // Timeout means no new items appeared: the button is exhausted.
+                    try
+                    {
+                        var escapedSelector = waitForSelector!.Replace("'", "\\'");
+                        await page.WaitForFunctionAsync(
+                            $"() => document.querySelectorAll('{escapedSelector}').length > {itemsBefore}",
+                            null,
+                            new PageWaitForFunctionOptions { Timeout = 8_000 })
+                            .ConfigureAwait(false);
+                    }
+                    catch (TimeoutException)
+                    {
+                        _logger.LogDebug(
+                            "LoadMore: no new items after click {Click} — button exhausted, stopping",
+                            click + 1);
+                        break;
+                    }
+                }
+                else
+                {
+                    // No item selector to count — fall back to networkidle.
+                    try
+                    {
+                        await page.WaitForLoadStateAsync(LoadState.NetworkIdle,
+                            new PageWaitForLoadStateOptions { Timeout = 10_000 }).ConfigureAwait(false);
+                    }
+                    catch (TimeoutException) { }
+                }
+
+                int itemsAfter = string.IsNullOrEmpty(waitForSelector) ? -1
+                    : await page.Locator(waitForSelector).CountAsync().ConfigureAwait(false);
+
+                _logger.LogDebug(
+                    "LoadMore: click {Click} done — items before={Before} after={After}",
+                    click + 1, itemsBefore, itemsAfter);
+            }
+
+            int finalItemCount = string.IsNullOrEmpty(waitForSelector) ? -1
+                : await page.Locator(waitForSelector).CountAsync().ConfigureAwait(false);
+
+            _logger.LogDebug("LoadMore: loop finished — final item count={FinalItems}", finalItemCount);
 
             return await page.ContentAsync().ConfigureAwait(false);
         }

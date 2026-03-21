@@ -391,7 +391,8 @@ export default function BoardDetailPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() => reanalyzeBoard.mutate(id)}
-                loading={reanalyzeBoard.isPending}
+                loading={reanalyzeBoard.isPending || board.status === 'pending'}
+                disabled={board.status === 'pending'}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

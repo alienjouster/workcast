@@ -326,12 +326,13 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
           <SelectRow
             field="paginationType"
             label="Pagination type"
-            tooltip="How the scraper moves between pages. 'none' = single page, 'url_param' = page number in URL (e.g. ?page=2), 'next_button' = clicks a Next button, 'infinite_scroll' = scrolls to load more."
+            tooltip="How the scraper moves between pages. 'none' = single page, 'url_param' = page number in URL (e.g. ?page=2), 'next_button' = follows a Next link (requires href), 'load_more_button' = clicks a button that appends items without navigating, 'infinite_scroll' = renders once after scroll."
             value={config.paginationType}
             options={[
               { value: 'none', label: 'none' },
               { value: 'url_param', label: 'url_param' },
               { value: 'next_button', label: 'next_button' },
+              { value: 'load_more_button', label: 'load_more_button' },
               { value: 'infinite_scroll', label: 'infinite_scroll' },
             ]}
             buildOverride={(v) => ({ paginationType: v as UpdateScraperConfigRequest['paginationType'] })}
@@ -339,7 +340,7 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
           <NumberRow
             field="maxPages"
             label="Max pages"
-            tooltip="Maximum number of pages to scrape per run. Leave empty for no limit."
+            tooltip="Maximum number of pages to scrape per run (or button clicks for 'load_more_button'). Leave empty for no limit."
             value={config.maxPages}
             nullable
             buildOverride={(v) => ({ maxPages: v })}
@@ -347,7 +348,7 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
           <TextRow
             field="nextPageSelector"
             label="Next page selector"
-            tooltip="CSS selector for the 'Next page' button or link. Only used when pagination type is 'next_button'."
+            tooltip="CSS selector for the 'Next page' link or 'Load more' button. Used by both 'next_button' (follows the href) and 'load_more_button' (clicks the element repeatedly)."
             value={config.nextPageSelector}
             buildOverride={(v) => ({ nextPageSelector: v })}
           />
