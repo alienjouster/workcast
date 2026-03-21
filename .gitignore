@@ -5,3 +5,8 @@ volumes/
 **/node_modules/
 .next/
 **/appsettings.Development.json
+**/.vscode/
+.claude/
+web/.env.local
+**/Properties/launchSettings.json
+logitech.txt
