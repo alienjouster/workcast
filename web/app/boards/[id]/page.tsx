@@ -1,9 +1,11 @@
 'use client';
 
+import cronstrue from 'cronstrue';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { UpdateJobBoardRequest } from '@/types';
 import {
   useJobBoard,
   useUpdateBoard,
@@ -17,6 +19,109 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { ScraperConfigView } from '@/components/boards/ScraperConfigView';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+
+const CRON_FIELDS = [
+  { label: 'min',  min: 0, max: 59 },
+  { label: 'hour', min: 0, max: 23 },
+  { label: 'dom',  min: 1, max: 31 },
+  { label: 'mon',  min: 1, max: 12 },
+  { label: 'dow',  min: 0, max: 7  },
+] as const;
+
+function isValidCronPart(value: string, min: number, max: number): boolean {
+  if (!value || value === '*') return true;
+  if (/^\*\/\d+$/.test(value)) return true;
+  if (/^\d+$/.test(value)) { const n = +value; return n >= min && n <= max; }
+  if (/^\d+-\d+$/.test(value)) {
+    const [a, b] = value.split('-').map(Number);
+    return a >= min && b <= max && a <= b;
+  }
+  if (/^\d+(,\d+)+$/.test(value)) {
+    return value.split(',').map(Number).every((n) => n >= min && n <= max);
+  }
+  return false;
+}
+
+function CronEditor({
+  value,
+  onChange,
+  onSave,
+  onCancel,
+  isPending,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const rawParts = value.trim().split(/\s+/);
+  const parts = CRON_FIELDS.map((_, i) => rawParts[i] ?? '*');
+
+  function setPart(index: number, val: string) {
+    const next = [...parts];
+    next[index] = val || '*';
+    onChange(next.join(' '));
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>, index: number) {
+    // On backspace in an empty/wildcard field, go back to previous
+    if (e.key === 'Backspace' && (e.currentTarget.value === '' || e.currentTarget.value === '*') && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+      inputRefs.current[index - 1]?.select();
+    }
+  }
+
+  function handleKeyUp(e: React.KeyboardEvent<HTMLInputElement>, index: number) {
+    // Auto-advance on any printable character
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && index < CRON_FIELDS.length - 1) {
+      inputRefs.current[index + 1]?.focus();
+      inputRefs.current[index + 1]?.select();
+    }
+  }
+
+  let preview = '';
+  let isValid = false;
+  try {
+    preview = cronstrue.toString(value, { throwExceptionOnParseError: true });
+    isValid = true;
+  } catch {
+    preview = 'Invalid cron expression';
+  }
+
+  return (
+    <div className="space-y-2 py-0.5">
+      <div className="flex items-end gap-2">
+        {CRON_FIELDS.map(({ label, min, max }, i) => {
+          const fieldValid = isValidCronPart(parts[i], min, max);
+          return (
+            <div key={label} className="flex flex-col items-center gap-1">
+              <span className="text-xs text-gray-400">{label}</span>
+              <input
+                ref={(el) => { inputRefs.current[i] = el; }}
+                autoFocus={i === 0}
+                className={`w-12 rounded border px-1.5 py-1 text-xs font-mono text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  fieldValid ? 'border-gray-300' : 'border-red-400 bg-red-50 text-red-600'
+                }`}
+                value={parts[i]}
+                onChange={(e) => setPart(i, e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => handleKeyDown(e, i)}
+                onKeyUp={(e) => handleKeyUp(e, i)}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <p className={`text-xs ${isValid ? 'text-gray-400' : 'text-red-500'}`}>{preview}</p>
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="primary" onClick={onSave} disabled={!isValid} loading={isPending}>Save</Button>
+        <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
 
 export default function BoardDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,12 +154,8 @@ export default function BoardDetailPage() {
     }
   }, [runs, awaitingRun]);
 
-  const [editingName, setEditingName] = useState(false);
-  const [nameValue, setNameValue] = useState('');
-  const [editingUrl, setEditingUrl] = useState(false);
-  const [urlValue, setUrlValue] = useState('');
-  const [editingCron, setEditingCron] = useState(false);
-  const [cronValue, setCronValue] = useState('');
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [draftValue, setDraftValue] = useState('');
 
   if (isLoading) return <LoadingSpinner />;
   if (error || !board) {
@@ -71,19 +172,20 @@ export default function BoardDetailPage() {
     router.push('/boards');
   }
 
-  async function handleSaveName() {
-    await updateBoard.mutateAsync({ name: nameValue });
-    setEditingName(false);
+  function startFieldEdit(field: string, value: string) {
+    setEditingField(field);
+    setDraftValue(value);
   }
 
-  async function handleSaveUrl() {
-    await updateBoard.mutateAsync({ url: urlValue });
-    setEditingUrl(false);
+  function cancelFieldEdit() {
+    setEditingField(null);
+    setDraftValue('');
   }
 
-  async function handleSaveCron() {
-    await updateBoard.mutateAsync({ scheduleCron: cronValue });
-    setEditingCron(false);
+  async function saveField(data: UpdateJobBoardRequest) {
+    await updateBoard.mutateAsync(data);
+    setEditingField(null);
+    setDraftValue('');
   }
 
   async function handleTogglePause() {
@@ -95,6 +197,20 @@ export default function BoardDetailPage() {
   function formatDate(iso: string | null) {
     if (!iso) return '—';
     return new Date(iso).toLocaleString();
+  }
+
+  function timeAgo(iso: string) {
+    const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days}d ago`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months}mo ago`;
+    return `${Math.floor(months / 12)}y ago`;
   }
 
   function runDuration(run: { startedAt: string; finishedAt: string | null }) {
@@ -130,155 +246,135 @@ export default function BoardDetailPage() {
       {/* Info Card */}
       <Card>
         <CardHeader>
-          <h2 className="font-semibold text-gray-900">Board Details</h2>
+          <div>
+            <h2 className="font-semibold text-gray-900">Board Details</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Created {formatDate(board.createdAt)}{board.lastScrapedAt && (
+                <> · Last scraped <span title={formatDate(board.lastScrapedAt)} className="cursor-default">{timeAgo(board.lastScrapedAt)}</span></>
+              )}
+            </p>
+          </div>
         </CardHeader>
-        <CardBody className="space-y-4">
-          {/* Name */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
-            {editingName ? (
-              <div className="flex items-center gap-2">
-                <input
-                  className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={nameValue}
-                  onChange={(e) => setNameValue(e.target.value)}
-                  autoFocus
-                />
-                <Button size="sm" variant="primary" onClick={handleSaveName} loading={updateBoard.isPending}>
-                  Save
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setEditingName(false)}>
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-900">{board.name ?? '—'}</span>
-                <button
-                  onClick={() => { setNameValue(board.name ?? ''); setEditingName(true); }}
-                  className="text-xs text-indigo-500 hover:underline"
-                >
-                  Edit
-                </button>
-              </div>
-            )}
-          </div>
+        <CardBody className="p-0">
+          <table className="min-w-full text-sm">
+            <tbody>
+              {/* Section: Board */}
+              <tr className="bg-gray-50">
+                <td colSpan={3} className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Board</td>
+              </tr>
 
-          {/* URL */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">URL</label>
-            {editingUrl ? (
-              <div className="flex items-center gap-2">
-                <input
-                  className="rounded border border-gray-300 px-2 py-1 text-sm font-mono w-96 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  value={urlValue}
-                  onChange={(e) => setUrlValue(e.target.value)}
-                  autoFocus
-                />
-                <Button size="sm" variant="primary" onClick={handleSaveUrl} loading={updateBoard.isPending}>
-                  Save
-                </Button>
-                <Button size="sm" variant="secondary" onClick={() => setEditingUrl(false)}>
-                  Cancel
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <a
-                  href={board.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-mono text-indigo-600 hover:underline"
-                >
-                  {board.url}
-                </a>
-                <button
-                  onClick={() => { setUrlValue(board.url); setEditingUrl(true); }}
-                  className="text-xs text-indigo-500 hover:underline"
-                >
-                  Edit
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Schedule */}
-          <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Schedule (cron)</label>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                {editingCron ? (
+              {/* Name */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Name</td>
+                {editingField === 'name' ? (
                   <>
-                    <input
-                      className="rounded border border-gray-300 px-2 py-1 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      value={cronValue}
-                      onChange={(e) => setCronValue(e.target.value)}
-                      autoFocus
-                    />
-                    <Button size="sm" variant="primary" onClick={handleSaveCron} loading={updateBoard.isPending}>
-                      Save
-                    </Button>
-                    <Button size="sm" variant="secondary" onClick={() => setEditingCron(false)}>
-                      Cancel
-                    </Button>
+                    <td className="px-4 py-2.5">
+                      <input autoFocus className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} />
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="primary" onClick={() => saveField({ name: draftValue })} loading={updateBoard.isPending}>Save</Button>
+                        <Button size="sm" variant="secondary" onClick={cancelFieldEdit}>Cancel</Button>
+                      </div>
+                    </td>
                   </>
                 ) : (
                   <>
-                    <span className="text-sm font-mono text-gray-900">{board.scheduleCron}</span>
-                    <button
-                      onClick={() => { setCronValue(board.scheduleCron); setEditingCron(true); }}
-                      className="text-xs text-indigo-500 hover:underline"
-                    >
-                      Edit
-                    </button>
+                    <td className="px-4 py-2.5 text-sm text-gray-900">{board.name ?? <span className="text-gray-400 italic">—</span>}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button onClick={() => startFieldEdit('name', board.name ?? '')} className="text-xs text-indigo-500 hover:underline">Edit</button>
+                    </td>
                   </>
                 )}
-              </div>
-              <button
-                role="switch"
-                aria-checked={board.status !== 'paused'}
-                onClick={handleTogglePause}
-                disabled={updateBoard.isPending}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${
-                  board.status !== 'paused' ? 'bg-indigo-600' : 'bg-gray-200'
-                }`}
-              >
-                <span
-                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                    board.status !== 'paused' ? 'translate-x-5' : 'translate-x-0'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
+              </tr>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <span className="text-xs text-gray-500">Status</span>
-              <p className="mt-0.5"><Badge status={board.status} /></p>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500">Ad Count</span>
-              <p className="font-medium">{board.adCount}</p>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500">Last Scraped</span>
-              <p className="font-medium">{formatDate(board.lastScrapedAt)}</p>
-            </div>
-            <div>
-              <span className="text-xs text-gray-500">Created</span>
-              <p className="font-medium">{formatDate(board.createdAt)}</p>
-            </div>
-          </div>
+              {/* URL */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48 shrink-0">URL</td>
+                {editingField === 'url' ? (
+                  <>
+                    <td className="px-4 py-2.5">
+                      <input autoFocus className="rounded border border-gray-300 px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-lg" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} />
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="primary" onClick={() => saveField({ url: draftValue })} loading={updateBoard.isPending}>Save</Button>
+                        <Button size="sm" variant="secondary" onClick={cancelFieldEdit}>Cancel</Button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-4 py-2.5 min-w-0 max-w-0">
+                      <a href={board.url} target="_blank" rel="noopener noreferrer" title={board.url} className="font-mono text-xs text-indigo-600 hover:underline truncate block">{board.url}</a>
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <button onClick={() => startFieldEdit('url', board.url)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+                    </td>
+                  </>
+                )}
+              </tr>
 
-          <div className="pt-2">
-            <Link
-              href={`/boards/${id}/ads`}
-              className="text-sm text-indigo-600 hover:underline"
-            >
-              View all {board.adCount} ads →
-            </Link>
-          </div>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500">Status</td>
+                <td className="px-4 py-2.5" colSpan={2}><Badge status={board.status} /></td>
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500">Job ads</td>
+                <td className="px-4 py-2.5" colSpan={2}>
+                  <Link href={`/boards/${id}/ads`} className="text-sm text-indigo-600 hover:underline">
+                    {board.adCount} ads →
+                  </Link>
+                </td>
+              </tr>
+              {/* Section: Schedule */}
+              <tr className="bg-gray-50 border-t border-gray-100">
+                <td colSpan={3} className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">Schedule</td>
+              </tr>
+
+              {/* Active toggle */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Active</td>
+                <td className="px-4 py-2.5" colSpan={2}>
+                  <button
+                    role="switch"
+                    aria-checked={board.status !== 'paused'}
+                    onClick={handleTogglePause}
+                    disabled={updateBoard.isPending}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${board.status !== 'paused' ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${board.status !== 'paused' ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </td>
+              </tr>
+
+              {/* Cron */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Cron expression</td>
+                {editingField === 'cron' ? (
+                  <td className="px-4 py-2.5" colSpan={2}>
+                    <CronEditor
+                      value={draftValue}
+                      onChange={setDraftValue}
+                      onSave={() => saveField({ scheduleCron: draftValue })}
+                      onCancel={cancelFieldEdit}
+                      isPending={updateBoard.isPending}
+                    />
+                  </td>
+                ) : (
+                  <>
+                    <td className="px-4 py-2.5 flex items-center gap-2">
+                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{board.scheduleCron}</span>
+                      <span className="text-xs text-gray-400">{cronstrue.toString(board.scheduleCron, { throwExceptionOnParseError: false })}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      <button onClick={() => startFieldEdit('cron', board.scheduleCron)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+                    </td>
+                  </>
+                )}
+              </tr>
+            </tbody>
+          </table>
         </CardBody>
       </Card>
 
@@ -287,7 +383,10 @@ export default function BoardDetailPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-gray-900">Scraper Configuration</h2>
+              <div>
+                <h2 className="font-semibold text-gray-900">Scraper Configuration</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Generated {new Date(board.scraperConfig.generatedAt).toLocaleString()}</p>
+              </div>
               <Button
                 variant="secondary"
                 size="sm"
@@ -302,7 +401,7 @@ export default function BoardDetailPage() {
                 >
                   <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
                 </svg>
-                Re-analyze
+                Auto-configure with AI
               </Button>
             </div>
           </CardHeader>
@@ -355,7 +454,7 @@ export default function BoardDetailPage() {
                   <tr key={run.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3"><Badge status={run.status} /></td>
                     <td className="px-4 py-3 text-gray-600">
-                      {new Date(run.startedAt).toLocaleString()}
+                      <span title={new Date(run.startedAt).toLocaleString()} className="cursor-default">{timeAgo(run.startedAt)}</span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{runDuration(run)}</td>
                     <td className="px-4 py-3">{run.pagesScraped}</td>
