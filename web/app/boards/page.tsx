@@ -1,13 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
-import { BoardCard } from '@/components/boards/BoardCard';
 import { AddBoardForm } from '@/components/boards/AddBoardForm';
+import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card, CardBody } from '@/components/ui/Card';
+
+function timeAgo(iso: string) {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+  return `${Math.floor(months / 12)}y ago`;
+}
 
 export default function BoardsPage() {
   const [showForm, setShowForm] = useState(false);
@@ -56,10 +71,51 @@ export default function BoardsPage() {
           }
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-          {boards.map((board) => (
-            <BoardCard key={board.id} board={board} />
-          ))}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Name</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Ads</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Last scraped</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Schedule</th>
+                <th className="px-4 py-3"></th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {boards.map((board) => (
+                <tr key={board.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{board.name ?? board.url}</div>
+                    {board.name && (
+                      <div className="text-xs text-gray-400 truncate max-w-xs" title={board.url}>{board.url}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge status={board.status} />
+                  </td>
+                  <td className="px-4 py-3 text-gray-700">
+                    {board.adCount}
+                  </td>
+                  <td className="px-4 py-3 text-gray-500">
+                    {board.lastScrapedAt
+                      ? <span title={new Date(board.lastScrapedAt).toLocaleString()}>{timeAgo(board.lastScrapedAt)}</span>
+                      : <span className="italic">Never</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{board.scheduleCron}</span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Link href={`/boards/${board.id}`} className="text-xs text-indigo-500 hover:underline">
+                      View →
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
