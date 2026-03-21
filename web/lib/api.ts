@@ -94,4 +94,7 @@ export const api = {
   runs: {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),
   },
+  status: {
+    isProcessing: () => apiFetch<{ isProcessing: boolean }>('/api/status'),
+  },
 };
