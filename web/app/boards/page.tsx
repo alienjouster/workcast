@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
 import { AddBoardForm } from '@/components/boards/AddBoardForm';
 import { Badge } from '@/components/ui/Badge';
@@ -25,6 +25,7 @@ function timeAgo(iso: string) {
 }
 
 export default function BoardsPage() {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const { data: boards, isLoading, error } = useJobBoards();
 
@@ -80,12 +81,15 @@ export default function BoardsPage() {
                 <th className="px-4 py-3 text-left font-medium text-gray-500">Ads</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500">Last scraped</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500">Schedule</th>
-                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {boards.map((board) => (
-                <tr key={board.id} className="hover:bg-gray-50">
+                <tr
+                  key={board.id}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => router.push(`/boards/${board.id}`)}
+                >
                   <td className="px-4 py-3">
                     <div className="font-medium text-gray-900">{board.name ?? board.url}</div>
                     {board.name && (
@@ -106,11 +110,6 @@ export default function BoardsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{board.scheduleCron}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link href={`/boards/${board.id}`} className="text-xs text-indigo-500 hover:underline">
-                      View →
-                    </Link>
                   </td>
                 </tr>
               ))}
