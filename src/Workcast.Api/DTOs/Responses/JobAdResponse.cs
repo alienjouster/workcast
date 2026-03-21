@@ -45,4 +45,7 @@ public record JobAdResponse
 
     /// <summary>Gets a value indicating whether this ad is still active on the board.</summary>
     public required bool IsActive { get; init; }
+
+    /// <summary>Gets a value indicating whether this ad is pinned to the top of the list.</summary>
+    public required bool IsPinned { get; init; }
 }

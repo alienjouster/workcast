@@ -26,3 +26,12 @@ export function useDeleteAd() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
   });
 }
+
+export function usePinAd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, pinned }: { id: string; pinned: boolean }) =>
+      pinned ? api.ads.unpin(id) : api.ads.pin(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+  });
+}

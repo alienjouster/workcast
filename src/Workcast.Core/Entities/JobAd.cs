@@ -70,6 +70,11 @@ public class JobAd
     /// </summary>
     public bool IsActive { get; private set; }
 
+    /// <summary>
+    /// True when the user has pinned this ad so it always appears at the top of the list.
+    /// </summary>
+    public bool IsPinned { get; private set; }
+
     /// <summary>Navigation property — the owning job board.</summary>
     public JobBoard? JobBoard { get; private set; }
 
@@ -124,5 +129,17 @@ public class JobAd
     public void MarkActive()
     {
         IsActive = true;
+    }
+
+    /// <summary>Pins this ad so it appears at the top of all job ad lists.</summary>
+    public void Pin()
+    {
+        IsPinned = true;
+    }
+
+    /// <summary>Unpins this ad, returning it to its natural sort position.</summary>
+    public void Unpin()
+    {
+        IsPinned = false;
     }
 }

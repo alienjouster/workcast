@@ -79,6 +79,10 @@ export const api = {
     get: (id: string) => apiFetch<JobAd>(`/api/job-ads/${id}`),
     delete: (id: string) =>
       apiFetch<void>(`/api/job-ads/${id}`, { method: 'DELETE' }),
+    pin: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/pin`, { method: 'PATCH' }),
+    unpin: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/unpin`, { method: 'PATCH' }),
   },
   runs: {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),

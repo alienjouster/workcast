@@ -71,6 +71,11 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasDefaultValue(true)
             .IsRequired();
 
+        builder.Property(a => a.IsPinned)
+            .HasColumnName("is_pinned")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         // Primary dedup: JobBoardId + Url UNIQUE (TECHSPEC section 3.6)
         builder.HasIndex(a => new { a.JobBoardId, a.Url })
             .IsUnique()

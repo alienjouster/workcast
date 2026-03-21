@@ -55,6 +55,7 @@ export interface JobAd {
   postedAt: string | null;
   scrapedAt: string;
   isActive: boolean;
+  isPinned: boolean;
 }
 
 export interface ScrapeRunError {

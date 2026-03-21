@@ -51,7 +51,8 @@ public sealed class JobAdsController : ControllerBase
     {
         limit = Math.Clamp(limit, 1, 200);
 
-        // Decode cursor: encodes "ScrapedAt_ticks|Id" as a Base64 URL-safe string.
+        // Decode cursor: encodes "IsPinned|ScrapedAt_ticks|Id" as a Base64 URL-safe string.
+        bool? cursorIsPinned = null;
         DateTimeOffset? cursorScrapedAt = null;
         Guid? cursorId = null;
 
@@ -67,7 +68,7 @@ public sealed class JobAdsController : ControllerBase
                     detail: "The provided cursor value is invalid or corrupted.");
             }
 
-            (cursorScrapedAt, cursorId) = decoded.Value;
+            (cursorIsPinned, cursorScrapedAt, cursorId) = decoded.Value;
         }
 
         var query = _db.JobAds.AsQueryable();
@@ -91,19 +92,22 @@ public sealed class JobAdsController : ControllerBase
             query = query.Where(a => a.IsActive == isActive.Value);
         }
 
-        // Apply cursor: return ads with ScrapedAt older than cursor, or same ScrapedAt with smaller Id.
-        if (cursorScrapedAt.HasValue && cursorId.HasValue)
+        // Apply cursor: pinned items sort before unpinned, then ScrapedAt DESC, then Id DESC.
+        if (cursorIsPinned.HasValue && cursorScrapedAt.HasValue && cursorId.HasValue)
         {
-            var cursorTs = cursorScrapedAt.Value;
-            var cursorGuid = cursorId.Value;
+            var cPinned = cursorIsPinned.Value;
+            var cTs = cursorScrapedAt.Value;
+            var cGuid = cursorId.Value;
             query = query.Where(a =>
-                a.ScrapedAt < cursorTs ||
-                (a.ScrapedAt == cursorTs && a.Id.CompareTo(cursorGuid) < 0));
+                (!a.IsPinned && cPinned) ||
+                (a.IsPinned == cPinned && a.ScrapedAt < cTs) ||
+                (a.IsPinned == cPinned && a.ScrapedAt == cTs && a.Id.CompareTo(cGuid) < 0));
         }
 
         // Fetch one extra item to determine if a next page exists.
         var items = await query
-            .OrderByDescending(a => a.ScrapedAt)
+            .OrderByDescending(a => a.IsPinned)
+            .ThenByDescending(a => a.ScrapedAt)
             .ThenByDescending(a => a.Id)
             .Take(limit + 1)
             .ToListAsync(ct);
@@ -113,7 +117,7 @@ public sealed class JobAdsController : ControllerBase
         {
             items = items.Take(limit).ToList();
             var last = items[^1];
-            nextCursor = EncodeCursor(last.ScrapedAt, last.Id);
+            nextCursor = EncodeCursor(last.IsPinned, last.ScrapedAt, last.Id);
         }
 
         var response = new PagedResponse<JobAdResponse>
@@ -151,6 +155,64 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
+    /// Pins a job ad so it appears at the top of all job ad lists.
+    /// </summary>
+    /// <param name="id">The job ad identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPatch("{id:guid}/pin")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> PinAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+
+        if (ad is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job ad '{id}' was not found.");
+        }
+
+        ad.Pin();
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Pinned job ad {AdId}.", id);
+
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>
+    /// Unpins a job ad, returning it to its natural sort position.
+    /// </summary>
+    /// <param name="id">The job ad identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPatch("{id:guid}/unpin")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnpinAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+
+        if (ad is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job ad '{id}' was not found.");
+        }
+
+        ad.Unpin();
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Unpinned job ad {AdId}.", id);
+
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>
     /// Hard-deletes a job ad by ID.
     /// </summary>
     /// <param name="id">The job ad identifier.</param>
@@ -180,12 +242,12 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
-    /// Encodes a cursor from ScrapedAt and Id as a Base64 URL-safe string.
-    /// Format: "{ScrapedAt.Ticks}|{Id}" encoded as UTF-8 Base64.
+    /// Encodes a cursor from IsPinned, ScrapedAt, and Id as a Base64 URL-safe string.
+    /// Format: "{IsPinned}|{ScrapedAt.Ticks}|{Id}" encoded as UTF-8 Base64.
     /// </summary>
-    private static string EncodeCursor(DateTimeOffset scrapedAt, Guid id)
+    private static string EncodeCursor(bool isPinned, DateTimeOffset scrapedAt, Guid id)
     {
-        var raw = $"{scrapedAt.UtcTicks}|{id}";
+        var raw = $"{(isPinned ? 1 : 0)}|{scrapedAt.UtcTicks}|{id}";
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(raw))
             .TrimEnd('=')
             .Replace('+', '-')
@@ -196,7 +258,7 @@ public sealed class JobAdsController : ControllerBase
     /// Decodes a cursor string back to its component parts.
     /// Returns null if the cursor is malformed.
     /// </summary>
-    private static (DateTimeOffset ScrapedAt, Guid Id)? DecodeCursor(string cursor)
+    private static (bool IsPinned, DateTimeOffset ScrapedAt, Guid Id)? DecodeCursor(string cursor)
     {
         try
         {
@@ -214,22 +276,27 @@ public sealed class JobAdsController : ControllerBase
 
             var raw = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
             var parts = raw.Split('|');
-            if (parts.Length != 2)
+            if (parts.Length != 3)
             {
                 return null;
             }
 
-            if (!long.TryParse(parts[0], out var ticks))
+            if (!int.TryParse(parts[0], out var pinnedInt) || pinnedInt is not (0 or 1))
             {
                 return null;
             }
 
-            if (!Guid.TryParse(parts[1], out var id))
+            if (!long.TryParse(parts[1], out var ticks))
             {
                 return null;
             }
 
-            return (new DateTimeOffset(ticks, TimeSpan.Zero), id);
+            if (!Guid.TryParse(parts[2], out var id))
+            {
+                return null;
+            }
+
+            return (pinnedInt == 1, new DateTimeOffset(ticks, TimeSpan.Zero), id);
         }
         catch
         {

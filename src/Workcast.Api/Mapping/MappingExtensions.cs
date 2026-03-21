@@ -58,6 +58,7 @@ public static class MappingExtensions
             PostedAt = ad.PostedAt,
             ScrapedAt = ad.ScrapedAt,
             IsActive = ad.IsActive,
+            IsPinned = ad.IsPinned,
         };
     }
 
