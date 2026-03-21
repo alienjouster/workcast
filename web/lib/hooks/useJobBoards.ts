@@ -11,7 +11,7 @@ export function useJobBoards() {
     refetchInterval: (query) => {
       const boards = query.state.data;
       if (boards?.some((b) => b.status === 'pending')) return 3000;
-      return false;
+      return 30_000;
     },
   });
 }
