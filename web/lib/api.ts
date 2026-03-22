@@ -66,22 +66,38 @@ export const api = {
   },
   ads: {
     list: (params: {
-      boardId?: string;
-      search?: string;
+      boardIds?: string[];
+      locations?: string[];
+      companies?: string[];
       isActive?: boolean;
+      isRead?: boolean;
+      isPinned?: boolean;
+      minScore?: number;
       trashed?: boolean;
       cursor?: string;
       limit?: number;
     }) => {
       const q = new URLSearchParams();
-      if (params.boardId) q.set('boardId', params.boardId);
-      if (params.search) q.set('search', params.search);
+      params.boardIds?.forEach(id => q.append('boardIds', id));
+      params.locations?.forEach(l => q.append('locations', l));
+      params.companies?.forEach(c => q.append('companies', c));
       if (params.isActive !== undefined) q.set('isActive', String(params.isActive));
+      if (params.isRead !== undefined) q.set('isRead', String(params.isRead));
+      if (params.isPinned !== undefined) q.set('isPinned', String(params.isPinned));
+      if (params.minScore !== undefined) q.set('minScore', String(params.minScore));
       if (params.trashed) q.set('trashed', 'true');
       if (params.cursor) q.set('cursor', params.cursor);
       if (params.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
       return apiFetch<PagedResponse<JobAd>>(`/api/job-ads${qs ? `?${qs}` : ''}`);
+    },
+    distinctLocations: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/job-ads/distinct-locations${qs}`);
+    },
+    distinctCompanies: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/job-ads/distinct-companies${qs}`);
     },
     get: (id: string) => apiFetch<JobAd>(`/api/job-ads/${id}`),
     delete: (id: string) =>

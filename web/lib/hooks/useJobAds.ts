@@ -4,9 +4,13 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { api } from '@/lib/api';
 
 interface UseJobAdsParams {
-  boardId?: string;
-  search?: string;
+  boardIds?: string[];
+  locations?: string[];
+  companies?: string[];
   isActive?: boolean;
+  isRead?: boolean;
+  isPinned?: boolean;
+  minScore?: number;
   trashed?: boolean;
 }
 
@@ -14,7 +18,7 @@ export function useJobAds(params: UseJobAdsParams = {}) {
   return useInfiniteQuery({
     queryKey: ['job-ads', params],
     queryFn: ({ pageParam }) =>
-      api.ads.list({ ...params, trashed: params.trashed, cursor: pageParam as string | undefined }),
+      api.ads.list({ ...params, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     // Poll every 3 s while any ad has a scoring job in flight; otherwise 60 s

@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -43,11 +44,15 @@ public sealed class JobAdsController : ControllerBase
     [ProducesResponseType(typeof(PagedResponse<JobAdResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ListAsync(
-        [FromQuery] Guid? boardId,
-        [FromQuery] string? search,
+        [FromQuery] Guid[]? boardIds,
+        [FromQuery] string[]? locations,
+        [FromQuery] string[]? companies,
         [FromQuery] bool? isActive,
+        [FromQuery] bool? isRead,
+        [FromQuery] bool? isPinned,
         [FromQuery] string? cursor,
         [FromQuery] bool trashed = false,
+        [FromQuery] double? minScore = null,
         [FromQuery] int limit = 50,
         CancellationToken ct = default)
     {
@@ -75,23 +80,29 @@ public sealed class JobAdsController : ControllerBase
 
         var query = _db.JobAds.AsQueryable().Where(a => a.IsTrashed == trashed);
 
-        if (boardId.HasValue)
-        {
-            query = query.Where(a => a.JobBoardId == boardId.Value);
-        }
+        if (boardIds?.Length > 0)
+            query = query.Where(a => boardIds.Contains(a.JobBoardId));
 
-        if (!string.IsNullOrEmpty(search))
-        {
-            var lower = search.ToLowerInvariant();
-            query = query.Where(a =>
-                (a.Title != null && a.Title.ToLower().Contains(lower)) ||
-                (a.Company != null && a.Company.ToLower().Contains(lower)) ||
-                (a.Location != null && a.Location.ToLower().Contains(lower)));
-        }
+        if (locations?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Location, locations);
+
+        if (companies?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Company, companies);
 
         if (isActive.HasValue)
-        {
             query = query.Where(a => a.IsActive == isActive.Value);
+
+        if (isRead.HasValue)
+            query = query.Where(a => a.IsRead == isRead.Value);
+
+        if (isPinned.HasValue)
+            query = query.Where(a => a.IsPinned == isPinned.Value);
+
+        if (minScore.HasValue)
+        {
+            var threshold = minScore.Value;
+            query = query.Where(a => _db.Set<Workcast.Core.Entities.AdScoring>()
+                .Any(s => s.JobAdId == a.Id && s.OverallScore >= threshold));
         }
 
         // Apply cursor: pinned items sort before unpinned, then ScrapedAt DESC, then Id DESC.
@@ -287,7 +298,7 @@ public sealed class JobAdsController : ControllerBase
     [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
     public async Task<IActionResult> UnreadCountAsync(CancellationToken ct)
     {
-        var count = await _db.JobAds.CountAsync(a => !a.IsRead, ct);
+        var count = await _db.JobAds.CountAsync(a => !a.IsRead && !a.IsTrashed, ct);
         return Ok(count);
     }
 
@@ -427,6 +438,70 @@ public sealed class JobAdsController : ControllerBase
         _logger.LogInformation("Deleted job ad {AdId}.", id);
 
         return NoContent();
+    }
+
+    /// <summary>Returns distinct location values from non-trashed ads, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-locations")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctLocationsAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.JobAds.Where(a => !a.IsTrashed && a.Location != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Location, [q]);
+        var results = await query
+            .Select(a => a.Location!)
+            .Distinct()
+            .OrderBy(l => l)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
+    /// <summary>Returns distinct company values from non-trashed ads, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-companies")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctCompaniesAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.JobAds.Where(a => !a.IsTrashed && a.Company != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Company, [q]);
+        var results = await query
+            .Select(a => a.Company!)
+            .Distinct()
+            .OrderBy(c => c)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds an OR-combined WHERE clause: field LIKE '%val1%' OR field LIKE '%val2%'.
+    /// Uses expression trees so EF Core can translate to SQL without client evaluation.
+    /// </summary>
+    private static IQueryable<Workcast.Core.Entities.JobAd> ApplyPartialMatchFilter(
+        IQueryable<Workcast.Core.Entities.JobAd> query,
+        Expression<Func<Workcast.Core.Entities.JobAd, string?>> selector,
+        string[] values)
+    {
+        var param = Expression.Parameter(typeof(Workcast.Core.Entities.JobAd), "a");
+        var prop = Expression.Property(param, ((MemberExpression)selector.Body).Member.Name);
+        var toLower = typeof(string).GetMethod("ToLower", Type.EmptyTypes)!;
+        var contains = typeof(string).GetMethod("Contains", [typeof(string)])!;
+
+        Expression? combined = null;
+        foreach (var value in values)
+        {
+            var lower = value.ToLowerInvariant();
+            var notNull = Expression.NotEqual(prop, Expression.Constant(null, typeof(string)));
+            var cond = Expression.AndAlso(
+                notNull,
+                Expression.Call(Expression.Call(prop, toLower), contains, Expression.Constant(lower)));
+            combined = combined is null ? cond : Expression.OrElse(combined, cond);
+        }
+
+        return combined is null ? query : query.Where(Expression.Lambda<Func<Workcast.Core.Entities.JobAd, bool>>(combined, param));
     }
 
     /// <summary>

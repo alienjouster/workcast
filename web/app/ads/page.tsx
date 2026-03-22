@@ -5,6 +5,7 @@ import { useJobBoards } from '@/lib/hooks/useJobBoards';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { AdTable } from '@/components/ads/AdTable';
 import { TrashTable } from '@/components/ads/TrashTable';
+import { FilterBar, FilterState, EMPTY_FILTERS } from '@/components/ads/FilterBar';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -13,14 +14,32 @@ type View = 'ads' | 'trash';
 
 export default function AdsPage() {
   const [view, setView] = useState<View>('ads');
-  const [search, setSearch] = useState('');
-  const [boardId, setBoardId] = useState<string | undefined>(undefined);
-  const [isActive, setIsActive] = useState<boolean | undefined>(undefined);
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
 
-  const { data: boards } = useJobBoards();
-  const adsQuery = useJobAds({ boardId, search, isActive, trashed: false });
+  const { data: boards = [] } = useJobBoards();
+
+  // Derive bool filters from status tags: if both sides of a pair are selected (or neither), pass undefined
+  const deriveFlag = (trueTag: string, falseTag: string): boolean | undefined => {
+    const t = filters.statuses.includes(trueTag as never);
+    const f = filters.statuses.includes(falseTag as never);
+    return t === f ? undefined : t;
+  };
+
+  const adsQuery = useJobAds({
+    boardIds: filters.boardIds,
+    locations: filters.locations,
+    companies: filters.companies,
+    isActive:  deriveFlag('active',   'inactive'),
+    isRead:    deriveFlag('read',     'unread'),
+    isPinned:  deriveFlag('pinned',   'unpinned'),
+    minScore: filters.minScore,
+    trashed: false,
+  });
   const trashQuery = useJobAds({ trashed: true });
   const markAllRead = useMarkAllRead();
+
+  // Scope mark-all-read to the single selected board if exactly one is active
+  const markAllReadBoardId = filters.boardIds.length === 1 ? filters.boardIds[0] : undefined;
 
   const activeQuery = view === 'ads' ? adsQuery : trashQuery;
   const allAds = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
@@ -37,7 +56,7 @@ export default function AdsPage() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => markAllRead.mutate(boardId)}
+            onClick={() => markAllRead.mutate(markAllReadBoardId)}
             loading={markAllRead.isPending}
           >
             Mark all as read
@@ -79,37 +98,8 @@ export default function AdsPage() {
 
       {/* Filters — only in ads view */}
       {view === 'ads' && (
-        <div className="flex flex-wrap items-center gap-3 mb-4">
-          <input
-            type="text"
-            placeholder="Search title, company, location…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
-          />
-          <select
-            value={boardId ?? ''}
-            onChange={(e) => setBoardId(e.target.value || undefined)}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">All boards</option>
-            {boards?.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name ?? b.url}
-              </option>
-            ))}
-          </select>
-          <select
-            value={isActive === undefined ? '' : String(isActive)}
-            onChange={(e) =>
-              setIsActive(e.target.value === '' ? undefined : e.target.value === 'true')
-            }
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="">All status</option>
-            <option value="true">Active only</option>
-            <option value="false">Inactive only</option>
-          </select>
+        <div className="mb-4">
+          <FilterBar filters={filters} onChange={setFilters} boards={boards} />
         </div>
       )}
 
