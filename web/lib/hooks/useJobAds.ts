@@ -106,6 +106,14 @@ export function useBulkAction() {
   return { pin, unpin, read, unread, trash, isPending };
 }
 
+export function useSetNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, note }: { id: string; note: string | null }) => api.ads.setNote(id, note),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+  });
+}
+
 export function useUnreadCount() {
   return useQuery({
     queryKey: ['job-ads-unread-count'],

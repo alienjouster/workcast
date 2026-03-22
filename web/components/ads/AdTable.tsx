@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useMarkAdRead, usePinAd, useTrashAd, useBulkAction } from '@/lib/hooks/useJobAds';
 import { useAdScoring, useRunScoring } from '@/lib/hooks/useAdScoring';
 import { useSettings } from '@/lib/hooks/useSettings';
+import { NoteModal } from '@/components/ads/NoteModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -240,9 +241,12 @@ interface AdTableProps {
 export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [noteAdId, setNoteAdId] = useState<string | null>(null);
   const trashAd = useTrashAd();
   const pinAd = usePinAd();
   const markRead = useMarkAdRead();
+
+  const noteAd = noteAdId ? ads.find((a) => a.id === noteAdId) ?? null : null;
 
   const allSelected = ads.length > 0 && ads.every((a) => selectedIds.has(a.id));
   const someSelected = selectedIds.size > 0;
@@ -266,6 +270,15 @@ export function AdTable({ ads }: AdTableProps) {
   if (ads.length === 0) return null;
 
   return (
+    <>
+    {noteAd && (
+      <NoteModal
+        adId={noteAd.id}
+        initialNote={noteAd.note}
+        adTitle={noteAd.title}
+        onClose={() => setNoteAdId(null)}
+      />
+    )}
     <div className="overflow-x-auto">
       {/* Bulk action bar — always visible to prevent layout shift */}
       <div className="flex items-center gap-3 px-4 py-2 bg-indigo-50 border-b border-indigo-100">
@@ -409,19 +422,35 @@ export function AdTable({ ads }: AdTableProps) {
                   {new Date(ad.scrapedAt).toLocaleDateString()}
                 </td>
                 <td className="px-4 py-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      trashAd.mutate(ad.id);
-                    }}
-                    className="text-gray-400 hover:text-red-500"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                      <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
-                    </svg>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      title={ad.note ? 'Edit note' : 'Add note'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNoteAdId(ad.id);
+                      }}
+                      className={`transition-colors ${ad.note ? 'text-indigo-500 hover:text-indigo-700' : 'text-gray-300 hover:text-gray-500'}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                        <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
+                        <path d="M15 3v6h6" />
+                      </svg>
+                    </button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Move to trash"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        trashAd.mutate(ad.id);
+                      }}
+                      className="text-gray-400 hover:text-red-500"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
+                      </svg>
+                    </Button>
+                  </div>
                 </td>
               </tr>
               {expandedId === ad.id && (
@@ -449,5 +478,6 @@ export function AdTable({ ads }: AdTableProps) {
         </tbody>
       </table>
     </div>
+    </>
   );
 }

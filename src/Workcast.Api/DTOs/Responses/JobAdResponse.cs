@@ -60,4 +60,7 @@ public record JobAdResponse
 
     /// <summary>Gets a value indicating whether this ad has been moved to the trash bin.</summary>
     public required bool IsTrashed { get; init; }
+
+    /// <summary>Gets the personal note written by the user, or null if none.</summary>
+    public string? Note { get; init; }
 }

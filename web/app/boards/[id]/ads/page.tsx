@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { useScrapeRuns } from '@/lib/hooks/useScrapeRuns';
@@ -13,11 +13,10 @@ import { EmptyState } from '@/components/ui/EmptyState';
 
 export default function BoardAdsPage() {
   const { id } = useParams<{ id: string }>();
-  const [search, setSearch] = useState('');
   const [isActive, setIsActive] = useState<boolean | undefined>(undefined);
 
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useJobAds({ boardId: id, search, isActive });
+    useJobAds({ boardIds: [id], isActive });
   const markAllRead = useMarkAllRead();
 
   // Monitor scrape runs so that when a run completes the ads list and unread
@@ -49,13 +48,6 @@ export default function BoardAdsPage() {
       {/* Toolbar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search title, company, location…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
-        />
         <select
           value={isActive === undefined ? '' : String(isActive)}
           onChange={(e) =>
