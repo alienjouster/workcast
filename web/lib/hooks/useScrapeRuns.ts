@@ -12,7 +12,7 @@ export function useScrapeRuns(boardId: string, limit?: number) {
     //  30 s otherwise              — catches scheduler-triggered runs that start
     //                                with no prior user action on this page
     refetchInterval: (query) =>
-      query.state.data?.some((r) => r.status === 'running') ? 3000 : 30_000,
+      query.state.data?.some((r) => r.status === 'running') ? 3000 : false,
   });
 }
 

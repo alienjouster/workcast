@@ -7,7 +7,7 @@ export function useIsProcessing() {
   return useQuery({
     queryKey: ['processing-status'],
     queryFn: () => api.status.isProcessing(),
-    refetchInterval: 4_000,
+    refetchInterval: 10_000,
     select: (data) => data.isProcessing,
   });
 }

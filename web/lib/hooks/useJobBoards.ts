@@ -12,7 +12,7 @@ export function useJobBoards() {
     // while this component was not the active SSE recipient.
     refetchInterval: (query) => {
       const boards = query.state.data;
-      return boards?.some((b) => b.status === 'pending') ? 3_000 : 30_000;
+      return boards?.some((b) => b.status === 'pending') ? 3_000 : false;
     },
   });
 }

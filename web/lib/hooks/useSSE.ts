@@ -46,6 +46,7 @@ export function useSSE() {
 
         case 'runCompleted':
           qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs', 'detail', event.runId] });
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });
           qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
