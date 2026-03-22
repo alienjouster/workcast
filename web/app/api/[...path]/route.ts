@@ -10,14 +10,21 @@ async function proxy(
   const { search } = new URL(request.url);
   const target = `${API_INTERNAL}/api/${path}${search}`;
 
-  let body: string | undefined;
+  let body: BodyInit | undefined;
   if (request.method !== 'GET' && request.method !== 'HEAD') {
-    body = await request.text();
+    const contentType = request.headers.get('Content-Type') ?? '';
+    // Multipart uploads must be forwarded as-is (with their boundary).
+    // All other requests are JSON and can be read as text.
+    body = contentType.startsWith('multipart/form-data')
+      ? await request.arrayBuffer()
+      : await request.text();
   }
+
+  const forwardedContentType = request.headers.get('Content-Type') ?? 'application/json';
 
   const upstream = await fetch(target, {
     method: request.method,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': forwardedContentType },
     body,
   });
 

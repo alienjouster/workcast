@@ -15,4 +15,7 @@ public interface IAdScoringRepository
     /// Saves a scoring result, replacing any previously existing record for the same job ad.
     /// </summary>
     Task UpsertAsync(AdScoring scoring, CancellationToken ct = default);
+
+    /// <summary>Deletes the scoring result for the given job ad if one exists.</summary>
+    Task DeleteByAdIdAsync(Guid jobAdId, CancellationToken ct = default);
 }

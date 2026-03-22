@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Core.Interfaces;
+using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
 
 namespace Workcast.Api.Controllers;
@@ -15,16 +16,19 @@ namespace Workcast.Api.Controllers;
 [Route("api/job-ads/{adId:guid}/scoring")]
 public sealed class AdScoringController : ControllerBase
 {
+    private readonly AppDbContext _db;
     private readonly IAdScoringRepository _scoringRepository;
     private readonly ISettingsRepository _settingsRepository;
     private readonly IBackgroundJobClient _backgroundJobClient;
 
     /// <summary>Initializes a new instance of <see cref="AdScoringController"/>.</summary>
     public AdScoringController(
+        AppDbContext db,
         IAdScoringRepository scoringRepository,
         ISettingsRepository settingsRepository,
         IBackgroundJobClient backgroundJobClient)
     {
+        _db = db;
         _scoringRepository = scoringRepository;
         _settingsRepository = settingsRepository;
         _backgroundJobClient = backgroundJobClient;
@@ -60,6 +64,15 @@ public sealed class AdScoringController : ControllerBase
                 Detail = "Upload a resume in Settings before running scoring.",
             });
         }
+
+        var ad = await _db.JobAds.FindAsync(new object[] { adId }, ct);
+        if (ad is null) return NotFound();
+
+        // Delete any existing result immediately so polling returns null while the new job runs.
+        await _scoringRepository.DeleteByAdIdAsync(adId, ct);
+
+        ad.SetScoringPending();
+        await _db.SaveChangesAsync(ct);
 
         _backgroundJobClient.Enqueue<AdScoringJob>(j => j.ExecuteAsync(adId, CancellationToken.None));
         return Accepted();

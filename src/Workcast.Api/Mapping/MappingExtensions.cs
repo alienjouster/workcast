@@ -41,8 +41,9 @@ public static class MappingExtensions
     /// Maps a <see cref="JobAd"/> entity to a <see cref="JobAdResponse"/> DTO.
     /// </summary>
     /// <param name="ad">The job ad entity to map.</param>
+    /// <param name="overallScore">Optional pre-fetched resume-matching score for this ad.</param>
     /// <returns>A populated <see cref="JobAdResponse"/>.</returns>
-    public static JobAdResponse ToResponse(this JobAd ad)
+    public static JobAdResponse ToResponse(this JobAd ad, double? overallScore = null)
     {
         return new JobAdResponse
         {
@@ -61,6 +62,8 @@ public static class MappingExtensions
             IsActive = ad.IsActive,
             IsPinned = ad.IsPinned,
             IsRead = ad.IsRead,
+            OverallScore = overallScore,
+            IsScoringPending = ad.IsScoringPending,
         };
     }
 

@@ -11,9 +11,9 @@ namespace Workcast.Jobs;
 
 /// <summary>
 /// Hangfire fire-and-forget job that scores a user's resume against a specific job ad.
-/// Fetches the job ad detail page, sends it alongside the resume to Claude,
-/// and persists the structured scoring result. Fires a <c>scoringCompleted</c> SSE
-/// event on completion so the UI updates immediately.
+/// Renders the job ad detail page via Playwright (handles JS-heavy SPAs), sends it
+/// alongside the resume to Claude, and persists the structured scoring result.
+/// Fires a <c>scoringCompleted</c> SSE event on completion so the UI updates immediately.
 /// </summary>
 public sealed class AdScoringJob
 {
@@ -22,7 +22,7 @@ public sealed class AdScoringJob
     private readonly IAdScoringRepository _scoringRepository;
     private readonly ISettingsRepository _settingsRepository;
     private readonly IEventBroadcaster _broadcaster;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IScraperEngine _scraperEngine;
     private readonly HtmlCleaningService _htmlCleaner;
     private readonly ILogger<AdScoringJob> _logger;
 
@@ -33,7 +33,7 @@ public sealed class AdScoringJob
         IAdScoringRepository scoringRepository,
         ISettingsRepository settingsRepository,
         IEventBroadcaster broadcaster,
-        IHttpClientFactory httpClientFactory,
+        IScraperEngine scraperEngine,
         HtmlCleaningService htmlCleaner,
         ILogger<AdScoringJob> logger)
     {
@@ -42,7 +42,7 @@ public sealed class AdScoringJob
         _scoringRepository = scoringRepository;
         _settingsRepository = settingsRepository;
         _broadcaster = broadcaster;
-        _httpClientFactory = httpClientFactory;
+        _scraperEngine = scraperEngine;
         _htmlCleaner = htmlCleaner;
         _logger = logger;
     }
@@ -70,47 +70,53 @@ public sealed class AdScoringJob
         if (!settings.HasResume)
             throw new InvalidOperationException("Cannot score: no resume has been uploaded in Settings.");
 
-        // Fetch and clean the job ad page.
-        string pageText;
-        using (var client = _httpClientFactory.CreateClient("JobAdFetcher"))
+        try
         {
-            _logger.LogInformation("Fetching job ad page {Url}", ad.Url);
-            var html = await client.GetStringAsync(ad.Url, ct).ConfigureAwait(false);
-            pageText = _htmlCleaner.ExtractTextFromHtml(html);
+            // Render and clean the job ad page via Playwright so JS-heavy SPAs are fully loaded.
+            _logger.LogInformation("Rendering job ad page {Url}", ad.Url);
+            var html = await _scraperEngine.RenderPageAsync(ad.Url, ct: ct).ConfigureAwait(false);
+            var pageText = _htmlCleaner.ExtractTextFromHtml(html);
+
+            // Call Claude for scoring.
+            var result = await _aiProvider.ScoreAdAsync(
+                settings.ResumeContent!,
+                settings.ResumeContentType!,
+                settings.ResumeFileName!,
+                pageText,
+                ct).ConfigureAwait(false);
+
+            // Persist — replaces any previous scoring for this ad.
+            var scoring = AdScoring.Create(
+                adId,
+                result.OverallScore,
+                result.Summary,
+                result.Requirements.Select(r => new ScoringRequirement
+                {
+                    Name = r.Name,
+                    Category = r.Category,
+                    IsOptional = r.IsOptional,
+                    Score = r.Score,
+                    Notes = r.Notes,
+                }).ToList());
+
+            await _scoringRepository.UpsertAsync(scoring, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Scoring completed for job ad {AdId}. Overall score: {Score:F1}",
+                adId, result.OverallScore);
         }
-
-        // Call Claude for scoring.
-        var result = await _aiProvider.ScoreAdAsync(
-            settings.ResumeContent!,
-            settings.ResumeContentType!,
-            settings.ResumeFileName!,
-            pageText,
-            ct).ConfigureAwait(false);
-
-        // Persist — replaces any previous scoring for this ad.
-        var scoring = AdScoring.Create(
-            adId,
-            result.OverallScore,
-            result.Summary,
-            result.Requirements.Select(r => new ScoringRequirement
-            {
-                Name = r.Name,
-                Category = r.Category,
-                IsOptional = r.IsOptional,
-                Score = r.Score,
-                Notes = r.Notes,
-            }).ToList());
-
-        await _scoringRepository.UpsertAsync(scoring, ct).ConfigureAwait(false);
-
-        _logger.LogInformation(
-            "Scoring completed for job ad {AdId}. Overall score: {Score:F1}",
-            adId, result.OverallScore);
-
-        await _broadcaster.PublishAsync(new WorkcastEvent
+        finally
         {
-            Type = WorkcastEvent.ScoringCompleted,
-            AdId = adId,
-        }).ConfigureAwait(false);
+            // Always clear the pending flag so the UI re-enables the button,
+            // regardless of whether the job succeeded or failed.
+            ad.ClearScoringPending();
+            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type = WorkcastEvent.ScoringCompleted,
+                AdId = adId,
+            }).ConfigureAwait(false);
+        }
     }
 }

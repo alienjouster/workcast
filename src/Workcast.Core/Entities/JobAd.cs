@@ -81,6 +81,13 @@ public class JobAd
     /// </summary>
     public bool IsRead { get; private set; }
 
+    /// <summary>
+    /// True while a scoring Hangfire job for this ad is queued or executing.
+    /// Set by the controller on enqueue, cleared by <see cref="Workcast.Jobs.AdScoringJob"/>
+    /// on completion (success or failure) so the UI can track in-progress state.
+    /// </summary>
+    public bool IsScoringPending { get; private set; }
+
     /// <summary>Navigation property — the owning job board.</summary>
     public JobBoard? JobBoard { get; private set; }
 
@@ -159,5 +166,17 @@ public class JobAd
     public void MarkUnread()
     {
         IsRead = false;
+    }
+
+    /// <summary>Marks scoring as in-progress for this ad.</summary>
+    public void SetScoringPending()
+    {
+        IsScoringPending = true;
+    }
+
+    /// <summary>Clears the scoring-in-progress flag once the job completes or fails.</summary>
+    public void ClearScoringPending()
+    {
+        IsScoringPending = false;
     }
 }

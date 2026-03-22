@@ -59,7 +59,11 @@ export function useSSE() {
           break;
 
         case 'scoringCompleted':
-          qc.invalidateQueries({ queryKey: ['ad-scoring', event.adId] });
+          // Use refetchQueries (not invalidate) to force a fetch even if the query
+          // is in error state (e.g. a 404 from a poll before the result was ready).
+          qc.refetchQueries({ queryKey: ['ad-scoring', event.adId] });
+          // Refresh the ads list so isScoringPending clears and overallScore updates.
+          qc.invalidateQueries({ queryKey: ['job-ads'] });
           break;
       }
     };

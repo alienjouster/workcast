@@ -16,9 +16,14 @@ export function useJobAds(params: UseJobAdsParams = {}) {
       api.ads.list({ ...params, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    // Poll every 60 s as a fallback for missed SSE runCompleted events so new
-    // ads surface even if the SSE stream is temporarily unavailable.
-    refetchInterval: 60_000,
+    // Poll every 3 s while any ad has a scoring job in flight; otherwise 60 s
+    // as a fallback for missed SSE runCompleted events.
+    refetchInterval: (query) => {
+      const hasPending = query.state.data?.pages
+        .flatMap((p) => p.items)
+        .some((a) => a.isScoringPending);
+      return hasPending ? 3_000 : 60_000;
+    },
   });
 }
 

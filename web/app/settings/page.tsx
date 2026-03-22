@@ -40,69 +40,6 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
 
-      {/* AI section */}
-      <Card>
-        <CardHeader>
-          <h2 className="font-semibold text-gray-900">AI</h2>
-        </CardHeader>
-        <CardBody className="p-0">
-          <table className="min-w-full text-sm">
-            <tbody>
-              <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Model</td>
-                {editing ? (
-                  <>
-                    <td className="px-4 py-2.5">
-                      <select
-                        autoFocus
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        {settings!.availableModels.map((model) => (
-                          <option key={model} value={model}>
-                            {model}
-                          </option>
-                        ))}
-                      </select>
-                      {MODEL_INFO[draft] && (
-                        <p className="mt-1 text-xs text-gray-400">{MODEL_INFO[draft]}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="primary" onClick={saveEdit} loading={isPending}>Save</Button>
-                        <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-2.5 text-sm text-gray-900">
-                      {isLoading ? (
-                        <span className="text-gray-400">Loading…</span>
-                      ) : (
-                        <span className="inline-flex items-baseline gap-2">
-                          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{settings?.aiModel}</span>
-                          {settings?.aiModel && MODEL_INFO[settings.aiModel] && (
-                            <span className="text-xs text-gray-400">{MODEL_INFO[settings.aiModel]}</span>
-                          )}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {!isLoading && (
-                        <button onClick={startEdit} className="text-xs text-indigo-500 hover:underline">Edit</button>
-                      )}
-                    </td>
-                  </>
-                )}
-              </tr>
-            </tbody>
-          </table>
-        </CardBody>
-      </Card>
-
       {/* Resume section */}
       <Card>
         <CardHeader>
@@ -171,6 +108,69 @@ export default function SettingsPage() {
                     )}
                   </div>
                 </td>
+              </tr>
+            </tbody>
+          </table>
+        </CardBody>
+      </Card>
+
+      {/* AI section */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-gray-900">AI</h2>
+        </CardHeader>
+        <CardBody className="p-0">
+          <table className="min-w-full text-sm">
+            <tbody>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Model</td>
+                {editing ? (
+                  <>
+                    <td className="px-4 py-2.5">
+                      <select
+                        autoFocus
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                        className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {settings!.availableModels.map((model) => (
+                          <option key={model} value={model}>
+                            {model}
+                          </option>
+                        ))}
+                      </select>
+                      {MODEL_INFO[draft] && (
+                        <p className="mt-1 text-xs text-gray-400">{MODEL_INFO[draft]}</p>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button size="sm" variant="primary" onClick={saveEdit} loading={isPending}>Save</Button>
+                        <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
+                      </div>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td className="px-4 py-2.5 text-sm text-gray-900">
+                      {isLoading ? (
+                        <span className="text-gray-400">Loading…</span>
+                      ) : (
+                        <span className="inline-flex items-baseline gap-2">
+                          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{settings?.aiModel}</span>
+                          {settings?.aiModel && MODEL_INFO[settings.aiModel] && (
+                            <span className="text-xs text-gray-400">{MODEL_INFO[settings.aiModel]}</span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {!isLoading && (
+                        <button onClick={startEdit} className="text-xs text-indigo-500 hover:underline">Edit</button>
+                      )}
+                    </td>
+                  </>
+                )}
               </tr>
             </tbody>
           </table>

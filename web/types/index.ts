@@ -57,6 +57,8 @@ export interface JobAd {
   isActive: boolean;
   isPinned: boolean;
   isRead: boolean;
+  overallScore: number | null;
+  isScoringPending: boolean;
 }
 
 export interface ScrapeRunError {

@@ -83,40 +83,50 @@ public sealed class SettingsController : ControllerBase
 
     /// <summary>
     /// Uploads or replaces the user's resume. Accepted formats: PDF, TXT, JSON (max 5 MB).
+    /// File content must be base64-encoded in the request body.
     /// </summary>
     [HttpPut("resume")]
-    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UploadResumeAsync(
-        IFormFile file,
+        [FromBody] UploadResumeRequest request,
         CancellationToken ct)
     {
-        if (file.Length > MaxResumeBytes)
+        byte[] content;
+        try
+        {
+            content = Convert.FromBase64String(request.ContentBase64);
+        }
+        catch (FormatException)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid base64",
+                Detail = "ContentBase64 is not valid base64.",
+            });
+        }
+
+        if (content.Length > MaxResumeBytes)
         {
             return UnprocessableEntity(new ProblemDetails
             {
                 Title = "File too large",
-                Detail = $"Resume must be 5 MB or smaller. Received {file.Length / 1024} KB.",
+                Detail = $"Resume must be 5 MB or smaller. Received {content.Length / 1024} KB.",
             });
         }
 
-        var contentType = file.ContentType?.ToLowerInvariant() ?? "";
+        var contentType = request.ContentType.ToLowerInvariant();
         if (!AllowedResumeTypes.Contains(contentType))
         {
             return UnprocessableEntity(new ProblemDetails
             {
                 Title = "Unsupported file type",
-                Detail = $"Only PDF, plain text, and JSON resumes are accepted. Received: '{file.ContentType}'.",
+                Detail = $"Only PDF, plain text, and JSON resumes are accepted. Received: '{request.ContentType}'.",
             });
         }
 
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms, ct);
-        var content = ms.ToArray();
-
         var settings = await _settingsRepository.GetAsync(ct);
-        settings.SetResume(file.FileName, content, contentType);
+        settings.SetResume(request.FileName, content, contentType);
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(new SettingsResponse(
@@ -160,4 +170,9 @@ public sealed class SettingsController : ControllerBase
 
     /// <param name="AiModel">The model identifier to switch to.</param>
     public sealed record UpdateSettingsRequest(string AiModel);
+
+    /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
+    /// <param name="ContentBase64">Base64-encoded file bytes.</param>
+    /// <param name="ContentType">MIME type (application/pdf, text/plain, application/json).</param>
+    public sealed record UploadResumeRequest(string FileName, string ContentBase64, string ContentType);
 }

@@ -22,6 +22,19 @@ internal sealed class AdScoringRepository : IAdScoringRepository
             .ConfigureAwait(false);
     }
 
+    public async Task DeleteByAdIdAsync(Guid jobAdId, CancellationToken ct = default)
+    {
+        var existing = await _db.AdScorings
+            .FirstOrDefaultAsync(s => s.JobAdId == jobAdId, ct)
+            .ConfigureAwait(false);
+
+        if (existing is not null)
+        {
+            _db.AdScorings.Remove(existing);
+            await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+    }
+
     public async Task UpsertAsync(AdScoring scoring, CancellationToken ct = default)
     {
         var existing = await _db.AdScorings

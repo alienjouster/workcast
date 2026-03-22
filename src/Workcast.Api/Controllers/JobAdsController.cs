@@ -120,9 +120,16 @@ public sealed class JobAdsController : ControllerBase
             nextCursor = EncodeCursor(last.IsPinned, last.ScrapedAt, last.Id);
         }
 
+        // Batch-fetch scores for the current page to avoid N+1 queries.
+        var adIds = items.Select(a => a.Id).ToList();
+        var scores = await _db.Set<Workcast.Core.Entities.AdScoring>()
+            .Where(s => adIds.Contains(s.JobAdId))
+            .Select(s => new { s.JobAdId, s.OverallScore })
+            .ToDictionaryAsync(s => s.JobAdId, s => s.OverallScore, ct);
+
         var response = new PagedResponse<JobAdResponse>
         {
-            Items = items.Select(a => a.ToResponse()).ToList(),
+            Items = items.Select(a => a.ToResponse(scores.TryGetValue(a.Id, out var sc) ? sc : null)).ToList(),
             NextCursor = nextCursor,
             Count = items.Count,
         };

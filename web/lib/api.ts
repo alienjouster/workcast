@@ -115,15 +115,15 @@ export const api = {
         body: JSON.stringify(data),
       }),
     uploadResume: async (file: File): Promise<AppSettings> => {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/settings/resume', { method: 'PUT', body: formData });
-      if (!res.ok) {
-        let detail = `API error ${res.status}`;
-        try { const err = await res.json(); detail = err.detail ?? detail; } catch { /* ignore */ }
-        throw new Error(detail);
-      }
-      return res.json() as Promise<AppSettings>;
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const contentBase64 = btoa(binary);
+      return apiFetch<AppSettings>('/api/settings/resume', {
+        method: 'PUT',
+        body: JSON.stringify({ fileName: file.name, contentBase64, contentType: file.type }),
+      });
     },
     deleteResume: () =>
       apiFetch<AppSettings>('/api/settings/resume', { method: 'DELETE' }),
