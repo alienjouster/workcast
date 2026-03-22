@@ -72,13 +72,24 @@ function AdScoringPanel({ adId, isScoringPending }: { adId: string; isScoringPen
       {scoring && (
         <div className="space-y-3">
           {/* Score + summary box */}
-          <div className="flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <span className="shrink-0 text-3xl font-bold text-gray-800 leading-none">
+          <div className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <span className="shrink-0 text-3xl font-bold text-gray-800 leading-none pt-0.5">
               {Math.round(scoring.overallScore)}<span className="text-base font-normal text-gray-400">/100</span>
             </span>
-            {scoring.summary && (
-              <p className="text-xs text-gray-600 leading-relaxed">{scoring.summary}</p>
-            )}
+            <div className="flex-1 space-y-2">
+              {scoring.recommendation && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-0.5">Recommendation</p>
+                  <p className="text-sm text-gray-800 leading-relaxed">{scoring.recommendation}</p>
+                </div>
+              )}
+              {scoring.recommendation && scoring.summary && (
+                <hr className="border-gray-100" />
+              )}
+              {scoring.summary && (
+                <p className="text-xs text-gray-500 leading-relaxed">{scoring.summary}</p>
+              )}
+            </div>
           </div>
 
           {/* Requirements grouped by category */}
@@ -138,7 +149,14 @@ export function AdTable({ ads }: AdTableProps) {
           <tr>
             <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
             <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
-            <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">Match</th>
+            <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">
+              <span className="flex items-center gap-1">
+                Match
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-indigo-400">
+                  <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
+                </svg>
+              </span>
+            </th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Title</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Company</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Location</th>

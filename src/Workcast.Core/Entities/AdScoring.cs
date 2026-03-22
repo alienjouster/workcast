@@ -14,6 +14,7 @@ public sealed class AdScoring
         Guid jobAdId,
         double overallScore,
         string summary,
+        string recommendation,
         List<ScoringRequirement> requirements)
     {
         return new AdScoring
@@ -22,6 +23,7 @@ public sealed class AdScoring
             ScoredAt = DateTimeOffset.UtcNow,
             OverallScore = overallScore,
             Summary = summary,
+            Recommendation = recommendation,
             Requirements = requirements,
         };
     }
@@ -43,6 +45,9 @@ public sealed class AdScoring
 
     /// <summary>Short narrative summary produced by the AI.</summary>
     public string Summary { get; private set; } = "";
+
+    /// <summary>Actionable recommendation on how the candidate could improve their match.</summary>
+    public string Recommendation { get; private set; } = "";
 
     /// <summary>
     /// Per-requirement breakdown stored as a JSONB column.

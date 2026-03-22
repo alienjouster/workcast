@@ -151,18 +151,31 @@ public sealed class ClaudeAiProvider : IAiProvider
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
 
         var promptSuffix = $"""
-            Job posting content:
-            {jobPageText}
 
-            Analyze how well this resume matches the job posting above.
+            You are an expert executive helping the candidate to apply for an open position in a company.
+
+            You will receive two inputs:
+            - A JOB AD (job description of the open position you are recurting)
+            - A RESUME (complete career history of the applicant)
+
+            Your task is to:
+            - Carefully analyze the JOB AD and identify required skills, experience, seniority, domain exposure, leadership scope, certifications, tools, and impact expectations
+            - Carefully analyze the JSON RESUME skills, experience, seniority, domain exposure, leadership scope, education and certifications
             For each distinct skill, qualification, or requirement mentioned in the job posting:
             - category: "match" if clearly present in the resume, "partial_match" if partially covered, "gap" if absent
             - is_optional: true only if the posting explicitly says "nice to have", "preferred", "optional", "plus", or similar
             - score: 100 for match, 50 for partial_match, 0 for gap. For optional items, gaps may score 25 and partial matches up to 75.
-            - notes: one sentence explaining your reasoning
+            - notes: one short sentence explaining your reasoning
 
-            overall_score is the arithmetic mean of all requirement scores (0–100).
+            "overall_score" is the arithmetic average of all requirement scores (0–100).
+            "summary" is 1-2 short sentences describing the overall match quality factually.
+            "recommendation" is 1 very short sentence advising whether the candidate should proceed with the application or not.
+
+            Be very factual. Stick with the evidence given in the JOB AD and the RESUME.
+
             Call the submit_scoring tool with the complete analysis.
+
+            JOB AD: {jobPageText}
             """;
 
         object userContent;
@@ -187,7 +200,7 @@ public sealed class ClaudeAiProvider : IAiProvider
         else
         {
             var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
-            userContent = $"Resume ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
+            userContent = $"RESUME ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
         }
 
         var input = await CallScoringWithRetryAsync(userContent, tool, "submit_scoring", settings.AiModel, ct)
@@ -294,6 +307,7 @@ public sealed class ClaudeAiProvider : IAiProvider
         {
             OverallScore = input["overall_score"]?.GetValue<double>() ?? 0.0,
             Summary = input["summary"]?.GetValue<string>() ?? "",
+            Recommendation = input["recommendation"]?.GetValue<string>() ?? "",
             Requirements = requirements,
         };
     }
@@ -307,7 +321,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             InputSchema = new
             {
                 type = "object",
-                required = new[] { "requirements", "overall_score", "summary" },
+                required = new[] { "requirements", "overall_score", "summary", "recommendation" },
                 properties = new
                 {
                     requirements = new
@@ -328,8 +342,9 @@ public sealed class ClaudeAiProvider : IAiProvider
                             },
                         },
                     },
-                    overall_score = new { type = "number", minimum = 0, maximum = 100, description = "Arithmetic mean of all requirement scores." },
-                    summary       = new { type = "string", description = "2–3 sentence narrative summary of the match quality." },
+                    overall_score  = new { type = "number", minimum = 0, maximum = 100, description = "Arithmetic mean of all requirement scores." },
+                    summary        = new { type = "string", description = "1–2 sentence factual narrative of the overall match quality." },
+                    recommendation = new { type = "string", description = "1–2 actionable sentences advising whether to proceed and what to highlight or address." },
                 },
             },
         };

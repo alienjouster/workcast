@@ -90,6 +90,7 @@ public sealed class AdScoringJob
                 adId,
                 result.OverallScore,
                 result.Summary,
+                result.Recommendation,
                 result.Requirements.Select(r => new ScoringRequirement
                 {
                     Name = r.Name,

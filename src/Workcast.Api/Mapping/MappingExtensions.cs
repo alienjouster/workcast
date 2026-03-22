@@ -212,6 +212,7 @@ public static class MappingExtensions
             ScoredAt = scoring.ScoredAt,
             OverallScore = scoring.OverallScore,
             Summary = scoring.Summary,
+            Recommendation = scoring.Recommendation,
             Requirements = scoring.Requirements
                 .Select(r => new ScoringRequirementResponse
                 {

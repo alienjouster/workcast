@@ -123,6 +123,7 @@ export interface AdScoring {
   scoredAt: string;
   overallScore: number;
   summary: string;
+  recommendation: string;
   requirements: ScoringRequirement[];
 }
 

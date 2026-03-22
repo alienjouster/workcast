@@ -8,6 +8,7 @@ public sealed class AdScoringResponse
     public DateTimeOffset ScoredAt { get; init; }
     public double OverallScore { get; init; }
     public string Summary { get; init; } = "";
+    public string Recommendation { get; init; } = "";
     public IList<ScoringRequirementResponse> Requirements { get; init; } = [];
 }
 

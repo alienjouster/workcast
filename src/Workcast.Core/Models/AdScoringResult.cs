@@ -13,6 +13,9 @@ public sealed class AdScoringResult
     /// <summary>Short narrative summary of the match quality.</summary>
     public string Summary { get; set; } = "";
 
+    /// <summary>Actionable recommendation on how the candidate could improve their match.</summary>
+    public string Recommendation { get; set; } = "";
+
     /// <summary>Per-requirement analysis produced by the AI.</summary>
     public List<AdScoringRequirementResult> Requirements { get; set; } = [];
 }
