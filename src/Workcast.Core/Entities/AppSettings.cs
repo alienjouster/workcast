@@ -15,6 +15,21 @@ public sealed class AppSettings
     /// </summary>
     public string AiModel { get; private set; } = "claude-sonnet-4-5";
 
+    /// <summary>Original file name of the uploaded resume.</summary>
+    public string? ResumeFileName { get; private set; }
+
+    /// <summary>Raw bytes of the uploaded resume file.</summary>
+    public byte[]? ResumeContent { get; private set; }
+
+    /// <summary>MIME type of the uploaded resume (e.g. "application/pdf", "text/plain").</summary>
+    public string? ResumeContentType { get; private set; }
+
+    /// <summary>UTC timestamp when the resume was last uploaded.</summary>
+    public DateTimeOffset? ResumeUploadedAt { get; private set; }
+
+    /// <summary>True when a resume file has been uploaded.</summary>
+    public bool HasResume => ResumeContent is not null;
+
     // Required by EF Core.
     private AppSettings() { }
 
@@ -23,4 +38,22 @@ public sealed class AppSettings
 
     /// <summary>Updates the AI model identifier.</summary>
     public void SetAiModel(string model) => AiModel = model;
+
+    /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
+    public void SetResume(string fileName, byte[] content, string contentType)
+    {
+        ResumeFileName = fileName;
+        ResumeContent = content;
+        ResumeContentType = contentType;
+        ResumeUploadedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Removes the stored resume.</summary>
+    public void ClearResume()
+    {
+        ResumeFileName = null;
+        ResumeContent = null;
+        ResumeContentType = null;
+        ResumeUploadedAt = null;
+    }
 }

@@ -52,6 +52,7 @@ public static class DependencyInjection
         services.AddSingleton<TimestampInterceptor>();
 
         services.AddScoped<ISettingsRepository, SettingsRepository>();
+        services.AddScoped<IAdScoringRepository, AdScoringRepository>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {
@@ -88,6 +89,14 @@ public static class DependencyInjection
         // IAiProvider resolves to the typed-client registration above.
         // Do NOT add a second AddScoped here — that would inject a plain HttpClient with no headers.
         services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ClaudeAiProvider>());
+
+        // Named HttpClient used by AdScoringJob to fetch job ad detail pages.
+        services.AddHttpClient("JobAdFetcher", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+            client.DefaultRequestHeaders.Add("User-Agent",
+                "Mozilla/5.0 (compatible; Workcast/1.0; +https://workcast.local)");
+        });
 
         // HtmlCleaningService is Singleton — stateless, all state is compiled regexes.
         services.AddSingleton<HtmlCleaningService>();

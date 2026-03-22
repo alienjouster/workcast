@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Workcast.Core.Entities;
 using Workcast.Infrastructure.Persistence.Configurations;
 
+
 namespace Workcast.Infrastructure.Persistence;
 
 /// <summary>
@@ -31,6 +32,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>Global application settings (single row).</summary>
     public DbSet<AppSettings> AppSettings => Set<AppSettings>();
 
+    /// <summary>AI scoring results for job ads.</summary>
+    public DbSet<AdScoring> AdScorings => Set<AdScoring>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,5 +44,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new JobAdConfiguration());
         modelBuilder.ApplyConfiguration(new ScrapeRunConfiguration());
         modelBuilder.ApplyConfiguration(new AppSettingsConfiguration());
+        modelBuilder.ApplyConfiguration(new AdScoringConfiguration());
     }
 }

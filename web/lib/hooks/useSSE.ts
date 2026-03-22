@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface SseEvent {
-  type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged';
+  type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged' | 'scoringCompleted';
   boardId?: string;
   runId?: string;
+  adId?: string;
   status?: string;
   adsNew?: number;
   unreadCount?: number;
@@ -55,6 +56,10 @@ export function useSSE() {
 
         case 'unreadCountChanged':
           qc.setQueryData(['job-ads-unread-count'], event.unreadCount);
+          break;
+
+        case 'scoringCompleted':
+          qc.invalidateQueries({ queryKey: ['ad-scoring', event.adId] });
           break;
       }
     };

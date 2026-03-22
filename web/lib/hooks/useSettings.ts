@@ -22,3 +22,26 @@ export function useUpdateSettings() {
     },
   });
 }
+
+export function useUploadResume() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => api.settings.uploadResume(file),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(QUERY_KEY, updated);
+    },
+  });
+}
+
+export function useDeleteResume() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.settings.deleteResume(),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(QUERY_KEY, updated);
+    },
+  });
+}
+

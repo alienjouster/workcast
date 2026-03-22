@@ -1,6 +1,7 @@
 import type {
   JobBoard,
   JobAd,
+  AdScoring,
   ScrapeRun,
   PagedResponse,
   CreateJobBoardRequest,
@@ -101,6 +102,11 @@ export const api = {
   status: {
     isProcessing: () => apiFetch<{ isProcessing: boolean }>('/api/status'),
   },
+  scoring: {
+    get: (adId: string) => apiFetch<AdScoring>(`/api/job-ads/${adId}/scoring`),
+    run: (adId: string) =>
+      apiFetch<void>(`/api/job-ads/${adId}/scoring`, { method: 'POST' }),
+  },
   settings: {
     get: () => apiFetch<AppSettings>('/api/settings'),
     update: (data: UpdateSettingsRequest) =>
@@ -108,5 +114,18 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
+    uploadResume: async (file: File): Promise<AppSettings> => {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/settings/resume', { method: 'PUT', body: formData });
+      if (!res.ok) {
+        let detail = `API error ${res.status}`;
+        try { const err = await res.json(); detail = err.detail ?? detail; } catch { /* ignore */ }
+        throw new Error(detail);
+      }
+      return res.json() as Promise<AppSettings>;
+    },
+    deleteResume: () =>
+      apiFetch<AppSettings>('/api/settings/resume', { method: 'DELETE' }),
   },
 };

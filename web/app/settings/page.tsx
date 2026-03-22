@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { useSettings, useUpdateSettings } from '@/lib/hooks/useSettings';
+import { useSettings, useUpdateSettings, useUploadResume, useDeleteResume } from '@/lib/hooks/useSettings';
 
 const MODEL_INFO: Record<string, string> = {
   'claude-haiku-4-5-20251001': 'Fastest & cheapest — to avoid, usually too weak for Workcast',
@@ -15,6 +15,9 @@ const MODEL_INFO: Record<string, string> = {
 export default function SettingsPage() {
   const { data: settings, isLoading } = useSettings();
   const { mutate: updateSettings, isPending } = useUpdateSettings();
+  const { mutate: uploadResume, isPending: isUploading, error: uploadError } = useUploadResume();
+  const { mutate: deleteResume, isPending: isDeleting } = useDeleteResume();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -94,6 +97,80 @@ export default function SettingsPage() {
                     </td>
                   </>
                 )}
+              </tr>
+            </tbody>
+          </table>
+        </CardBody>
+      </Card>
+
+      {/* Resume section */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-gray-900">Resume</h2>
+        </CardHeader>
+        <CardBody className="p-0">
+          <table className="min-w-full text-sm">
+            <tbody>
+              <tr className="border-t border-gray-100">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48 align-top pt-3">File</td>
+                <td className="px-4 py-2.5">
+                  {isLoading ? (
+                    <span className="text-gray-400">Loading…</span>
+                  ) : settings?.hasResume ? (
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-gray-900">{settings.resumeFileName}</p>
+                      {settings.resumeUploadedAt && (
+                        <p className="text-xs text-gray-400">
+                          Uploaded {new Date(settings.resumeUploadedAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm text-gray-500 italic">No resume uploaded.</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Structured formats are recommended — JSON with clearly labelled sections gives the best scoring accuracy.
+                      </p>
+                    </div>
+                  )}
+                  {uploadError && (
+                    <p className="text-xs text-red-600 mt-1">{(uploadError as Error).message}</p>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap align-top pt-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.txt,.json,application/pdf,text/plain,application/json"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadResume(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => fileInputRef.current?.click()}
+                      loading={isUploading}
+                    >
+                      {settings?.hasResume ? 'Replace' : 'Upload'}
+                    </Button>
+                    {settings?.hasResume && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => deleteResume()}
+                        loading={isDeleting}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </td>
               </tr>
             </tbody>
           </table>

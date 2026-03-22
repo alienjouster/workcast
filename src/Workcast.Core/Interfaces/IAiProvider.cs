@@ -2,6 +2,8 @@ using Workcast.Core.Models;
 
 namespace Workcast.Core.Interfaces;
 
+
+
 /// <summary>
 /// Abstracts all communication with an LLM provider.
 /// All AI interactions are routed through this single interface so that the concrete
@@ -24,5 +26,22 @@ public interface IAiProvider
     Task<BoardAnalysisResult> AnalyzeBoardAsync(
         string html,
         string url,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Scores a resume against a job posting page and returns a structured breakdown
+    /// of matched, partially-matched, and missing requirements.
+    /// Uses Tool Use to guarantee structured output.
+    /// </summary>
+    /// <param name="resumeContent">Raw bytes of the resume file.</param>
+    /// <param name="resumeContentType">MIME type: "application/pdf", "text/plain", or "application/json".</param>
+    /// <param name="resumeFileName">Original file name (used as context label for text/JSON resumes).</param>
+    /// <param name="jobPageText">Plain-text content of the job ad detail page.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<AdScoringResult> ScoreAdAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobPageText,
         CancellationToken ct = default);
 }

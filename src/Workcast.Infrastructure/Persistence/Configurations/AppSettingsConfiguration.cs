@@ -19,6 +19,22 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(s => s.ResumeFileName)
+            .HasColumnName("resume_file_name")
+            .HasMaxLength(512);
+
+        builder.Property(s => s.ResumeContent)
+            .HasColumnName("resume_content")
+            .HasColumnType("bytea");
+
+        builder.Property(s => s.ResumeContentType)
+            .HasColumnName("resume_content_type")
+            .HasMaxLength(100);
+
+        builder.Property(s => s.ResumeUploadedAt)
+            .HasColumnName("resume_uploaded_at")
+            .HasColumnType("timestamptz");
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

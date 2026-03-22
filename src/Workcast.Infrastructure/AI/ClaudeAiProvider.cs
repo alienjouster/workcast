@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
+
 using Workcast.Infrastructure.AI.Options;
 
 namespace Workcast.Infrastructure.AI;
@@ -24,6 +25,7 @@ public sealed class ClaudeAiProvider : IAiProvider
     private const string ApiEndpoint = "https://api.anthropic.com/v1/messages";
     private const string AnthropicVersion = "2023-06-01";
     private const int MaxTokens = 1024;
+    private const int ScoringMaxTokens = 4096;
     private const int MaxRetries = 3;
 
     private static readonly TimeSpan[] RetryDelays =
@@ -135,6 +137,202 @@ public sealed class ClaudeAiProvider : IAiProvider
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
         var input = await CallWithRetryAsync(prompt, tool, "save_board_config", settings.AiModel, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
+    }
+
+    /// <inheritdoc />
+    public async Task<AdScoringResult> ScoreAdAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobPageText,
+        CancellationToken ct = default)
+    {
+        var tool = BuildScoringTool();
+        var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+
+        var promptSuffix = $"""
+            Job posting content:
+            {jobPageText}
+
+            Analyze how well this resume matches the job posting above.
+            For each distinct skill, qualification, or requirement mentioned in the job posting:
+            - category: "match" if clearly present in the resume, "partial_match" if partially covered, "gap" if absent
+            - is_optional: true only if the posting explicitly says "nice to have", "preferred", "optional", "plus", or similar
+            - score: 100 for match, 50 for partial_match, 0 for gap. For optional items, gaps may score 25 and partial matches up to 75.
+            - notes: one sentence explaining your reasoning
+
+            overall_score is the arithmetic mean of all requirement scores (0–100).
+            Call the submit_scoring tool with the complete analysis.
+            """;
+
+        object userContent;
+
+        if (resumeContentType == "application/pdf")
+        {
+            userContent = new object[]
+            {
+                new
+                {
+                    Type = "document",
+                    Source = new
+                    {
+                        Type = "base64",
+                        MediaType = "application/pdf",
+                        Data = Convert.ToBase64String(resumeContent),
+                    }
+                },
+                new { Type = "text", Text = promptSuffix },
+            };
+        }
+        else
+        {
+            var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+            userContent = $"Resume ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
+        }
+
+        var input = await CallScoringWithRetryAsync(userContent, tool, "submit_scoring", settings.AiModel, ct)
+            .ConfigureAwait(false);
+
+        return DeserializeAdScoringResult(input);
+    }
+
+    private async Task<JsonObject> CallScoringWithRetryAsync(
+        object userContent,
+        ClaudeTool tool,
+        string toolName,
+        string model,
+        CancellationToken ct)
+    {
+        Exception? lastException = null;
+
+        for (var attempt = 0; attempt <= MaxRetries - 1; attempt++)
+        {
+            if (attempt > 0)
+            {
+                _logger.LogWarning(
+                    "Anthropic scoring API call failed (attempt {Attempt}/{MaxRetries}), retrying in {Delay}s...",
+                    attempt, MaxRetries, RetryDelays[attempt - 1].TotalSeconds);
+
+                await Task.Delay(RetryDelays[attempt - 1], ct).ConfigureAwait(false);
+            }
+
+            try
+            {
+                var request = new
+                {
+                    Model = model,
+                    MaxTokens = ScoringMaxTokens,
+                    Temperature = 0,
+                    Tools = new[] { tool },
+                    ToolChoice = new ClaudeToolChoice { Type = "tool", Name = toolName },
+                    Messages = new[]
+                    {
+                        new { Role = "user", Content = userContent },
+                    },
+                };
+
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(120));
+
+                var response = await _httpClient
+                    .PostAsJsonAsync(ApiEndpoint, request, JsonOptions, cts.Token)
+                    .ConfigureAwait(false);
+
+                response.EnsureSuccessStatusCode();
+
+                var claudeResponse = await response.Content
+                    .ReadFromJsonAsync<ClaudeResponse>(JsonOptions, cts.Token)
+                    .ConfigureAwait(false)
+                    ?? throw new InvalidOperationException("Claude API returned an empty response.");
+
+                var toolUseBlock = claudeResponse.Content
+                    .FirstOrDefault(c => c.Type == "tool_use" && c.Name == toolName)
+                    ?? throw new InvalidOperationException(
+                        $"Claude response did not contain a '{toolName}' tool_use block. " +
+                        $"Stop reason: {claudeResponse.StopReason}");
+
+                return toolUseBlock.Input
+                    ?? throw new InvalidOperationException("Claude tool_use block has no input.");
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Anthropic scoring API call attempt {Attempt} failed for tool {Tool}.", attempt + 1, toolName);
+                lastException = ex;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Anthropic scoring API call failed after {MaxRetries} attempts.", lastException);
+    }
+
+    private static AdScoringResult DeserializeAdScoringResult(JsonObject input)
+    {
+        var requirements = new List<AdScoringRequirementResult>();
+        var reqs = input["requirements"]?.AsArray();
+
+        if (reqs is not null)
+        {
+            foreach (var req in reqs)
+            {
+                if (req is not JsonObject r) continue;
+                requirements.Add(new AdScoringRequirementResult
+                {
+                    Name = r["name"]?.GetValue<string>() ?? "",
+                    Category = r["category"]?.GetValue<string>() ?? "gap",
+                    IsOptional = r["is_optional"]?.GetValue<bool>() ?? false,
+                    Score = r["score"]?.GetValue<double>() ?? 0.0,
+                    Notes = r["notes"]?.GetValue<string?>(),
+                });
+            }
+        }
+
+        return new AdScoringResult
+        {
+            OverallScore = input["overall_score"]?.GetValue<double>() ?? 0.0,
+            Summary = input["summary"]?.GetValue<string>() ?? "",
+            Requirements = requirements,
+        };
+    }
+
+    private static ClaudeTool BuildScoringTool()
+    {
+        return new ClaudeTool
+        {
+            Name = "submit_scoring",
+            Description = "Submit the structured scoring result after analyzing the resume against the job posting.",
+            InputSchema = new
+            {
+                type = "object",
+                required = new[] { "requirements", "overall_score", "summary" },
+                properties = new
+                {
+                    requirements = new
+                    {
+                        type = "array",
+                        description = "One entry per distinct skill, qualification, or requirement found in the job posting.",
+                        items = new
+                        {
+                            type = "object",
+                            required = new[] { "name", "category", "is_optional", "score" },
+                            properties = new
+                            {
+                                name        = new { type = "string", description = "Short label for this requirement (e.g. 'React', '5 years C# experience')." },
+                                category    = new { type = "string", @enum = new[] { "match", "partial_match", "gap" } },
+                                is_optional = new { type = "boolean", description = "True only when the posting explicitly marks this as optional / nice to have." },
+                                score       = new { type = "number", minimum = 0, maximum = 100 },
+                                notes       = new { type = new[] { "string", "null" }, description = "One-sentence explanation." },
+                            },
+                        },
+                    },
+                    overall_score = new { type = "number", minimum = 0, maximum = 100, description = "Arithmetic mean of all requirement scores." },
+                    summary       = new { type = "string", description = "2–3 sentence narrative summary of the match quality." },
+                },
+            },
+        };
     }
 
     private async Task<JsonObject> CallWithRetryAsync(

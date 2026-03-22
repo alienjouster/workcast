@@ -1,9 +1,93 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { JobAd } from '@/types';
+import type { JobAd, ScoringCategory } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { useDeleteAd, useMarkAdRead, usePinAd } from '@/lib/hooks/useJobAds';
+import { useAdScoring, useRunScoring } from '@/lib/hooks/useAdScoring';
+
+// ── Scoring sub-component ────────────────────────────────────────────────────
+
+function ScoreBar({ score }: { score: number }) {
+  const pct = Math.round(score);
+  const color = pct >= 70 ? 'bg-green-500' : pct >= 40 ? 'bg-amber-400' : 'bg-red-400';
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+        <div className={`${color} h-1.5 rounded-full`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs font-medium w-8 text-right">{pct}%</span>
+    </div>
+  );
+}
+
+const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className: string }> = {
+  match:         { label: 'Match',         className: 'bg-green-100 text-green-800' },
+  partial_match: { label: 'Partial',       className: 'bg-amber-100 text-amber-800' },
+  gap:           { label: 'Gap',           className: 'bg-red-100   text-red-800'   },
+};
+
+function AdScoringPanel({ adId }: { adId: string }) {
+  const { data: scoring, isLoading, isFetching } = useAdScoring(adId);
+  const runScoring = useRunScoring();
+
+  const isRunning = runScoring.isPending || isFetching;
+
+  return (
+    <div className="mt-4 border-t border-gray-200 pt-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Resume Score</span>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => runScoring.mutate(adId)}
+          loading={isRunning}
+          disabled={isRunning}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 mr-1">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm-.75 4.75a.75.75 0 0 1 1.5 0v2.69l1.72 1.72a.75.75 0 0 1-1.06 1.06L7.47 9.28a.75.75 0 0 1-.22-.53V5.75Z" />
+          </svg>
+          {isLoading ? 'Loading…' : scoring ? 'Re-score' : 'Run scoring'}
+        </Button>
+      </div>
+
+      {isRunning && !scoring && (
+        <p className="text-xs text-gray-400 italic">Analysing…</p>
+      )}
+
+      {scoring && (
+        <div className="space-y-2">
+          <ScoreBar score={scoring.overallScore} />
+          {scoring.summary && (
+            <p className="text-xs text-gray-600">{scoring.summary}</p>
+          )}
+          <div className="space-y-1 mt-2">
+            {scoring.requirements.map((req, i) => {
+              const style = CATEGORY_STYLES[req.category] ?? CATEGORY_STYLES.gap;
+              return (
+                <div key={i} className="flex items-start gap-2 text-xs">
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${style.className}`}>
+                    {style.label}
+                  </span>
+                  {req.isOptional && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] bg-gray-100 text-gray-500">
+                      optional
+                    </span>
+                  )}
+                  <span className="text-gray-700">{req.name}</span>
+                  {req.notes && <span className="text-gray-400">— {req.notes}</span>}
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-400 pt-1">
+            Scored {new Date(scoring.scoredAt).toLocaleString()}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface AdTableProps {
   ads: JobAd[];
@@ -137,6 +221,7 @@ export function AdTable({ ads }: AdTableProps) {
                         <span>Posted: {new Date(ad.postedAt).toLocaleDateString()}</span>
                       )}
                     </div>
+                    <AdScoringPanel adId={ad.id} />
                   </td>
                 </tr>
               )}

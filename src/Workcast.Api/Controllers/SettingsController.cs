@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Workcast.Core.Interfaces;
 
+
 namespace Workcast.Api.Controllers;
 
 /// <summary>
@@ -18,6 +19,15 @@ public sealed class SettingsController : ControllerBase
         "claude-opus-4-6",
     ];
 
+    private static readonly string[] AllowedResumeTypes =
+    [
+        "application/pdf",
+        "text/plain",
+        "application/json",
+    ];
+
+    private const long MaxResumeBytes = 5 * 1024 * 1024; // 5 MB
+
     private readonly ISettingsRepository _settingsRepository;
 
     /// <summary>
@@ -34,7 +44,12 @@ public sealed class SettingsController : ControllerBase
     public async Task<IActionResult> GetAsync(CancellationToken ct)
     {
         var settings = await _settingsRepository.GetAsync(ct);
-        return Ok(new SettingsResponse(settings.AiModel, AllowedModels));
+        return Ok(new SettingsResponse(
+            settings.AiModel,
+            AllowedModels,
+            settings.HasResume,
+            settings.ResumeFileName,
+            settings.ResumeUploadedAt));
     }
 
     /// <summary>Updates the AI model used for board analysis.</summary>
@@ -58,14 +73,90 @@ public sealed class SettingsController : ControllerBase
         settings.SetAiModel(request.AiModel);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(new SettingsResponse(settings.AiModel, AllowedModels));
+        return Ok(new SettingsResponse(
+            settings.AiModel,
+            AllowedModels,
+            settings.HasResume,
+            settings.ResumeFileName,
+            settings.ResumeUploadedAt));
+    }
+
+    /// <summary>
+    /// Uploads or replaces the user's resume. Accepted formats: PDF, TXT, JSON (max 5 MB).
+    /// </summary>
+    [HttpPut("resume")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UploadResumeAsync(
+        IFormFile file,
+        CancellationToken ct)
+    {
+        if (file.Length > MaxResumeBytes)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "File too large",
+                Detail = $"Resume must be 5 MB or smaller. Received {file.Length / 1024} KB.",
+            });
+        }
+
+        var contentType = file.ContentType?.ToLowerInvariant() ?? "";
+        if (!AllowedResumeTypes.Contains(contentType))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Unsupported file type",
+                Detail = $"Only PDF, plain text, and JSON resumes are accepted. Received: '{file.ContentType}'.",
+            });
+        }
+
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms, ct);
+        var content = ms.ToArray();
+
+        var settings = await _settingsRepository.GetAsync(ct);
+        settings.SetResume(file.FileName, content, contentType);
+        await _settingsRepository.SaveAsync(ct);
+
+        return Ok(new SettingsResponse(
+            settings.AiModel,
+            AllowedModels,
+            settings.HasResume,
+            settings.ResumeFileName,
+            settings.ResumeUploadedAt));
+    }
+
+    /// <summary>Removes the stored resume.</summary>
+    [HttpDelete("resume")]
+    [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteResumeAsync(CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+        settings.ClearResume();
+        await _settingsRepository.SaveAsync(ct);
+
+        return Ok(new SettingsResponse(
+            settings.AiModel,
+            AllowedModels,
+            settings.HasResume,
+            settings.ResumeFileName,
+            settings.ResumeUploadedAt));
     }
 
     // ── Inline DTOs (settings has no shared domain model) ────────────────────
 
     /// <param name="AiModel">Active Anthropic model identifier.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
-    public sealed record SettingsResponse(string AiModel, IEnumerable<string> AvailableModels);
+    /// <param name="HasResume">True when a resume file has been uploaded.</param>
+    /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
+    /// <param name="ResumeUploadedAt">UTC timestamp of the last resume upload, or null.</param>
+    public sealed record SettingsResponse(
+        string AiModel,
+        IEnumerable<string> AvailableModels,
+        bool HasResume,
+        string? ResumeFileName,
+        DateTimeOffset? ResumeUploadedAt);
 
     /// <param name="AiModel">The model identifier to switch to.</param>
     public sealed record UpdateSettingsRequest(string AiModel);

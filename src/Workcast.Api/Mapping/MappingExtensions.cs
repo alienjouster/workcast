@@ -4,6 +4,7 @@ using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Models;
 
+
 namespace Workcast.Api.Mapping;
 
 /// <summary>
@@ -193,6 +194,31 @@ public static class MappingExtensions
             PostedAt            = request.PostedAt,
             DescriptionSnippet  = request.DescriptionSnippet,
             ExternalId          = request.ExternalId,
+        };
+    }
+
+    /// <summary>
+    /// Maps an <see cref="AdScoring"/> entity to an <see cref="AdScoringResponse"/> DTO.
+    /// </summary>
+    public static AdScoringResponse ToResponse(this AdScoring scoring)
+    {
+        return new AdScoringResponse
+        {
+            Id = scoring.Id,
+            JobAdId = scoring.JobAdId,
+            ScoredAt = scoring.ScoredAt,
+            OverallScore = scoring.OverallScore,
+            Summary = scoring.Summary,
+            Requirements = scoring.Requirements
+                .Select(r => new ScoringRequirementResponse
+                {
+                    Name = r.Name,
+                    Category = r.Category,
+                    IsOptional = r.IsOptional,
+                    Score = r.Score,
+                    Notes = r.Notes,
+                })
+                .ToList(),
         };
     }
 

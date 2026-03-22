@@ -43,6 +43,10 @@ public sealed class HtmlCleaningService
         @"(\r?\n){3,}",
         RegexOptions.Compiled);
 
+    private static readonly Regex HtmlTagRegex = new(
+        @"<[^>]+>",
+        RegexOptions.Compiled);
+
     /// <summary>
     /// Cleans a raw HTML string for use in board analysis prompts.
     /// Removes scripts, styles, SVGs, comments, and non-essential attributes,
@@ -53,6 +57,27 @@ public sealed class HtmlCleaningService
     public string CleanForBoardAnalysis(string html)
     {
         return ApplyBaseCleaning(html);
+    }
+
+    /// <summary>
+    /// Converts raw HTML to readable plain text for use in scoring prompts.
+    /// Strips all HTML tags, decodes entities, and collapses whitespace.
+    /// Truncates output to 20,000 characters to stay within reasonable token limits.
+    /// </summary>
+    /// <param name="html">Raw HTML of a job ad detail page.</param>
+    /// <returns>Plain text suitable for passing to the scoring AI call.</returns>
+    public string ExtractTextFromHtml(string html)
+    {
+        var result = ApplyBaseCleaning(html);
+        result = HtmlTagRegex.Replace(result, " ");
+        result = System.Net.WebUtility.HtmlDecode(result);
+        result = WhitespaceCollapseRegex.Replace(result, " ");
+        result = BlankLineCollapseRegex.Replace(result, "\n\n");
+        result = result.Trim();
+
+        // Hard cap to avoid hitting context / cost limits.
+        const int MaxChars = 20_000;
+        return result.Length > MaxChars ? result[..MaxChars] : result;
     }
 
     private static string ApplyBaseCleaning(string html)

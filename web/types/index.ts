@@ -100,6 +100,28 @@ export interface UpdateJobBoardRequest {
 export interface AppSettings {
   aiModel: string;
   availableModels: string[];
+  hasResume: boolean;
+  resumeFileName: string | null;
+  resumeUploadedAt: string | null;
+}
+
+export type ScoringCategory = 'match' | 'partial_match' | 'gap';
+
+export interface ScoringRequirement {
+  name: string;
+  category: ScoringCategory;
+  isOptional: boolean;
+  score: number;
+  notes: string | null;
+}
+
+export interface AdScoring {
+  id: string;
+  jobAdId: string;
+  scoredAt: string;
+  overallScore: number;
+  summary: string;
+  requirements: ScoringRequirement[];
 }
 
 export interface UpdateSettingsRequest {

@@ -20,6 +20,7 @@ public static class DependencyInjection
         services.AddTransient<BoardAnalysisJob>();
         services.AddTransient<ScrapeJobRunner>();
         services.AddTransient<StaleRunCleanupJob>();
+        services.AddTransient<AdScoringJob>();
         return services;
     }
 }
