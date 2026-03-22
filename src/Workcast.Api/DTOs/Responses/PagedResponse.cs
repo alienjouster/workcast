@@ -14,4 +14,7 @@ public record PagedResponse<T>
 
     /// <summary>Gets the number of items returned in this response.</summary>
     public required int Count { get; init; }
+
+    /// <summary>Gets the total number of items matching the query across all pages.</summary>
+    public int TotalCount { get; init; }
 }

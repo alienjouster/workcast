@@ -87,6 +87,21 @@ export function useMarkAllRead() {
   });
 }
 
+export function useBulkAction() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['job-ads'] });
+    qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+  };
+  const pin      = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkPin(ids),        onSuccess: invalidate });
+  const unpin    = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkUnpin(ids),      onSuccess: invalidate });
+  const read     = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkMarkRead(ids),   onSuccess: invalidate });
+  const unread   = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkMarkUnread(ids), onSuccess: invalidate });
+  const trash    = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkTrash(ids),      onSuccess: invalidate });
+  const isPending = pin.isPending || unpin.isPending || read.isPending || unread.isPending || trash.isPending;
+  return { pin, unpin, read, unread, trash, isPending };
+}
+
 export function useUnreadCount() {
   return useQuery({
     queryKey: ['job-ads-unread-count'],

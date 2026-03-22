@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Workcast.Api.DTOs.Requests;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Infrastructure.Persistence;
@@ -105,6 +106,9 @@ public sealed class JobAdsController : ControllerBase
                 (a.IsPinned == cPinned && a.ScrapedAt == cTs && a.Id.CompareTo(cGuid) < 0));
         }
 
+        // Count total matching items (before cursor is applied) for the badge.
+        var totalCount = await query.CountAsync(ct);
+
         // Fetch one extra item to determine if a next page exists.
         var items = await query
             .OrderByDescending(a => a.IsPinned)
@@ -133,6 +137,7 @@ public sealed class JobAdsController : ControllerBase
             Items = items.Select(a => a.ToResponse(scores.TryGetValue(a.Id, out var sc) ? sc : null)).ToList(),
             NextCursor = nextCursor,
             Count = items.Count,
+            TotalCount = totalCount,
         };
 
         return Ok(response);
@@ -340,6 +345,60 @@ public sealed class JobAdsController : ControllerBase
         await _db.SaveChangesAsync(ct);
         return Ok(ad.ToResponse());
     }
+
+    // ── Bulk actions ────────────────────────────────────────────────────────────
+
+    /// <summary>Pins all specified job ads.</summary>
+    [HttpPost("bulk/pin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkPinAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsPinned, true), ct);
+        return NoContent();
+    }
+
+    /// <summary>Unpins all specified job ads.</summary>
+    [HttpPost("bulk/unpin")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkUnpinAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsPinned, false), ct);
+        return NoContent();
+    }
+
+    /// <summary>Marks all specified job ads as read.</summary>
+    [HttpPost("bulk/read")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkMarkReadAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsRead, true), ct);
+        return NoContent();
+    }
+
+    /// <summary>Marks all specified job ads as unread.</summary>
+    [HttpPost("bulk/unread")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkMarkUnreadAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsRead, false), ct);
+        return NoContent();
+    }
+
+    /// <summary>Moves all specified job ads to the trash bin.</summary>
+    [HttpPost("bulk/trash")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkTrashAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsTrashed, true), ct);
+        return NoContent();
+    }
+
+    // ── Hard delete ─────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Hard-deletes a job ad by ID.

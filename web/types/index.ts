@@ -85,6 +85,7 @@ export interface PagedResponse<T> {
   items: T[];
   nextCursor: string | null;
   count: number;
+  totalCount: number;
 }
 
 export interface CreateJobBoardRequest {

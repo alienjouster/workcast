@@ -24,7 +24,7 @@ export default function AdsPage() {
 
   const activeQuery = view === 'ads' ? adsQuery : trashQuery;
   const allAds = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
-  const trashCount = trashQuery.data?.pages.flatMap((p) => p.items).length ?? 0;
+  const trashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
 
   return (
     <div>
@@ -71,7 +71,7 @@ export default function AdsPage() {
           Trash bin
           {trashCount > 0 && (
             <span className="inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-gray-200 text-gray-600 text-xs font-medium">
-              {trashCount}
+              {trashCount > 999 ? '999+' : trashCount}
             </span>
           )}
         </button>
@@ -120,7 +120,20 @@ export default function AdsPage() {
           {(activeQuery.error as Error).message}
         </div>
       ) : view === 'trash' ? (
-        <TrashTable ads={allAds} />
+        <>
+          <TrashTable ads={allAds} />
+          {trashQuery.hasNextPage && (
+            <div className="px-4 py-4 flex justify-center">
+              <Button
+                variant="secondary"
+                onClick={() => trashQuery.fetchNextPage()}
+                loading={trashQuery.isFetchingNextPage}
+              >
+                Load more
+              </Button>
+            </div>
+          )}
+        </>
       ) : allAds.length === 0 ? (
         <EmptyState
           title="No ads found"

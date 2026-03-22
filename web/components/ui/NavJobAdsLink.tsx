@@ -14,7 +14,7 @@ export function NavJobAdsLink() {
       Job Ads
       {unreadCount != null && unreadCount > 0 && (
         <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-xs font-semibold leading-none">
-          {unreadCount > 99 ? '99+' : unreadCount}
+          {unreadCount > 999 ? '999+' : unreadCount}
         </span>
       )}
     </Link>

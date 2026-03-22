@@ -101,6 +101,16 @@ export const api = {
       apiFetch<JobAd>(`/api/job-ads/${id}/trash`, { method: 'PATCH' }),
     restore: (id: string) =>
       apiFetch<JobAd>(`/api/job-ads/${id}/restore`, { method: 'PATCH' }),
+    bulkPin: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/pin', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkUnpin: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/unpin', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkMarkRead: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/read', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkMarkUnread: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/unread', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkTrash: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/trash', { method: 'POST', body: JSON.stringify({ ids }) }),
   },
   runs: {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),
