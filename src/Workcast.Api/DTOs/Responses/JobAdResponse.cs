@@ -57,4 +57,7 @@ public record JobAdResponse
 
     /// <summary>Gets a value indicating whether a scoring job is currently queued or running for this ad.</summary>
     public required bool IsScoringPending { get; init; }
+
+    /// <summary>Gets a value indicating whether this ad has been moved to the trash bin.</summary>
+    public required bool IsTrashed { get; init; }
 }

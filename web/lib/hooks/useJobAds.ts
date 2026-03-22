@@ -7,13 +7,14 @@ interface UseJobAdsParams {
   boardId?: string;
   search?: string;
   isActive?: boolean;
+  trashed?: boolean;
 }
 
 export function useJobAds(params: UseJobAdsParams = {}) {
   return useInfiniteQuery({
     queryKey: ['job-ads', params],
     queryFn: ({ pageParam }) =>
-      api.ads.list({ ...params, cursor: pageParam as string | undefined }),
+      api.ads.list({ ...params, trashed: params.trashed, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     // Poll every 3 s while any ad has a scoring job in flight; otherwise 60 s
@@ -35,6 +36,22 @@ export function useDeleteAd() {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
       qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
     },
+  });
+}
+
+export function useTrashAd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.ads.trash(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+  });
+}
+
+export function useRestoreAd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.ads.restore(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
   });
 }
 

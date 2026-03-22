@@ -52,6 +52,11 @@ scheduler.AddOrUpdateRecurring<StaleRunCleanupJob>(
     x => x.ExecuteAsync(CancellationToken.None),
     "*/5 * * * *"); // every 5 minutes
 
+scheduler.AddOrUpdateRecurring<AdCleanupJob>(
+    "ad-cleanup",
+    x => x.ExecuteAsync(CancellationToken.None),
+    "0 2 * * *"); // daily at 02:00 UTC
+
 app.UseExceptionHandler();
 app.MapControllers();
 

@@ -69,6 +69,7 @@ export const api = {
       boardId?: string;
       search?: string;
       isActive?: boolean;
+      trashed?: boolean;
       cursor?: string;
       limit?: number;
     }) => {
@@ -76,6 +77,7 @@ export const api = {
       if (params.boardId) q.set('boardId', params.boardId);
       if (params.search) q.set('search', params.search);
       if (params.isActive !== undefined) q.set('isActive', String(params.isActive));
+      if (params.trashed) q.set('trashed', 'true');
       if (params.cursor) q.set('cursor', params.cursor);
       if (params.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
@@ -95,6 +97,10 @@ export const api = {
     markAllRead: (boardId?: string) =>
       apiFetch<void>(`/api/job-ads/mark-all-read${boardId ? `?boardId=${boardId}` : ''}`, { method: 'POST' }),
     unreadCount: () => apiFetch<number>('/api/job-ads/unread-count'),
+    trash: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/trash`, { method: 'PATCH' }),
+    restore: (id: string) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}/restore`, { method: 'PATCH' }),
   },
   runs: {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),

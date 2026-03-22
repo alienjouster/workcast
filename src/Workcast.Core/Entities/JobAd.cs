@@ -82,6 +82,13 @@ public class JobAd
     public bool IsRead { get; private set; }
 
     /// <summary>
+    /// True when the user has moved this ad to the trash bin.
+    /// Trashed ads are hidden from the main list but not hard-deleted until the nightly
+    /// cleanup job removes them (along with inactive ads) after 30 days.
+    /// </summary>
+    public bool IsTrashed { get; private set; }
+
+    /// <summary>
     /// True while a scoring Hangfire job for this ad is queued or executing.
     /// Set by the controller on enqueue, cleared by <see cref="Workcast.Jobs.AdScoringJob"/>
     /// on completion (success or failure) so the UI can track in-progress state.
@@ -166,6 +173,18 @@ public class JobAd
     public void MarkUnread()
     {
         IsRead = false;
+    }
+
+    /// <summary>Moves this ad to the trash bin.</summary>
+    public void Trash()
+    {
+        IsTrashed = true;
+    }
+
+    /// <summary>Restores this ad from the trash bin back to the main list.</summary>
+    public void Restore()
+    {
+        IsTrashed = false;
     }
 
     /// <summary>Marks scoring as in-progress for this ad.</summary>

@@ -64,6 +64,7 @@ public static class MappingExtensions
             IsRead = ad.IsRead,
             OverallScore = overallScore,
             IsScoringPending = ad.IsScoringPending,
+            IsTrashed = ad.IsTrashed,
         };
     }
 

@@ -21,6 +21,7 @@ public static class DependencyInjection
         services.AddTransient<ScrapeJobRunner>();
         services.AddTransient<StaleRunCleanupJob>();
         services.AddTransient<AdScoringJob>();
+        services.AddTransient<AdCleanupJob>();
         return services;
     }
 }

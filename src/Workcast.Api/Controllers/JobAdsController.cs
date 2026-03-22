@@ -46,6 +46,7 @@ public sealed class JobAdsController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] bool? isActive,
         [FromQuery] string? cursor,
+        [FromQuery] bool trashed = false,
         [FromQuery] int limit = 50,
         CancellationToken ct = default)
     {
@@ -71,7 +72,7 @@ public sealed class JobAdsController : ControllerBase
             (cursorIsPinned, cursorScrapedAt, cursorId) = decoded.Value;
         }
 
-        var query = _db.JobAds.AsQueryable();
+        var query = _db.JobAds.AsQueryable().Where(a => a.IsTrashed == trashed);
 
         if (boardId.HasValue)
         {
@@ -306,6 +307,38 @@ public sealed class JobAdsController : ControllerBase
         await query.ExecuteUpdateAsync(s => s.SetProperty(a => a.IsRead, true), ct);
 
         return NoContent();
+    }
+
+    /// <summary>Moves a job ad to the trash bin (soft delete).</summary>
+    [HttpPatch("{id:guid}/trash")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> TrashAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+        if (ad is null)
+            return Problem(type: $"{ERROR_TYPE_BASE}not-found", title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound, detail: $"Job ad '{id}' was not found.");
+
+        ad.Trash();
+        await _db.SaveChangesAsync(ct);
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>Restores a job ad from the trash bin back to the main list.</summary>
+    [HttpPatch("{id:guid}/restore")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RestoreAsync(Guid id, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
+        if (ad is null)
+            return Problem(type: $"{ERROR_TYPE_BASE}not-found", title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound, detail: $"Job ad '{id}' was not found.");
+
+        ad.Restore();
+        await _db.SaveChangesAsync(ct);
+        return Ok(ad.ToResponse());
     }
 
     /// <summary>
