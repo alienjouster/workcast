@@ -16,6 +16,9 @@ export function useJobAds(params: UseJobAdsParams = {}) {
       api.ads.list({ ...params, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    // Poll every 60 s as a fallback for missed SSE runCompleted events so new
+    // ads surface even if the SSE stream is temporarily unavailable.
+    refetchInterval: 60_000,
   });
 }
 
@@ -23,7 +26,10 @@ export function useDeleteAd() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.ads.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    },
   });
 }
 
@@ -63,6 +69,7 @@ export function useUnreadCount() {
   return useQuery({
     queryKey: ['job-ads-unread-count'],
     queryFn: () => api.ads.unreadCount(),
+    // Poll every 60 s as a fallback for missed SSE runCompleted events.
     refetchInterval: 60_000,
   });
 }

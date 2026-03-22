@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Workcast.Core.Interfaces;
 using Workcast.Infrastructure.AI;
 using Workcast.Infrastructure.AI.Options;
+using Workcast.Infrastructure.Events;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Infrastructure.Persistence.Interceptors;
 using Workcast.Infrastructure.Scheduling;
@@ -35,6 +36,10 @@ public static class DependencyInjection
         services.AddScrapingServices();
         services.AddHangfireServices(configuration);
 
+        // EventBroadcaster must be Singleton so Hangfire jobs and the SSE controller
+        // share the same in-memory channel registry.
+        services.AddSingleton<IEventBroadcaster, EventBroadcaster>();
+
         return services;
     }
 
@@ -45,6 +50,8 @@ public static class DependencyInjection
         // TimestampInterceptor is registered as Singleton so EF can resolve it during
         // DbContext construction.
         services.AddSingleton<TimestampInterceptor>();
+
+        services.AddScoped<ISettingsRepository, SettingsRepository>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {

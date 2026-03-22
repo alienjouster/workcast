@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Workcast.Core.Entities;
 using Workcast.Core.Enums;
+using Workcast.Core.Events;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
 using Workcast.Infrastructure.Persistence;
@@ -36,6 +37,7 @@ public sealed class ScrapeJobRunner
     private readonly AppDbContext _dbContext;
     private readonly IScraperEngine _scraperEngine;
     private readonly HangfireJobScheduler _jobScheduler;
+    private readonly IEventBroadcaster _broadcaster;
     private readonly ILogger<ScrapeJobRunner> _logger;
 
     /// <summary>
@@ -49,11 +51,13 @@ public sealed class ScrapeJobRunner
         AppDbContext dbContext,
         IScraperEngine scraperEngine,
         HangfireJobScheduler jobScheduler,
+        IEventBroadcaster broadcaster,
         ILogger<ScrapeJobRunner> logger)
     {
         _dbContext = dbContext;
         _scraperEngine = scraperEngine;
         _jobScheduler = jobScheduler;
+        _broadcaster = broadcaster;
         _logger = logger;
     }
 
@@ -104,6 +108,13 @@ public sealed class ScrapeJobRunner
         _dbContext.ScrapeRuns.Add(run);
         await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
 
+        await _broadcaster.PublishAsync(new WorkcastEvent
+        {
+            Type    = WorkcastEvent.RunStarted,
+            BoardId = jobBoardId,
+            RunId   = run.Id,
+        }).ConfigureAwait(false);
+
         var config = board.ScraperConfig;
         var seenNormalizedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var counters = new RunCounters();
@@ -127,12 +138,43 @@ public sealed class ScrapeJobRunner
                 run.Id, counters.PagesScraped, counters.AdsFound, counters.AdsNew, run.Errors.Count);
 
             await MarkStaleAdsAsync(jobBoardId, seenNormalizedUrls, ct).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.RunCompleted,
+                BoardId = jobBoardId,
+                RunId   = run.Id,
+                Status  = run.Status.ToString().ToLowerInvariant(),
+                AdsNew  = counters.AdsNew,
+            }).ConfigureAwait(false);
+
+            if (counters.AdsNew > 0)
+            {
+                var unreadCount = await _dbContext.JobAds
+                    .CountAsync(a => !a.IsRead && a.IsActive, CancellationToken.None)
+                    .ConfigureAwait(false);
+
+                await _broadcaster.PublishAsync(new WorkcastEvent
+                {
+                    Type        = WorkcastEvent.UnreadCountChanged,
+                    UnreadCount = unreadCount,
+                }).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
             // Persist the partial failure state using a fresh token since the original is cancelled.
             run.Fail(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
             await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.RunCompleted,
+                BoardId = jobBoardId,
+                RunId   = run.Id,
+                Status  = "failed",
+            }).ConfigureAwait(false);
+
             throw;
         }
         catch (Exception ex)
@@ -144,6 +186,14 @@ public sealed class ScrapeJobRunner
             run.Fail(counters.PagesScraped, counters.AdsFound, counters.AdsNew);
             board.SetError();
             await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.RunCompleted,
+                BoardId = jobBoardId,
+                RunId   = run.Id,
+                Status  = "failed",
+            }).ConfigureAwait(false);
 
             // Re-throw so Hangfire records the failure and applies its retry policy.
             throw;

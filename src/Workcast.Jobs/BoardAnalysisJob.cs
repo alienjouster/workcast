@@ -2,6 +2,7 @@ using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Workcast.Core.Enums;
+using Workcast.Core.Events;
 using Workcast.Core.Interfaces;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Infrastructure.Scheduling;
@@ -21,6 +22,7 @@ public sealed class BoardAnalysisJob
     private readonly AppDbContext _dbContext;
     private readonly IJobBoardAnalyzer _boardAnalyzer;
     private readonly HangfireJobScheduler _jobScheduler;
+    private readonly IEventBroadcaster _broadcaster;
     private readonly ILogger<BoardAnalysisJob> _logger;
 
     /// <summary>
@@ -34,11 +36,13 @@ public sealed class BoardAnalysisJob
         AppDbContext dbContext,
         IJobBoardAnalyzer boardAnalyzer,
         HangfireJobScheduler jobScheduler,
+        IEventBroadcaster broadcaster,
         ILogger<BoardAnalysisJob> logger)
     {
         _dbContext = dbContext;
         _boardAnalyzer = boardAnalyzer;
         _jobScheduler = jobScheduler;
+        _broadcaster = broadcaster;
         _logger = logger;
     }
 
@@ -97,6 +101,13 @@ public sealed class BoardAnalysisJob
             _logger.LogInformation(
                 "Recurring scrape job registered and immediate first run enqueued for board {BoardId}",
                 jobBoardId);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.BoardStatusChanged,
+                BoardId = jobBoardId,
+                Status  = "active",
+            }).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -109,6 +120,13 @@ public sealed class BoardAnalysisJob
 
             board.SetError();
             await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.BoardStatusChanged,
+                BoardId = jobBoardId,
+                Status  = "error",
+            }).ConfigureAwait(false);
 
             // Re-throw so Hangfire records the failure and applies the retry policy
             // (1 attempts with exponential backoff, per TECHSPEC section 11.2).

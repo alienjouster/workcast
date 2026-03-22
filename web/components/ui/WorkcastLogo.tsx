@@ -57,7 +57,7 @@ export function WorkcastLogo() {
         )}
       </svg>
 
-      <span className="text-lg font-extrabold text-indigo-700 tracking-tight">
+      <span className="text-2xl font-extrabold text-indigo-700 tracking-tight">
         Workcast
       </span>
 

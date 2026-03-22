@@ -8,10 +8,11 @@ export function useJobBoards() {
   return useQuery({
     queryKey: ['job-boards'],
     queryFn: () => api.boards.list(),
+    // SSE handles instant updates; slow poll catches boards whose status changed
+    // while this component was not the active SSE recipient.
     refetchInterval: (query) => {
       const boards = query.state.data;
-      if (boards?.some((b) => b.status === 'pending')) return 3000;
-      return 30_000;
+      return boards?.some((b) => b.status === 'pending') ? 3_000 : 30_000;
     },
   });
 }
@@ -20,8 +21,10 @@ export function useJobBoard(id: string) {
   return useQuery({
     queryKey: ['job-boards', id],
     queryFn: () => api.boards.get(id),
+    // SSE handles instant updates; poll every 3 s as a fallback while board
+    // analysis is in progress in case the boardStatusChanged event is delayed.
     refetchInterval: (query) =>
-      query.state.data?.status === 'pending' ? 3000 : false,
+      query.state.data?.status === 'pending' ? 3_000 : false,
   });
 }
 

@@ -41,6 +41,7 @@ public sealed class ClaudeAiProvider : IAiProvider
 
     private readonly HttpClient _httpClient;
     private readonly AnthropicOptions _options;
+    private readonly ISettingsRepository _settingsRepository;
     private readonly ILogger<ClaudeAiProvider> _logger;
 
     /// <summary>
@@ -49,10 +50,12 @@ public sealed class ClaudeAiProvider : IAiProvider
     public ClaudeAiProvider(
         HttpClient httpClient,
         IOptions<AnthropicOptions> options,
+        ISettingsRepository settingsRepository,
         ILogger<ClaudeAiProvider> logger)
     {
         _httpClient = httpClient;
         _options = options.Value;
+        _settingsRepository = settingsRepository;
         _logger = logger;
     }
 
@@ -70,6 +73,26 @@ public sealed class ClaudeAiProvider : IAiProvider
 
             Examine the HTML below and call the save_board_config tool with a complete configuration
             describing how to scrape job listings from this board. Focus on:
+
+            IMPORTANT — rules for every CSS selector you produce:
+
+            1. A CSS selector is a string passed to document.querySelectorAll('...'). It uses
+               element names (li, a, div), class names (.foo), IDs (#bar), and attribute filters
+               ([attr="value"]). CSS selectors NEVER contain angle brackets < or > in the sense
+               of HTML tags — do not write <li>, <a>, or any HTML markup as a selector.
+
+            2. When using data-* attribute filters (e.g. [data-automation-id="..."]),
+               use only values you can read in the HTML below — do not rely on training memory
+               of what values a platform typically uses. This is especially important for
+               Workday, Greenhouse, Lever and similar ATS where data-* values differ per tenant.
+
+            3. job_card_selector must match MULTIPLE elements — one per job listing (typically
+               5–50 results). Never use a single-occurrence wrapper such as #root, body, main,
+               or [data-automation-id="jobSearchPage"] as the job card selector.
+
+            4. No jQuery pseudo-classes: :contains(), :has() with text arguments, and similar
+               non-standard pseudo-classes are forbidden. Use attribute or structural selectors
+               instead (e.g. button[type="button"], [data-action="load-more"]).
 
             - The CSS selector that identifies each job card element on the listing page (job_card_selector)
 
@@ -94,6 +117,8 @@ public sealed class ClaudeAiProvider : IAiProvider
                                   navigating to a new URL. Set next_page_selector to its CSS selector.
                                   This is distinct from next_button — the key difference is that
                                   existing items remain on the page and new ones are added below them.
+                                  Use a structural selector (tag, class, type attribute, DOM position)
+                                  — never :contains().
                 infinite_scroll: new listings load automatically as the user scrolls down, with no
                                  button to click.
                 none: all listings are visible on a single page with no pagination mechanism.
@@ -107,7 +132,8 @@ public sealed class ClaudeAiProvider : IAiProvider
             {html}
             """;
 
-        var input = await CallWithRetryAsync(prompt, tool, "save_board_config", ct).ConfigureAwait(false);
+        var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+        var input = await CallWithRetryAsync(prompt, tool, "save_board_config", settings.AiModel, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
     }
 
@@ -115,6 +141,7 @@ public sealed class ClaudeAiProvider : IAiProvider
         string prompt,
         ClaudeTool tool,
         string toolName,
+        string model,
         CancellationToken ct)
     {
         Exception? lastException = null;
@@ -134,7 +161,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             {
                 var request = new ClaudeRequest
                 {
-                    Model = _options.Model,
+                    Model = model,
                     MaxTokens = MaxTokens,
                     Temperature = 0,
                     Tools = [tool],
@@ -184,6 +211,11 @@ public sealed class ClaudeAiProvider : IAiProvider
             $"Anthropic API call failed after {MaxRetries} attempts.", lastException);
     }
 
+    // Returns null if the selector is null/empty or contains HTML angle brackets,
+    // which would cause a Playwright CSS parse error at runtime.
+    private static string? SanitizeSelector(string? raw) =>
+        string.IsNullOrWhiteSpace(raw) || raw.Contains('<') ? null : raw;
+
     private static BoardAnalysisResult DeserializeBoardAnalysisResult(JsonObject input)
     {
         var paginationRaw = input["pagination_type"]?.GetValue<string>() ?? "none";
@@ -198,23 +230,25 @@ public sealed class ClaudeAiProvider : IAiProvider
 
         var fieldSelectorsNode = input["field_selectors"] as JsonObject;
 
+        var jobCardSelector = SanitizeSelector(input["job_card_selector"]?.GetValue<string>())
+            ?? throw new InvalidOperationException("Claude did not return a valid job_card_selector.");
+
         return new BoardAnalysisResult
         {
             PaginationType = paginationType,
-            JobCardSelector = input["job_card_selector"]?.GetValue<string>()
-                ?? throw new InvalidOperationException("Claude did not return job_card_selector."),
+            JobCardSelector = jobCardSelector,
             FieldSelectors = new FieldSelectorMap
             {
-                DetailUrl = fieldSelectorsNode?["detail_url"]?.GetValue<string?>(),
-                Title = fieldSelectorsNode?["title"]?.GetValue<string?>(),
-                Company = fieldSelectorsNode?["company"]?.GetValue<string?>(),
-                Location = fieldSelectorsNode?["location"]?.GetValue<string?>(),
-                SalaryRaw = fieldSelectorsNode?["salary_raw"]?.GetValue<string?>(),
-                PostedAt = fieldSelectorsNode?["posted_at"]?.GetValue<string?>(),
-                DescriptionSnippet = fieldSelectorsNode?["description_snippet"]?.GetValue<string?>(),
-                ExternalId = fieldSelectorsNode?["external_id"]?.GetValue<string?>(),
+                DetailUrl = SanitizeSelector(fieldSelectorsNode?["detail_url"]?.GetValue<string?>()),
+                Title = SanitizeSelector(fieldSelectorsNode?["title"]?.GetValue<string?>()),
+                Company = SanitizeSelector(fieldSelectorsNode?["company"]?.GetValue<string?>()),
+                Location = SanitizeSelector(fieldSelectorsNode?["location"]?.GetValue<string?>()),
+                SalaryRaw = SanitizeSelector(fieldSelectorsNode?["salary_raw"]?.GetValue<string?>()),
+                PostedAt = SanitizeSelector(fieldSelectorsNode?["posted_at"]?.GetValue<string?>()),
+                DescriptionSnippet = SanitizeSelector(fieldSelectorsNode?["description_snippet"]?.GetValue<string?>()),
+                ExternalId = SanitizeSelector(fieldSelectorsNode?["external_id"]?.GetValue<string?>()),
             },
-            NextPageSelector = input["next_page_selector"]?.GetValue<string?>(),
+            NextPageSelector = SanitizeSelector(input["next_page_selector"]?.GetValue<string?>()),
             UrlParamName = input["url_param_name"]?.GetValue<string?>(),
             UrlParamIsOffset = input["url_param_is_offset"]?.GetValue<bool>() ?? false,
             MaxPages = input["max_pages"]?.GetValue<int?>(),
@@ -255,7 +289,7 @@ public sealed class ClaudeAiProvider : IAiProvider
                             external_id         = new { type = new[] { "string", "null" } },
                         },
                     },
-                    next_page_selector = new { type = new[] { "string", "null" }, description = "CSS selector for the Next page link (next_button) or Load more button (load_more_button). Null for all other pagination types." },
+                    next_page_selector = new { type = new[] { "string", "null" }, description = "Valid CSS3 selector (querySelectorAll-compatible, no jQuery extensions like :contains()) for the Next page link (next_button) or Load more button (load_more_button). Prefer structural selectors such as tag name, class, type attribute, or DOM position. Null for all other pagination types." },
                     url_param_name = new { type = new[] { "string", "null" } },
                     url_param_is_offset = new { type = "boolean" },
                     max_pages = new { type = new[] { "integer", "null" }, minimum = 1 },

@@ -28,6 +28,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>All scrape run records.</summary>
     public DbSet<ScrapeRun> ScrapeRuns => Set<ScrapeRun>();
 
+    /// <summary>Global application settings (single row).</summary>
+    public DbSet<AppSettings> AppSettings => Set<AppSettings>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,5 +39,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new JobBoardConfiguration());
         modelBuilder.ApplyConfiguration(new JobAdConfiguration());
         modelBuilder.ApplyConfiguration(new ScrapeRunConfiguration());
+        modelBuilder.ApplyConfiguration(new AppSettingsConfiguration());
     }
 }

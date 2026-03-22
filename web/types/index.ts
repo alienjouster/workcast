@@ -97,6 +97,15 @@ export interface UpdateJobBoardRequest {
   status?: 'active' | 'paused';
 }
 
+export interface AppSettings {
+  aiModel: string;
+  availableModels: string[];
+}
+
+export interface UpdateSettingsRequest {
+  aiModel: string;
+}
+
 export interface UpdateScraperConfigRequest {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;

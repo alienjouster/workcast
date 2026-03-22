@@ -6,6 +6,8 @@ import type {
   CreateJobBoardRequest,
   UpdateJobBoardRequest,
   UpdateScraperConfigRequest,
+  AppSettings,
+  UpdateSettingsRequest,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -28,7 +30,9 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(detail);
   }
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 export const api = {
@@ -96,5 +100,13 @@ export const api = {
   },
   status: {
     isProcessing: () => apiFetch<{ isProcessing: boolean }>('/api/status'),
+  },
+  settings: {
+    get: () => apiFetch<AppSettings>('/api/settings'),
+    update: (data: UpdateSettingsRequest) =>
+      apiFetch<AppSettings>('/api/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
   },
 };

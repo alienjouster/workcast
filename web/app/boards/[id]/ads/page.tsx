@@ -2,8 +2,10 @@
 
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
+import { useScrapeRuns } from '@/lib/hooks/useScrapeRuns';
 import { AdTable } from '@/components/ads/AdTable';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -17,6 +19,21 @@ export default function BoardAdsPage() {
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useJobAds({ boardId: id, search, isActive });
   const markAllRead = useMarkAllRead();
+
+  // Monitor scrape runs so that when a run completes the ads list and unread
+  // badge refresh immediately without waiting for the 60 s polling fallback.
+  const { data: runs } = useScrapeRuns(id);
+  const qc = useQueryClient();
+  const hadRunningRunRef = useRef(false);
+  useEffect(() => {
+    if (runs === undefined) return;
+    const hasRunning = runs.some((r) => r.status === 'running');
+    if (hadRunningRunRef.current && !hasRunning) {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    }
+    hadRunningRunRef.current = hasRunning;
+  }, [runs, qc]);
 
   const allAds = data?.pages.flatMap((p) => p.items) ?? [];
 

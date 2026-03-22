@@ -27,10 +27,10 @@ public sealed class HtmlCleaningService
         @"<!--[\s\S]*?-->",
         RegexOptions.Compiled);
 
-    private static readonly Regex DataAttributeRegex = new(
-        @"\s+data-[\w-]+=(?:""[^""]*""|'[^']*'|\S+)",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
+    // NOTE: data-* attributes are intentionally kept — they are the primary selector
+    // mechanism for JS-heavy SPAs (Workday, Greenhouse, React apps) and stripping them
+    // causes Claude to fall back on hallucinated platform-specific selectors.
+    // aria-* attributes carry no selector value and are still stripped to save tokens.
     private static readonly Regex AriaAttributeRegex = new(
         @"\s+aria-[\w-]+=(?:""[^""]*""|'[^']*'|\S+)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -63,7 +63,6 @@ public sealed class HtmlCleaningService
         result = StyleTagRegex.Replace(result, string.Empty);
         result = SvgTagRegex.Replace(result, string.Empty);
         result = HtmlCommentRegex.Replace(result, string.Empty);
-        result = DataAttributeRegex.Replace(result, string.Empty);
         result = AriaAttributeRegex.Replace(result, string.Empty);
         result = WhitespaceCollapseRegex.Replace(result, " ");
         result = BlankLineCollapseRegex.Replace(result, "\n\n");

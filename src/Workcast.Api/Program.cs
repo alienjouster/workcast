@@ -45,6 +45,13 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
     Authorization = Array.Empty<IDashboardAuthorizationFilter>(),
 });
 
+// Register recurring system jobs
+var scheduler = app.Services.GetRequiredService<Workcast.Infrastructure.Scheduling.HangfireJobScheduler>();
+scheduler.AddOrUpdateRecurring<StaleRunCleanupJob>(
+    "stale-run-cleanup",
+    x => x.ExecuteAsync(CancellationToken.None),
+    "*/5 * * * *"); // every 5 minutes
+
 app.UseExceptionHandler();
 app.MapControllers();
 

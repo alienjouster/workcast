@@ -154,6 +154,31 @@ export default function BoardDetailPage() {
     }
   }, [runs, awaitingRun]);
 
+  // When board analysis completes (pending → active), an immediate scrape is auto-triggered.
+  // Activate the same aggressive 2 s polling used for manual refresh so the new run
+  // appears as 'running' in the list rather than only appearing once completed.
+  const prevBoardStatusRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (prevBoardStatusRef.current === 'pending' && board?.status === 'active') {
+      setAwaitingRun(true);
+    }
+    prevBoardStatusRef.current = board?.status;
+  }, [board?.status]);
+
+  // Detect when a run transitions from 'running' → completed/failed/partial and refresh
+  // the board detail (adCount, lastScrapedAt) and global unread badge.
+  // This is a polling-based fallback for when the SSE runCompleted event is missed.
+  const hadRunningRunRef = useRef(false);
+  useEffect(() => {
+    if (runs === undefined) return;
+    const hasRunning = runs.some((r) => r.status === 'running');
+    if (hadRunningRunRef.current && !hasRunning) {
+      qc.invalidateQueries({ queryKey: ['job-boards', id] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    }
+    hadRunningRunRef.current = hasRunning;
+  }, [runs, id, qc]);
+
   const [editingField, setEditingField] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState('');
 
@@ -380,6 +405,7 @@ export default function BoardDetailPage() {
 
       {/* Scraper Config */}
       {board.scraperConfig && (
+        <div className={board.status === 'pending' ? 'opacity-50 pointer-events-none' : ''}>
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -410,6 +436,7 @@ export default function BoardDetailPage() {
             <ScraperConfigView boardId={id} config={board.scraperConfig} />
           </CardBody>
         </Card>
+        </div>
       )}
 
       {board.status === 'pending' && !board.scraperConfig && (
@@ -457,7 +484,17 @@ export default function BoardDetailPage() {
                     <td className="px-4 py-3 text-gray-600">
                       <span title={new Date(run.startedAt).toLocaleString()} className="cursor-default">{timeAgo(run.startedAt)}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{runDuration(run)}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {run.status === 'running' ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <svg className="animate-spin h-3.5 w-3.5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                          Running…
+                        </span>
+                      ) : runDuration(run)}
+                    </td>
                     <td className="px-4 py-3">{run.pagesScraped}</td>
                     <td className="px-4 py-3">{run.adsFound}</td>
                     <td className="px-4 py-3 text-green-600">+{run.adsNew}</td>
