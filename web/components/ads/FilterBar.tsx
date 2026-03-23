@@ -425,76 +425,81 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
           Add filter
         </button>
 
-        {/* Active chips */}
-        {filters.titles.map(t => (
+        {/* Active chips — each category is rendered as a single sorted list so
+            toggling include↔exclude never changes a chip's position. */}
+        {[
+          ...filters.titles.map(t => ({ val: t, exclude: false })),
+          ...filters.excludeTitles.map(t => ({ val: t, exclude: true })),
+        ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
           <Chip
-            key={`t-${t}`}
-            label={t}
-            onToggleVariant={() => update({ titles: filters.titles.filter(x => x !== t), excludeTitles: [...filters.excludeTitles, t] })}
-            onRemove={() => update({ titles: filters.titles.filter(x => x !== t) })}
+            key={`t-${val}`}
+            label={val}
+            variant={exclude ? 'exclude' : 'include'}
+            onToggleVariant={() => exclude
+              ? update({ excludeTitles: filters.excludeTitles.filter(x => x !== val), titles: [...filters.titles, val] })
+              : update({ titles: filters.titles.filter(x => x !== val), excludeTitles: [...filters.excludeTitles, val] })
+            }
+            onRemove={() => exclude
+              ? update({ excludeTitles: filters.excludeTitles.filter(x => x !== val) })
+              : update({ titles: filters.titles.filter(x => x !== val) })
+            }
           />
         ))}
-        {filters.excludeTitles.map(t => (
+        {[
+          ...filters.boardIds.map(id => ({ val: id, exclude: false, label: `Board: ${getBoardName(id)}` })),
+          ...filters.excludeBoardIds.map(id => ({ val: id, exclude: true, label: `Board: ${getBoardName(id)}` })),
+        ].sort((a, b) => a.label.localeCompare(b.label)).map(({ val, exclude, label }) => (
           <Chip
-            key={`xt-${t}`}
-            label={t}
-            variant="exclude"
-            onToggleVariant={() => update({ excludeTitles: filters.excludeTitles.filter(x => x !== t), titles: [...filters.titles, t] })}
-            onRemove={() => update({ excludeTitles: filters.excludeTitles.filter(x => x !== t) })}
-          />
-        ))}
-        {filters.boardIds.map(id => (
-          <Chip
-            key={`b-${id}`}
-            label={`Board: ${getBoardName(id)}`}
-            onToggleVariant={() => update({ boardIds: filters.boardIds.filter(x => x !== id), excludeBoardIds: [...filters.excludeBoardIds, id] })}
-            onRemove={() => update({ boardIds: filters.boardIds.filter(x => x !== id) })}
-          />
-        ))}
-        {filters.excludeBoardIds.map(id => (
-          <Chip
-            key={`xb-${id}`}
-            label={`Board: ${getBoardName(id)}`}
-            variant="exclude"
-            onToggleVariant={() => update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== id), boardIds: [...filters.boardIds, id] })}
-            onRemove={() => update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== id) })}
+            key={`b-${val}`}
+            label={label}
+            variant={exclude ? 'exclude' : 'include'}
+            onToggleVariant={() => exclude
+              ? update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== val), boardIds: [...filters.boardIds, val] })
+              : update({ boardIds: filters.boardIds.filter(x => x !== val), excludeBoardIds: [...filters.excludeBoardIds, val] })
+            }
+            onRemove={() => exclude
+              ? update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== val) })
+              : update({ boardIds: filters.boardIds.filter(x => x !== val) })
+            }
           />
         ))}
         {filters.statuses.map(s => (
           <Chip key={s} label={s === 'active' ? 'Active' : s === 'inactive' ? 'Inactive' : s === 'read' ? 'Read' : s === 'unread' ? 'Unread' : s === 'pinned' ? 'Pinned' : 'Unpinned'} onRemove={() => update({ statuses: filters.statuses.filter(x => x !== s) })} />
         ))}
-        {filters.locations.map(l => (
+        {[
+          ...filters.locations.map(l => ({ val: l, exclude: false })),
+          ...filters.excludeLocations.map(l => ({ val: l, exclude: true })),
+        ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
           <Chip
-            key={`l-${l}`}
-            label={l}
-            onToggleVariant={() => update({ locations: filters.locations.filter(x => x !== l), excludeLocations: [...filters.excludeLocations, l] })}
-            onRemove={() => update({ locations: filters.locations.filter(x => x !== l) })}
+            key={`l-${val}`}
+            label={val}
+            variant={exclude ? 'exclude' : 'include'}
+            onToggleVariant={() => exclude
+              ? update({ excludeLocations: filters.excludeLocations.filter(x => x !== val), locations: [...filters.locations, val] })
+              : update({ locations: filters.locations.filter(x => x !== val), excludeLocations: [...filters.excludeLocations, val] })
+            }
+            onRemove={() => exclude
+              ? update({ excludeLocations: filters.excludeLocations.filter(x => x !== val) })
+              : update({ locations: filters.locations.filter(x => x !== val) })
+            }
           />
         ))}
-        {filters.excludeLocations.map(l => (
+        {[
+          ...filters.companies.map(c => ({ val: c, exclude: false })),
+          ...filters.excludeCompanies.map(c => ({ val: c, exclude: true })),
+        ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
           <Chip
-            key={`xl-${l}`}
-            label={l}
-            variant="exclude"
-            onToggleVariant={() => update({ excludeLocations: filters.excludeLocations.filter(x => x !== l), locations: [...filters.locations, l] })}
-            onRemove={() => update({ excludeLocations: filters.excludeLocations.filter(x => x !== l) })}
-          />
-        ))}
-        {filters.companies.map(c => (
-          <Chip
-            key={`c-${c}`}
-            label={c}
-            onToggleVariant={() => update({ companies: filters.companies.filter(x => x !== c), excludeCompanies: [...filters.excludeCompanies, c] })}
-            onRemove={() => update({ companies: filters.companies.filter(x => x !== c) })}
-          />
-        ))}
-        {filters.excludeCompanies.map(c => (
-          <Chip
-            key={`xc-${c}`}
-            label={c}
-            variant="exclude"
-            onToggleVariant={() => update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== c), companies: [...filters.companies, c] })}
-            onRemove={() => update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== c) })}
+            key={`c-${val}`}
+            label={val}
+            variant={exclude ? 'exclude' : 'include'}
+            onToggleVariant={() => exclude
+              ? update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== val), companies: [...filters.companies, val] })
+              : update({ companies: filters.companies.filter(x => x !== val), excludeCompanies: [...filters.excludeCompanies, val] })
+            }
+            onRemove={() => exclude
+              ? update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== val) })
+              : update({ companies: filters.companies.filter(x => x !== val) })
+            }
           />
         ))}
         {filters.minScore !== undefined && (
