@@ -54,6 +54,7 @@ public sealed class AdScoringJob
     /// </summary>
     /// <param name="adId">The ID of the job ad to score.</param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
+    [Queue("critical")]
     [AutomaticRetry(Attempts = 0)]
     public async Task ExecuteAsync(Guid adId, CancellationToken ct = default)
     {

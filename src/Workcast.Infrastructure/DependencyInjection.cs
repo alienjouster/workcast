@@ -138,6 +138,9 @@ public static class DependencyInjection
         {
             options.WorkerCount = 2;
             options.ServerName = "workcast-api";
+            // Process "critical" before "default": scoring jobs (user-initiated) are picked up
+            // ahead of scraping jobs (background). Workers drain critical before touching default.
+            options.Queues = ["critical", "default"];
         });
 
         // HangfireJobScheduler is Singleton — wraps Hangfire's static API.

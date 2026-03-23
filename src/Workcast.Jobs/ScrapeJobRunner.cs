@@ -70,6 +70,7 @@ public sealed class ScrapeJobRunner
     /// <param name="jobBoardId">The ID of the job board to scrape.</param>
     /// <param name="triggerSource">Whether this run was triggered by the scheduler or manually.</param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
+    [Queue("default")]
     [AutomaticRetry(Attempts = 1)]
     public async Task ExecuteAsync(
         Guid jobBoardId,
