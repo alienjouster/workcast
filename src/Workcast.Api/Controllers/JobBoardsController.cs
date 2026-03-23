@@ -92,12 +92,13 @@ public sealed class JobBoardsController : ControllerBase
             {
                 Board = b,
                 AdCount = b.JobAds.Count,
+                HasActiveRun = b.ScrapeRuns.Any(r => r.Status == RunStatus.Running),
             })
             .OrderByDescending(x => x.Board.CreatedAt)
             .ToListAsync(ct);
 
         var response = boards
-            .Select(x => x.Board.ToResponse(x.AdCount, includeScraperConfig: false))
+            .Select(x => x.Board.ToResponse(x.AdCount, includeScraperConfig: false, hasActiveRun: x.HasActiveRun))
             .ToList();
 
         return Ok(response);
@@ -119,6 +120,7 @@ public sealed class JobBoardsController : ControllerBase
             {
                 Board = b,
                 AdCount = b.JobAds.Count,
+                HasActiveRun = b.ScrapeRuns.Any(r => r.Status == RunStatus.Running),
             })
             .FirstOrDefaultAsync(ct);
 
@@ -131,7 +133,7 @@ public sealed class JobBoardsController : ControllerBase
                 detail: $"Job board '{id}' was not found.");
         }
 
-        return Ok(result.Board.ToResponse(result.AdCount, includeScraperConfig: true));
+        return Ok(result.Board.ToResponse(result.AdCount, includeScraperConfig: true, hasActiveRun: result.HasActiveRun));
     }
 
     /// <summary>

@@ -34,4 +34,7 @@ public record JobBoardResponse
 
     /// <summary>Gets the AI-generated scraper configuration, or null if analysis has not yet completed.</summary>
     public ScraperConfigResponse? ScraperConfig { get; init; }
+
+    /// <summary>Gets whether a scrape run is currently in progress for this board.</summary>
+    public bool HasActiveRun { get; init; }
 }

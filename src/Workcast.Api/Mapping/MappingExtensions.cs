@@ -20,7 +20,7 @@ public static class MappingExtensions
     /// <param name="adCount">Pre-computed count of job ads for this board.</param>
     /// <param name="includeScraperConfig">When true, the <see cref="ScraperConfigResponse"/> is included in the response.</param>
     /// <returns>A populated <see cref="JobBoardResponse"/>.</returns>
-    public static JobBoardResponse ToResponse(this JobBoard board, int adCount, bool includeScraperConfig = false)
+    public static JobBoardResponse ToResponse(this JobBoard board, int adCount, bool includeScraperConfig = false, bool hasActiveRun = false)
     {
         return new JobBoardResponse
         {
@@ -34,6 +34,7 @@ public static class MappingExtensions
             UpdatedAt = board.UpdatedAt,
             AdCount = adCount,
             ScraperConfig = includeScraperConfig ? board.ScraperConfig?.ToResponse() : null,
+            HasActiveRun = hasActiveRun,
         };
     }
 

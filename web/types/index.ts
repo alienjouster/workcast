@@ -39,6 +39,7 @@ export interface JobBoard {
   updatedAt: string;
   adCount: number;
   scraperConfig: ScraperConfig | null;
+  hasActiveRun: boolean;
 }
 
 export interface JobAd {

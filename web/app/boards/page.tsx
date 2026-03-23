@@ -103,10 +103,19 @@ export default function BoardsPage() {
                     {board.adCount}
                   </td>
                   <td className="px-4 py-3 text-gray-500">
-                    {board.lastScrapedAt
-                      ? <span title={new Date(board.lastScrapedAt).toLocaleString()}>{timeAgo(board.lastScrapedAt)}</span>
-                      : <span className="italic">Never</span>
-                    }
+                    {board.hasActiveRun ? (
+                      <span className="inline-flex items-center gap-1.5 text-indigo-600">
+                        <svg className="w-3.5 h-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Running
+                      </span>
+                    ) : board.lastScrapedAt ? (
+                      <span title={new Date(board.lastScrapedAt).toLocaleString()}>{timeAgo(board.lastScrapedAt)}</span>
+                    ) : (
+                      <span className="italic">Never</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">{board.scheduleCron}</span>
