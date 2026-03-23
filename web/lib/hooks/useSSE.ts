@@ -24,6 +24,7 @@ export function useSSE() {
       // events during a brief disconnection.
       qc.invalidateQueries({ queryKey: ['job-boards'] });
       qc.invalidateQueries({ queryKey: ['scrape-runs'] });
+      qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
       qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
     };
 
@@ -41,12 +42,14 @@ export function useSSE() {
 
         case 'runStarted':
           qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });
           break;
 
         case 'runCompleted':
           qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
           qc.invalidateQueries({ queryKey: ['scrape-runs', 'detail', event.runId] });
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });

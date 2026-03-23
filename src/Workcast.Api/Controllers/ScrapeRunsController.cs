@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Infrastructure.Persistence;
@@ -24,6 +25,37 @@ public sealed class ScrapeRunsController : ControllerBase
     {
         _db = db;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Returns recent scrape runs across all job boards, newest first.
+    /// Each run includes the board name for display in the aggregated view.
+    /// </summary>
+    /// <param name="limit">Maximum number of runs to return. Default 50, max 200.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet]
+    [ProducesResponseType(typeof(IList<ScrapeRunResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> ListAllAsync(
+        [FromQuery] int limit = 50,
+        CancellationToken ct = default)
+    {
+        limit = Math.Clamp(limit, 1, 200);
+
+        var runs = await _db.ScrapeRuns
+            .OrderByDescending(r => r.StartedAt)
+            .Take(limit)
+            .Select(r => new
+            {
+                Run = r,
+                BoardName = r.JobBoard.Name ?? r.JobBoard.Url,
+            })
+            .ToListAsync(ct);
+
+        return Ok(runs.Select(x =>
+        {
+            var response = x.Run.ToResponse();
+            return response with { BoardName = x.BoardName };
+        }).ToList());
     }
 
     /// <summary>

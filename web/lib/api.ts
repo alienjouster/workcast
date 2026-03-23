@@ -148,6 +148,8 @@ export const api = {
       }),
   },
   runs: {
+    list: (limit?: number) =>
+      apiFetch<ScrapeRun[]>(`/api/runs${limit ? `?limit=${limit}` : ''}`),
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),
   },
   status: {

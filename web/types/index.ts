@@ -81,6 +81,7 @@ export interface ScrapeRun {
   adsFound: number;
   adsNew: number;
   errors: ScrapeRunError[];
+  boardName?: string | null;
 }
 
 export interface PagedResponse<T> {

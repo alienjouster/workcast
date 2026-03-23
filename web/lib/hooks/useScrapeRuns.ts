@@ -16,6 +16,15 @@ export function useScrapeRuns(boardId: string, limit?: number) {
   });
 }
 
+export function useAllScrapeRuns(limit?: number) {
+  return useQuery({
+    queryKey: ['scrape-runs-all', limit],
+    queryFn: () => api.runs.list(limit),
+    refetchInterval: (query) =>
+      query.state.data?.some((r) => r.status === 'running') ? 3000 : false,
+  });
+}
+
 export function useScrapeRun(id: string) {
   return useQuery({
     queryKey: ['scrape-runs', 'detail', id],

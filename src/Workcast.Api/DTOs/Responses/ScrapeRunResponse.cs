@@ -34,4 +34,7 @@ public record ScrapeRunResponse
 
     /// <summary>Gets the list of errors encountered during the run.</summary>
     public required IList<ScrapeRunErrorResponse> Errors { get; init; }
+
+    /// <summary>Gets the name (or URL) of the job board this run belongs to. Populated only by the aggregated runs endpoint.</summary>
+    public string? BoardName { get; init; }
 }
