@@ -9,11 +9,11 @@ public sealed class AppSettings
     /// <summary>Always 1 — only one settings row exists.</summary>
     public int Id { get; private set; }
 
-    /// <summary>
-    /// Anthropic model identifier used for board analysis AI calls.
-    /// Overrides the value in <c>appsettings.json</c> at runtime.
-    /// </summary>
-    public string AiModel { get; private set; } = "claude-sonnet-4-5";
+    /// <summary>Anthropic model identifier used for board analysis AI calls.</summary>
+    public string BoardAnalyzerModel { get; private set; } = "claude-sonnet-4-5";
+
+    /// <summary>Anthropic model identifier used for job ad scoring AI calls.</summary>
+    public string ScoringModel { get; private set; } = "claude-haiku-4-5-20251001";
 
     /// <summary>Original file name of the uploaded resume.</summary>
     public string? ResumeFileName { get; private set; }
@@ -36,8 +36,11 @@ public sealed class AppSettings
     /// <summary>Creates the singleton settings row with default values.</summary>
     public static AppSettings CreateDefault() => new() { Id = 1 };
 
-    /// <summary>Updates the AI model identifier.</summary>
-    public void SetAiModel(string model) => AiModel = model;
+    /// <summary>Updates the board analyzer model identifier.</summary>
+    public void SetBoardAnalyzerModel(string model) => BoardAnalyzerModel = model;
+
+    /// <summary>Updates the scoring model identifier.</summary>
+    public void SetScoringModel(string model) => ScoringModel = model;
 
     /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
     public void SetResume(string fileName, byte[] content, string contentType)

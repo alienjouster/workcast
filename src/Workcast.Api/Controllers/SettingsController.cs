@@ -45,14 +45,15 @@ public sealed class SettingsController : ControllerBase
     {
         var settings = await _settingsRepository.GetAsync(ct);
         return Ok(new SettingsResponse(
-            settings.AiModel,
+            settings.BoardAnalyzerModel,
+            settings.ScoringModel,
             AllowedModels,
             settings.HasResume,
             settings.ResumeFileName,
             settings.ResumeUploadedAt));
     }
 
-    /// <summary>Updates the AI model used for board analysis.</summary>
+    /// <summary>Updates the AI models used for board analysis and/or scoring.</summary>
     [HttpPatch]
     [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
@@ -60,21 +61,32 @@ public sealed class SettingsController : ControllerBase
         [FromBody] UpdateSettingsRequest request,
         CancellationToken ct)
     {
-        if (!AllowedModels.Contains(request.AiModel))
+        if (!AllowedModels.Contains(request.BoardAnalyzerModel))
         {
             return UnprocessableEntity(new ProblemDetails
             {
-                Title = "Invalid model",
-                Detail = $"'{request.AiModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
+                Title = "Invalid board analyzer model",
+                Detail = $"'{request.BoardAnalyzerModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
+            });
+        }
+
+        if (!AllowedModels.Contains(request.ScoringModel))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid scoring model",
+                Detail = $"'{request.ScoringModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
             });
         }
 
         var settings = await _settingsRepository.GetAsync(ct);
-        settings.SetAiModel(request.AiModel);
+        settings.SetBoardAnalyzerModel(request.BoardAnalyzerModel);
+        settings.SetScoringModel(request.ScoringModel);
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(new SettingsResponse(
-            settings.AiModel,
+            settings.BoardAnalyzerModel,
+            settings.ScoringModel,
             AllowedModels,
             settings.HasResume,
             settings.ResumeFileName,
@@ -130,7 +142,8 @@ public sealed class SettingsController : ControllerBase
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(new SettingsResponse(
-            settings.AiModel,
+            settings.BoardAnalyzerModel,
+            settings.ScoringModel,
             AllowedModels,
             settings.HasResume,
             settings.ResumeFileName,
@@ -147,7 +160,8 @@ public sealed class SettingsController : ControllerBase
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(new SettingsResponse(
-            settings.AiModel,
+            settings.BoardAnalyzerModel,
+            settings.ScoringModel,
             AllowedModels,
             settings.HasResume,
             settings.ResumeFileName,
@@ -156,20 +170,23 @@ public sealed class SettingsController : ControllerBase
 
     // ── Inline DTOs (settings has no shared domain model) ────────────────────
 
-    /// <param name="AiModel">Active Anthropic model identifier.</param>
+    /// <param name="BoardAnalyzerModel">Active Anthropic model for board analysis.</param>
+    /// <param name="ScoringModel">Active Anthropic model for job ad scoring.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
     /// <param name="ResumeUploadedAt">UTC timestamp of the last resume upload, or null.</param>
     public sealed record SettingsResponse(
-        string AiModel,
+        string BoardAnalyzerModel,
+        string ScoringModel,
         IEnumerable<string> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
         DateTimeOffset? ResumeUploadedAt);
 
-    /// <param name="AiModel">The model identifier to switch to.</param>
-    public sealed record UpdateSettingsRequest(string AiModel);
+    /// <param name="BoardAnalyzerModel">Model identifier for board analysis.</param>
+    /// <param name="ScoringModel">Model identifier for job ad scoring.</param>
+    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel);
 
     /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
     /// <param name="ContentBase64">Base64-encoded file bytes.</param>

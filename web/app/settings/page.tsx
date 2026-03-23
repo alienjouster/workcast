@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button';
 import { useSettings, useUpdateSettings, useUploadResume, useDeleteResume } from '@/lib/hooks/useSettings';
 
 const MODEL_INFO: Record<string, string> = {
-  'claude-haiku-4-5-20251001': 'Fastest & cheapest — to avoid, usually too weak for Workcast',
+  'claude-haiku-4-5-20251001': 'Fastest & cheapest',
   'claude-sonnet-4-5':         'Balanced speed and accuracy — recommended default',
   'claude-sonnet-4-6':         'Latest Sonnet — stronger reasoning, slightly higher cost',
   'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
 };
+
+type EditingField = 'boardAnalyzer' | 'scoring' | null;
 
 export default function SettingsPage() {
   const { data: settings, isLoading } = useSettings();
@@ -19,21 +21,77 @@ export default function SettingsPage() {
   const { mutate: deleteResume, isPending: isDeleting } = useDeleteResume();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [editing, setEditing] = useState(false);
+  const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
 
-  function startEdit() {
-    setDraft(settings!.aiModel);
-    setEditing(true);
+  function startEdit(field: EditingField) {
+    setDraft(field === 'boardAnalyzer' ? settings!.boardAnalyzerModel : settings!.scoringModel);
+    setEditingField(field);
   }
 
   function cancelEdit() {
-    setEditing(false);
+    setEditingField(null);
     setDraft('');
   }
 
   function saveEdit() {
-    updateSettings(draft, { onSuccess: () => setEditing(false) });
+    const boardAnalyzerModel = editingField === 'boardAnalyzer' ? draft : settings!.boardAnalyzerModel;
+    const scoringModel = editingField === 'scoring' ? draft : settings!.scoringModel;
+    updateSettings({ boardAnalyzerModel, scoringModel }, { onSuccess: () => setEditingField(null) });
+  }
+
+  function renderModelCell(field: EditingField, currentValue: string | undefined) {
+    if (editingField === field) {
+      return (
+        <>
+          <td className="px-4 py-2.5">
+            <select
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {settings!.availableModels.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+            </select>
+            {MODEL_INFO[draft] && (
+              <p className="mt-1 text-xs text-gray-400">{MODEL_INFO[draft]}</p>
+            )}
+          </td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="primary" onClick={saveEdit} loading={isPending}>Save</Button>
+              <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
+            </div>
+          </td>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <td className="px-4 py-2.5 text-sm text-gray-900">
+          {isLoading ? (
+            <span className="text-gray-400">Loading…</span>
+          ) : (
+            <span className="inline-flex items-baseline gap-2">
+              <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{currentValue}</span>
+              {currentValue && MODEL_INFO[currentValue] && (
+                <span className="text-xs text-gray-400">{MODEL_INFO[currentValue]}</span>
+              )}
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-right">
+          {!isLoading && editingField === null && (
+            <button onClick={() => startEdit(field)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+          )}
+        </td>
+      </>
+    );
   }
 
   return (
@@ -123,54 +181,12 @@ export default function SettingsPage() {
           <table className="min-w-full text-sm">
             <tbody>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Model</td>
-                {editing ? (
-                  <>
-                    <td className="px-4 py-2.5">
-                      <select
-                        autoFocus
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        {settings!.availableModels.map((model) => (
-                          <option key={model} value={model}>
-                            {model}
-                          </option>
-                        ))}
-                      </select>
-                      {MODEL_INFO[draft] && (
-                        <p className="mt-1 text-xs text-gray-400">{MODEL_INFO[draft]}</p>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="primary" onClick={saveEdit} loading={isPending}>Save</Button>
-                        <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-2.5 text-sm text-gray-900">
-                      {isLoading ? (
-                        <span className="text-gray-400">Loading…</span>
-                      ) : (
-                        <span className="inline-flex items-baseline gap-2">
-                          <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{settings?.aiModel}</span>
-                          {settings?.aiModel && MODEL_INFO[settings.aiModel] && (
-                            <span className="text-xs text-gray-400">{MODEL_INFO[settings.aiModel]}</span>
-                          )}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {!isLoading && (
-                        <button onClick={startEdit} className="text-xs text-indigo-500 hover:underline">Edit</button>
-                      )}
-                    </td>
-                  </>
-                )}
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Board analyzer model</td>
+                {renderModelCell('boardAnalyzer', settings?.boardAnalyzerModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Scoring model</td>
+                {renderModelCell('scoring', settings?.scoringModel)}
               </tr>
             </tbody>
           </table>

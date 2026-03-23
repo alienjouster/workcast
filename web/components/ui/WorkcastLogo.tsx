@@ -63,7 +63,7 @@ export function WorkcastLogo() {
 
       {isProcessing && (
         <span className="pointer-events-none absolute left-0 top-full mt-2 whitespace-nowrap rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
-          Scraping in progress…
+          Working like a dog for you...
         </span>
       )}
     </div>

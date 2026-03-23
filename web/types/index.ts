@@ -103,7 +103,8 @@ export interface UpdateJobBoardRequest {
 }
 
 export interface AppSettings {
-  aiModel: string;
+  boardAnalyzerModel: string;
+  scoringModel: string;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
@@ -131,7 +132,8 @@ export interface AdScoring {
 }
 
 export interface UpdateSettingsRequest {
-  aiModel: string;
+  boardAnalyzerModel: string;
+  scoringModel: string;
 }
 
 export interface UpdateScraperConfigRequest {

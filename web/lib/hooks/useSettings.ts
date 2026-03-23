@@ -16,7 +16,8 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (aiModel: string) => api.settings.update({ aiModel }),
+    mutationFn: (data: { boardAnalyzerModel: string; scoringModel: string }) =>
+      api.settings.update(data),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated);
     },

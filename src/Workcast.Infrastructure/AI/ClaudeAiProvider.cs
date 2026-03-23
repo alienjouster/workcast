@@ -135,7 +135,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             """;
 
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
-        var input = await CallWithRetryAsync(prompt, tool, "save_board_config", settings.AiModel, ct).ConfigureAwait(false);
+        var input = await CallWithRetryAsync(prompt, tool, "save_board_config", settings.BoardAnalyzerModel, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
     }
 
@@ -203,7 +203,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             userContent = $"RESUME ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
         }
 
-        var input = await CallScoringWithRetryAsync(userContent, tool, "submit_scoring", settings.AiModel, ct)
+        var input = await CallScoringWithRetryAsync(userContent, tool, "submit_scoring", settings.ScoringModel, ct)
             .ConfigureAwait(false);
 
         return DeserializeAdScoringResult(input);

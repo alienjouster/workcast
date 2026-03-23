@@ -14,8 +14,13 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
         builder.Property(s => s.Id)
             .ValueGeneratedNever(); // Fixed Id = 1, never auto-increment.
 
-        builder.Property(s => s.AiModel)
-            .HasColumnName("ai_model")
+        builder.Property(s => s.BoardAnalyzerModel)
+            .HasColumnName("board_analyzer_model")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(s => s.ScoringModel)
+            .HasColumnName("scoring_model")
             .HasMaxLength(100)
             .IsRequired();
 
