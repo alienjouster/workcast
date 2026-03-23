@@ -67,8 +67,13 @@ export const api = {
   ads: {
     list: (params: {
       boardIds?: string[];
+      excludeBoardIds?: string[];
+      titles?: string[];
+      excludeTitles?: string[];
       locations?: string[];
+      excludeLocations?: string[];
       companies?: string[];
+      excludeCompanies?: string[];
       isActive?: boolean;
       isRead?: boolean;
       isPinned?: boolean;
@@ -79,8 +84,13 @@ export const api = {
     }) => {
       const q = new URLSearchParams();
       params.boardIds?.forEach(id => q.append('boardIds', id));
+      params.excludeBoardIds?.forEach(id => q.append('excludeBoardIds', id));
+      params.titles?.forEach(t => q.append('titles', t));
+      params.excludeTitles?.forEach(t => q.append('excludeTitles', t));
       params.locations?.forEach(l => q.append('locations', l));
+      params.excludeLocations?.forEach(l => q.append('excludeLocations', l));
       params.companies?.forEach(c => q.append('companies', c));
+      params.excludeCompanies?.forEach(c => q.append('excludeCompanies', c));
       if (params.isActive !== undefined) q.set('isActive', String(params.isActive));
       if (params.isRead !== undefined) q.set('isRead', String(params.isRead));
       if (params.isPinned !== undefined) q.set('isPinned', String(params.isPinned));
@@ -90,6 +100,10 @@ export const api = {
       if (params.limit) q.set('limit', String(params.limit));
       const qs = q.toString();
       return apiFetch<PagedResponse<JobAd>>(`/api/job-ads${qs ? `?${qs}` : ''}`);
+    },
+    distinctTitles: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/job-ads/distinct-titles${qs}`);
     },
     distinctLocations: (q?: string) => {
       const qs = q ? `?q=${encodeURIComponent(q)}` : '';

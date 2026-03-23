@@ -11,21 +11,32 @@ export type StatusTag = 'active' | 'inactive' | 'read' | 'unread' | 'pinned' | '
 
 export interface FilterState {
   boardIds: string[];
+  excludeBoardIds: string[];
+  titles: string[];
+  excludeTitles: string[];
   statuses: StatusTag[];
   locations: string[];
+  excludeLocations: string[];
   companies: string[];
+  excludeCompanies: string[];
   minScore: number | undefined;
 }
 
 export const EMPTY_FILTERS: FilterState = {
   boardIds: [],
+  excludeBoardIds: [],
+  titles: [],
+  excludeTitles: [],
   statuses: [],
   locations: [],
+  excludeLocations: [],
   companies: [],
+  excludeCompanies: [],
   minScore: undefined,
 };
 
-type PopoverView = 'menu' | 'board' | 'status' | 'location' | 'company' | 'score';
+type PopoverView = 'menu' | 'board' | 'status' | 'title' | 'location' | 'company' | 'score';
+type TriState = 'none' | 'include' | 'exclude';
 
 interface FilterBarProps {
   filters: FilterState;
@@ -33,15 +44,58 @@ interface FilterBarProps {
   boards: JobBoard[];
 }
 
+// ── Tri-state cycle helper ────────────────────────────────────────────────────
+
+function triCycle(
+  included: string[],
+  excluded: string[],
+  val: string,
+): { included: string[]; excluded: string[] } {
+  if (included.includes(val))
+    return { included: included.filter(x => x !== val), excluded: [...excluded, val] };
+  if (excluded.includes(val))
+    return { included, excluded: excluded.filter(x => x !== val) };
+  return { included: [...included, val], excluded };
+}
+
 // ── Chip ─────────────────────────────────────────────────────────────────────
 
-function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
+function Chip({
+  label,
+  variant = 'include',
+  onToggleVariant,
+  onRemove,
+}: {
+  label: string;
+  variant?: 'include' | 'exclude';
+  onToggleVariant?: () => void;
+  onRemove: () => void;
+}) {
+  const isExclude = variant === 'exclude';
+  const colors = isExclude
+    ? 'bg-rose-100 text-rose-800'
+    : 'bg-indigo-100 text-indigo-800';
+  const toggleHover = isExclude ? 'hover:bg-rose-200' : 'hover:bg-indigo-200';
+  const removeHover = isExclude ? 'hover:bg-rose-200' : 'hover:bg-indigo-200';
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 pl-3 pr-1.5 py-1 text-xs font-medium text-indigo-800">
-      {label}
+    <span className={`inline-flex items-center rounded-full pr-1.5 py-1 text-xs font-medium ${colors}`}>
+      {onToggleVariant ? (
+        <button
+          onClick={onToggleVariant}
+          className={`pl-2 pr-1.5 py-0.5 font-bold rounded-full transition-colors ${toggleHover}`}
+          aria-label={isExclude ? 'Switch to include' : 'Switch to exclude'}
+          title={isExclude ? 'Switch to include' : 'Switch to exclude'}
+        >
+          {isExclude ? '≠' : '='}
+        </button>
+      ) : (
+        <span className="pl-3" />
+      )}
+      <span className={onToggleVariant ? '' : 'pl-3'}>{label}</span>
       <button
         onClick={onRemove}
-        className="rounded-full p-0.5 hover:bg-indigo-200 transition-colors"
+        className={`rounded-full p-0.5 ml-1 transition-colors ${removeHover}`}
         aria-label="Remove filter"
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
@@ -52,7 +106,7 @@ function Chip({ label, onRemove }: { label: string; onRemove: () => void }) {
   );
 }
 
-// ── Checkbox row ─────────────────────────────────────────────────────────────
+// ── Checkbox row (binary, for Status) ────────────────────────────────────────
 
 function CheckRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
   return (
@@ -64,6 +118,40 @@ function CheckRow({ label, checked, onToggle }: { label: string; checked: boolea
         {checked && (
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none" className="w-3 h-3">
             <path d="M1 6l3.5 3.5L11 2" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      {label}
+    </button>
+  );
+}
+
+// ── Tri-state row (none → include → exclude → none) ──────────────────────────
+
+function TriStateCheckRow({ label, state, onCycle }: { label: string; state: TriState; onCycle: () => void }) {
+  const isInclude = state === 'include';
+  const isExclude = state === 'exclude';
+  const textClass = isInclude ? 'text-indigo-700 font-medium' : isExclude ? 'text-rose-700 font-medium' : 'text-gray-700';
+  const boxClass = isInclude
+    ? 'bg-indigo-600 border-indigo-600'
+    : isExclude
+    ? 'bg-rose-500 border-rose-500'
+    : 'border-gray-300';
+
+  return (
+    <button
+      onClick={onCycle}
+      className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-sm hover:bg-gray-50 ${textClass}`}
+    >
+      <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${boxClass}`}>
+        {isInclude && (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+            <path d="M1 6l3.5 3.5L11 2" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {isExclude && (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+            <path d="M2 6h8" stroke="white" strokeWidth={2} strokeLinecap="round" />
           </svg>
         )}
       </span>
@@ -89,29 +177,34 @@ function BackButton({ onClick }: { onClick: () => void }) {
 
 function TypeaheadPicker({
   type,
-  selected,
-  onToggle,
+  included,
+  excluded,
+  onCycle,
+  onExclude,
 }: {
-  type: 'locations' | 'companies';
-  selected: string[];
-  onToggle: (value: string) => void;
+  type: 'titles' | 'locations' | 'companies';
+  included: string[];
+  excluded: string[];
+  onCycle: (value: string) => void;
+  onExclude: (value: string) => void;
 }) {
   const [q, setQ] = useState('');
   const { data: suggestions = [] } = useQuery({
     queryKey: ['distinct', type, q],
-    queryFn: () => type === 'locations' ? api.ads.distinctLocations(q) : api.ads.distinctCompanies(q),
+    queryFn: () => type === 'titles' ? api.ads.distinctTitles(q) : type === 'locations' ? api.ads.distinctLocations(q) : api.ads.distinctCompanies(q),
     staleTime: 30_000,
   });
 
   const trimmed = q.trim();
+  const allSelected = [...included, ...excluded];
   const canAddRaw =
     trimmed.length > 0 &&
     !suggestions.some(s => s.toLowerCase() === trimmed.toLowerCase()) &&
-    !selected.some(s => s.toLowerCase() === trimmed.toLowerCase());
+    !allSelected.some(s => s.toLowerCase() === trimmed.toLowerCase());
 
-  // Show selected values that are not in the current suggestion list first, then suggestions
+  // Show included/excluded values not in suggestions first, then suggestions
   const displayList = [
-    ...selected.filter(s => !suggestions.includes(s)),
+    ...allSelected.filter(s => !suggestions.includes(s)),
     ...suggestions,
   ];
 
@@ -124,33 +217,48 @@ function TypeaheadPicker({
         onChange={e => setQ(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter' && trimmed) {
-            onToggle(trimmed);
+            onCycle(trimmed);
             setQ('');
           }
         }}
-        placeholder={type === 'locations' ? 'Search locations…' : 'Search companies…'}
+        placeholder={type === 'titles' ? 'Search titles…' : type === 'locations' ? 'Search locations…' : 'Search companies…'}
         className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
       />
-      <div className="max-h-52 overflow-y-auto space-y-0.5">
-        {displayList.map(item => (
-          <CheckRow
-            key={item}
-            label={item}
-            checked={selected.includes(item)}
-            onToggle={() => onToggle(item)}
-          />
-        ))}
-        {canAddRaw && (
+      {canAddRaw && (
+        <div className="flex gap-1 mb-2">
           <button
-            onClick={() => { onToggle(trimmed); setQ(''); }}
-            className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-sm text-indigo-600 hover:bg-indigo-50 font-medium"
+            onClick={() => { onCycle(trimmed); setQ(''); }}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 shrink-0 text-indigo-400">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
               <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
             </svg>
-            Add "{trimmed}"
+            Include
           </button>
-        )}
+          <button
+            onClick={() => { onExclude(trimmed); setQ(''); }}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-xs font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M3.75 7.25a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" />
+            </svg>
+            Exclude
+          </button>
+        </div>
+      )}
+      <p className="text-[10px] text-gray-400 mb-1.5 px-1">Click to include · click again to exclude · once more to clear</p>
+      <div className="max-h-52 overflow-y-auto space-y-0.5">
+        {displayList.map(item => {
+          const state: TriState = included.includes(item) ? 'include' : excluded.includes(item) ? 'exclude' : 'none';
+          return (
+            <TriStateCheckRow
+              key={item}
+              label={item}
+              state={state}
+              onCycle={() => onCycle(item)}
+            />
+          );
+        })}
         {displayList.length === 0 && !canAddRaw && (
           <p className="text-xs text-gray-400 px-2 py-2 italic">No results. Type to add a custom value.</p>
         )}
@@ -236,12 +344,26 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
 
   const hasFilters =
     filters.boardIds.length > 0 ||
+    filters.excludeBoardIds.length > 0 ||
+    filters.titles.length > 0 ||
+    filters.excludeTitles.length > 0 ||
     filters.statuses.length > 0 ||
     filters.locations.length > 0 ||
+    filters.excludeLocations.length > 0 ||
     filters.companies.length > 0 ||
+    filters.excludeCompanies.length > 0 ||
     filters.minScore !== undefined;
 
   const MENU_ITEMS: { key: PopoverView; label: string; icon: React.ReactNode }[] = [
+    {
+      key: 'title',
+      label: 'Title',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
+          <path fillRule="evenodd" d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm0 5.25a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5A.75.75 0 0 1 2 15.25Z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
     {
       key: 'board',
       label: 'Board',
@@ -292,24 +414,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
   return (
     <div className="relative" ref={containerRef}>
       <div className="flex flex-wrap items-center gap-2">
-        {/* Active chips */}
-        {filters.boardIds.map(id => (
-          <Chip key={id} label={`Board: ${getBoardName(id)}`} onRemove={() => update({ boardIds: filters.boardIds.filter(x => x !== id) })} />
-        ))}
-        {filters.statuses.map(s => (
-          <Chip key={s} label={s === 'active' ? 'Active' : 'Inactive'} onRemove={() => update({ statuses: filters.statuses.filter(x => x !== s) })} />
-        ))}
-        {filters.locations.map(l => (
-          <Chip key={l} label={l} onRemove={() => update({ locations: filters.locations.filter(x => x !== l) })} />
-        ))}
-        {filters.companies.map(c => (
-          <Chip key={c} label={c} onRemove={() => update({ companies: filters.companies.filter(x => x !== c) })} />
-        ))}
-        {filters.minScore !== undefined && (
-          <Chip label={`Match ≥ ${filters.minScore}%`} onRemove={() => update({ minScore: undefined })} />
-        )}
-
-        {/* Add filter button */}
+        {/* Add filter button — always first */}
         <button
           onClick={() => setPopover(p => p === null ? 'menu' : null)}
           className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
@@ -319,6 +424,82 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
           </svg>
           Add filter
         </button>
+
+        {/* Active chips */}
+        {filters.titles.map(t => (
+          <Chip
+            key={`t-${t}`}
+            label={t}
+            onToggleVariant={() => update({ titles: filters.titles.filter(x => x !== t), excludeTitles: [...filters.excludeTitles, t] })}
+            onRemove={() => update({ titles: filters.titles.filter(x => x !== t) })}
+          />
+        ))}
+        {filters.excludeTitles.map(t => (
+          <Chip
+            key={`xt-${t}`}
+            label={t}
+            variant="exclude"
+            onToggleVariant={() => update({ excludeTitles: filters.excludeTitles.filter(x => x !== t), titles: [...filters.titles, t] })}
+            onRemove={() => update({ excludeTitles: filters.excludeTitles.filter(x => x !== t) })}
+          />
+        ))}
+        {filters.boardIds.map(id => (
+          <Chip
+            key={`b-${id}`}
+            label={`Board: ${getBoardName(id)}`}
+            onToggleVariant={() => update({ boardIds: filters.boardIds.filter(x => x !== id), excludeBoardIds: [...filters.excludeBoardIds, id] })}
+            onRemove={() => update({ boardIds: filters.boardIds.filter(x => x !== id) })}
+          />
+        ))}
+        {filters.excludeBoardIds.map(id => (
+          <Chip
+            key={`xb-${id}`}
+            label={`Board: ${getBoardName(id)}`}
+            variant="exclude"
+            onToggleVariant={() => update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== id), boardIds: [...filters.boardIds, id] })}
+            onRemove={() => update({ excludeBoardIds: filters.excludeBoardIds.filter(x => x !== id) })}
+          />
+        ))}
+        {filters.statuses.map(s => (
+          <Chip key={s} label={s === 'active' ? 'Active' : s === 'inactive' ? 'Inactive' : s === 'read' ? 'Read' : s === 'unread' ? 'Unread' : s === 'pinned' ? 'Pinned' : 'Unpinned'} onRemove={() => update({ statuses: filters.statuses.filter(x => x !== s) })} />
+        ))}
+        {filters.locations.map(l => (
+          <Chip
+            key={`l-${l}`}
+            label={l}
+            onToggleVariant={() => update({ locations: filters.locations.filter(x => x !== l), excludeLocations: [...filters.excludeLocations, l] })}
+            onRemove={() => update({ locations: filters.locations.filter(x => x !== l) })}
+          />
+        ))}
+        {filters.excludeLocations.map(l => (
+          <Chip
+            key={`xl-${l}`}
+            label={l}
+            variant="exclude"
+            onToggleVariant={() => update({ excludeLocations: filters.excludeLocations.filter(x => x !== l), locations: [...filters.locations, l] })}
+            onRemove={() => update({ excludeLocations: filters.excludeLocations.filter(x => x !== l) })}
+          />
+        ))}
+        {filters.companies.map(c => (
+          <Chip
+            key={`c-${c}`}
+            label={c}
+            onToggleVariant={() => update({ companies: filters.companies.filter(x => x !== c), excludeCompanies: [...filters.excludeCompanies, c] })}
+            onRemove={() => update({ companies: filters.companies.filter(x => x !== c) })}
+          />
+        ))}
+        {filters.excludeCompanies.map(c => (
+          <Chip
+            key={`xc-${c}`}
+            label={c}
+            variant="exclude"
+            onToggleVariant={() => update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== c), companies: [...filters.companies, c] })}
+            onRemove={() => update({ excludeCompanies: filters.excludeCompanies.filter(x => x !== c) })}
+          />
+        ))}
+        {filters.minScore !== undefined && (
+          <Chip label={`Match ≥ ${filters.minScore}%`} onRemove={() => update({ minScore: undefined })} />
+        )}
 
         {hasFilters && (
           <button
@@ -352,18 +533,52 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
               </div>
             )}
 
+            {popover === 'title' && (
+              <div>
+                <div className="px-3 pt-3 pb-0">
+                  <BackButton onClick={() => setPopover('menu')} />
+                </div>
+                <TypeaheadPicker
+                  type="titles"
+                  included={filters.titles}
+                  excluded={filters.excludeTitles}
+                  onCycle={val => {
+                    const { included, excluded } = triCycle(filters.titles, filters.excludeTitles, val);
+                    update({ titles: included, excludeTitles: excluded });
+                  }}
+                  onExclude={val => {
+                    update({
+                      titles: filters.titles.filter(x => x !== val),
+                      excludeTitles: filters.excludeTitles.includes(val) ? filters.excludeTitles : [...filters.excludeTitles, val],
+                    });
+                  }}
+                />
+              </div>
+            )}
+
             {popover === 'board' && (
               <div className="p-3 w-64">
                 <BackButton onClick={() => setPopover('menu')} />
+                <p className="text-[10px] text-gray-400 mb-1.5 px-1">Click to include · click again to exclude · once more to clear</p>
                 <div className="max-h-56 overflow-y-auto space-y-0.5">
-                  {boards.map(board => (
-                    <CheckRow
-                      key={board.id}
-                      label={board.name ?? board.url}
-                      checked={filters.boardIds.includes(board.id)}
-                      onToggle={() => update({ boardIds: toggle(filters.boardIds, board.id) })}
-                    />
-                  ))}
+                  {boards.map(board => {
+                    const state: TriState = filters.boardIds.includes(board.id)
+                      ? 'include'
+                      : filters.excludeBoardIds.includes(board.id)
+                      ? 'exclude'
+                      : 'none';
+                    return (
+                      <TriStateCheckRow
+                        key={board.id}
+                        label={board.name ?? board.url}
+                        state={state}
+                        onCycle={() => {
+                          const { included, excluded } = triCycle(filters.boardIds, filters.excludeBoardIds, board.id);
+                          update({ boardIds: included, excludeBoardIds: excluded });
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -400,8 +615,18 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
                 </div>
                 <TypeaheadPicker
                   type="locations"
-                  selected={filters.locations}
-                  onToggle={l => update({ locations: toggle(filters.locations, l) })}
+                  included={filters.locations}
+                  excluded={filters.excludeLocations}
+                  onCycle={val => {
+                    const { included, excluded } = triCycle(filters.locations, filters.excludeLocations, val);
+                    update({ locations: included, excludeLocations: excluded });
+                  }}
+                  onExclude={val => {
+                    update({
+                      locations: filters.locations.filter(x => x !== val),
+                      excludeLocations: filters.excludeLocations.includes(val) ? filters.excludeLocations : [...filters.excludeLocations, val],
+                    });
+                  }}
                 />
               </div>
             )}
@@ -413,8 +638,18 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
                 </div>
                 <TypeaheadPicker
                   type="companies"
-                  selected={filters.companies}
-                  onToggle={c => update({ companies: toggle(filters.companies, c) })}
+                  included={filters.companies}
+                  excluded={filters.excludeCompanies}
+                  onCycle={val => {
+                    const { included, excluded } = triCycle(filters.companies, filters.excludeCompanies, val);
+                    update({ companies: included, excludeCompanies: excluded });
+                  }}
+                  onExclude={val => {
+                    update({
+                      companies: filters.companies.filter(x => x !== val),
+                      excludeCompanies: filters.excludeCompanies.includes(val) ? filters.excludeCompanies : [...filters.excludeCompanies, val],
+                    });
+                  }}
                 />
               </div>
             )}

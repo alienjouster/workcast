@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { AdTable } from '@/components/ads/AdTable';
@@ -15,27 +15,79 @@ type View = 'ads' | 'trash';
 export default function AdsPage() {
   const [view, setView] = useState<View>('ads');
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [trashFilters, setTrashFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const isFirstPersistAds = useRef(true);
+  const isFirstPersistTrash = useRef(true);
+
+  // Restore persisted filters after hydration (must not run on server).
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('workcast:filters');
+      if (stored) setFilters({ ...EMPTY_FILTERS, ...JSON.parse(stored) });
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('workcast:trash-filters');
+      if (stored) setTrashFilters({ ...EMPTY_FILTERS, ...JSON.parse(stored) });
+    } catch {}
+  }, []);
+
+  // Persist whenever filters change, skipping the very first render (EMPTY_FILTERS).
+  useEffect(() => {
+    if (isFirstPersistAds.current) { isFirstPersistAds.current = false; return; }
+    localStorage.setItem('workcast:filters', JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
+    if (isFirstPersistTrash.current) { isFirstPersistTrash.current = false; return; }
+    localStorage.setItem('workcast:trash-filters', JSON.stringify(trashFilters));
+  }, [trashFilters]);
 
   const { data: boards = [] } = useJobBoards();
 
   // Derive bool filters from status tags: if both sides of a pair are selected (or neither), pass undefined
-  const deriveFlag = (trueTag: string, falseTag: string): boolean | undefined => {
-    const t = filters.statuses.includes(trueTag as never);
-    const f = filters.statuses.includes(falseTag as never);
-    return t === f ? undefined : t;
+  const deriveFlag = (f: FilterState, trueTag: string, falseTag: string): boolean | undefined => {
+    const t = f.statuses.includes(trueTag as never);
+    const ff = f.statuses.includes(falseTag as never);
+    return t === ff ? undefined : t;
   };
 
   const adsQuery = useJobAds({
     boardIds: filters.boardIds,
+    excludeBoardIds: filters.excludeBoardIds,
+    titles: filters.titles,
+    excludeTitles: filters.excludeTitles,
     locations: filters.locations,
+    excludeLocations: filters.excludeLocations,
     companies: filters.companies,
-    isActive:  deriveFlag('active',   'inactive'),
-    isRead:    deriveFlag('read',     'unread'),
-    isPinned:  deriveFlag('pinned',   'unpinned'),
+    excludeCompanies: filters.excludeCompanies,
+    isActive:  deriveFlag(filters, 'active',   'inactive'),
+    isRead:    deriveFlag(filters, 'read',     'unread'),
+    isPinned:  deriveFlag(filters, 'pinned',   'unpinned'),
     minScore: filters.minScore,
     trashed: false,
   });
-  const trashQuery = useJobAds({ trashed: true });
+
+  const trashQuery = useJobAds({
+    boardIds: trashFilters.boardIds,
+    excludeBoardIds: trashFilters.excludeBoardIds,
+    titles: trashFilters.titles,
+    excludeTitles: trashFilters.excludeTitles,
+    locations: trashFilters.locations,
+    excludeLocations: trashFilters.excludeLocations,
+    companies: trashFilters.companies,
+    excludeCompanies: trashFilters.excludeCompanies,
+    isActive:  deriveFlag(trashFilters, 'active',   'inactive'),
+    isRead:    deriveFlag(trashFilters, 'read',     'unread'),
+    isPinned:  deriveFlag(trashFilters, 'pinned',   'unpinned'),
+    minScore: trashFilters.minScore,
+    trashed: true,
+  });
+
+  const totalAdsQuery = useJobAds({ trashed: false });
+  const totalTrashQuery = useJobAds({ trashed: true });
   const markAllRead = useMarkAllRead();
 
   // Scope mark-all-read to the single selected board if exactly one is active
@@ -43,7 +95,22 @@ export default function AdsPage() {
 
   const activeQuery = view === 'ads' ? adsQuery : trashQuery;
   const allAds = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
-  const trashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
+  const totalAdsCount = totalAdsQuery.data?.pages[0]?.totalCount ?? 0;
+  const filteredAdsCount = adsQuery.data?.pages[0]?.totalCount ?? 0;
+  const totalTrashCount = totalTrashQuery.data?.pages[0]?.totalCount ?? 0;
+  const filteredTrashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
+
+  const hasActiveFilters = (f: FilterState) =>
+    f.boardIds.length > 0 ||
+    f.excludeBoardIds.length > 0 ||
+    f.titles.length > 0 ||
+    f.excludeTitles.length > 0 ||
+    f.statuses.length > 0 ||
+    f.locations.length > 0 ||
+    f.excludeLocations.length > 0 ||
+    f.companies.length > 0 ||
+    f.excludeCompanies.length > 0 ||
+    f.minScore !== undefined;
 
   return (
     <div>
@@ -68,13 +135,18 @@ export default function AdsPage() {
       <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
         <button
           onClick={() => setView('ads')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+          className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             view === 'ads'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           Job Ads
+          {totalAdsCount > 0 && (
+            <span className="inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-gray-200 text-gray-600 text-xs font-medium">
+              {totalAdsCount > 999 ? '999+' : totalAdsCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setView('trash')}
@@ -88,20 +160,37 @@ export default function AdsPage() {
             <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
           </svg>
           Trash bin
-          {trashCount > 0 && (
+          {totalTrashCount > 0 && (
             <span className="inline-flex items-center justify-center min-w-[1.25rem] h-4 px-1 rounded-full bg-gray-200 text-gray-600 text-xs font-medium">
-              {trashCount > 999 ? '999+' : trashCount}
+              {totalTrashCount > 999 ? '999+' : totalTrashCount}
             </span>
           )}
         </button>
       </div>
 
-      {/* Filters — only in ads view */}
-      {view === 'ads' && (
-        <div className="mb-4">
-          <FilterBar filters={filters} onChange={setFilters} boards={boards} />
-        </div>
-      )}
+      {/* Filters */}
+      <div className="mb-4">
+        {view === 'ads' && (
+          <>
+            <FilterBar filters={filters} onChange={setFilters} boards={boards} />
+            {hasActiveFilters(filters) && !adsQuery.isLoading && (
+              <p className="mt-2 text-sm text-gray-500">
+                Displaying <span className="font-medium text-gray-700">{filteredAdsCount}</span> ads out of <span className="font-medium text-gray-700">{totalAdsCount}</span>
+              </p>
+            )}
+          </>
+        )}
+        {view === 'trash' && (
+          <>
+            <FilterBar filters={trashFilters} onChange={setTrashFilters} boards={boards} />
+            {hasActiveFilters(trashFilters) && !trashQuery.isLoading && (
+              <p className="mt-2 text-sm text-gray-500">
+                Displaying <span className="font-medium text-gray-700">{filteredTrashCount}</span> ads out of <span className="font-medium text-gray-700">{totalTrashCount}</span>
+              </p>
+            )}
+          </>
+        )}
+      </div>
 
       {activeQuery.isLoading ? (
         <LoadingSpinner />
@@ -111,7 +200,14 @@ export default function AdsPage() {
         </div>
       ) : view === 'trash' ? (
         <>
-          <TrashTable ads={allAds} />
+          {allAds.length === 0 ? (
+            <EmptyState
+              title="Trash bin is empty"
+              description={hasActiveFilters(trashFilters) ? 'No trashed ads match your current filters.' : 'No ads have been trashed.'}
+            />
+          ) : (
+            <TrashTable ads={allAds} />
+          )}
           {trashQuery.hasNextPage && (
             <div className="px-4 py-4 flex justify-center">
               <Button

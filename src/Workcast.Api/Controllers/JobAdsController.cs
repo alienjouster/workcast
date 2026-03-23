@@ -45,8 +45,13 @@ public sealed class JobAdsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ListAsync(
         [FromQuery] Guid[]? boardIds,
+        [FromQuery] Guid[]? excludeBoardIds,
+        [FromQuery] string[]? titles,
+        [FromQuery] string[]? excludeTitles,
         [FromQuery] string[]? locations,
+        [FromQuery] string[]? excludeLocations,
         [FromQuery] string[]? companies,
+        [FromQuery] string[]? excludeCompanies,
         [FromQuery] bool? isActive,
         [FromQuery] bool? isRead,
         [FromQuery] bool? isPinned,
@@ -83,11 +88,26 @@ public sealed class JobAdsController : ControllerBase
         if (boardIds?.Length > 0)
             query = query.Where(a => boardIds.Contains(a.JobBoardId));
 
+        if (excludeBoardIds?.Length > 0)
+            query = query.Where(a => !excludeBoardIds.Contains(a.JobBoardId));
+
+        if (titles?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Title, titles);
+
+        if (excludeTitles?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Title, excludeTitles);
+
         if (locations?.Length > 0)
             query = ApplyPartialMatchFilter(query, a => a.Location, locations);
 
+        if (excludeLocations?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Location, excludeLocations);
+
         if (companies?.Length > 0)
             query = ApplyPartialMatchFilter(query, a => a.Company, companies);
+
+        if (excludeCompanies?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Company, excludeCompanies);
 
         if (isActive.HasValue)
             query = query.Where(a => a.IsActive == isActive.Value);
@@ -456,6 +476,23 @@ public sealed class JobAdsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Returns distinct title values from non-trashed ads, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-titles")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctTitlesAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.JobAds.Where(a => !a.IsTrashed && a.Title != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Title, [q]);
+        var results = await query
+            .Select(a => a.Title!)
+            .Distinct()
+            .OrderBy(t => t)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
     /// <summary>Returns distinct location values from non-trashed ads, optionally filtered by a partial query.</summary>
     [HttpGet("distinct-locations")]
     [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
@@ -518,6 +555,34 @@ public sealed class JobAdsController : ControllerBase
         }
 
         return combined is null ? query : query.Where(Expression.Lambda<Func<Workcast.Core.Entities.JobAd, bool>>(combined, param));
+    }
+
+    /// <summary>
+    /// Builds a NOT-OR WHERE clause: NOT (field LIKE '%val1%' OR field LIKE '%val2%').
+    /// Null fields pass through (an ad with no location is not excluded by a location exclusion).
+    /// </summary>
+    private static IQueryable<Workcast.Core.Entities.JobAd> ApplyPartialMatchExcludeFilter(
+        IQueryable<Workcast.Core.Entities.JobAd> query,
+        Expression<Func<Workcast.Core.Entities.JobAd, string?>> selector,
+        string[] values)
+    {
+        var param = Expression.Parameter(typeof(Workcast.Core.Entities.JobAd), "a");
+        var prop = Expression.Property(param, ((MemberExpression)selector.Body).Member.Name);
+        var toLower = typeof(string).GetMethod("ToLower", Type.EmptyTypes)!;
+        var contains = typeof(string).GetMethod("Contains", [typeof(string)])!;
+
+        Expression? anyMatch = null;
+        foreach (var value in values)
+        {
+            var lower = value.ToLowerInvariant();
+            var notNull = Expression.NotEqual(prop, Expression.Constant(null, typeof(string)));
+            var cond = Expression.AndAlso(
+                notNull,
+                Expression.Call(Expression.Call(prop, toLower), contains, Expression.Constant(lower)));
+            anyMatch = anyMatch is null ? cond : Expression.OrElse(anyMatch, cond);
+        }
+
+        return anyMatch is null ? query : query.Where(Expression.Lambda<Func<Workcast.Core.Entities.JobAd, bool>>(Expression.Not(anyMatch), param));
     }
 
     /// <summary>

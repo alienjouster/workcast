@@ -5,8 +5,13 @@ import { api } from '@/lib/api';
 
 interface UseJobAdsParams {
   boardIds?: string[];
+  excludeBoardIds?: string[];
+  titles?: string[];
+  excludeTitles?: string[];
   locations?: string[];
+  excludeLocations?: string[];
   companies?: string[];
+  excludeCompanies?: string[];
   isActive?: boolean;
   isRead?: boolean;
   isPinned?: boolean;
