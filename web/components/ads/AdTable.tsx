@@ -401,6 +401,7 @@ export function AdTable({ ads }: AdTableProps) {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${ad.isRead ? 'invisible' : 'bg-red-500'}`} />
                     {!ad.isActive && (
                       <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
                         Inactive
