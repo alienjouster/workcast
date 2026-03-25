@@ -6,7 +6,7 @@ import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { useFilterState } from '@/lib/hooks/useFilterState';
 import { AdTable } from '@/components/ads/AdTable';
 import { TrashTable } from '@/components/ads/TrashTable';
-import { FilterBar, hasActiveFilters, type FilterState } from '@/components/ads/FilterBar';
+import { FilterBar, hasActiveFilters, effectiveFilters, type FilterState } from '@/components/ads/FilterBar';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -27,35 +27,38 @@ export default function AdsPage() {
     return t === ff ? undefined : t;
   };
 
+  const ef = effectiveFilters(filters);
+  const etf = effectiveFilters(trashFilters);
+
   const adsQuery = useJobAds({
-    boardIds: filters.boardIds,
-    excludeBoardIds: filters.excludeBoardIds,
-    titles: filters.titles,
-    excludeTitles: filters.excludeTitles,
-    locations: filters.locations,
-    excludeLocations: filters.excludeLocations,
-    companies: filters.companies,
-    excludeCompanies: filters.excludeCompanies,
-    isActive:  deriveFlag(filters, 'active',   'inactive'),
-    isRead:    deriveFlag(filters, 'read',     'unread'),
-    isPinned:  deriveFlag(filters, 'pinned',   'unpinned'),
-    minScore: filters.minScore,
+    boardIds: ef.boardIds,
+    excludeBoardIds: ef.excludeBoardIds,
+    titles: ef.titles,
+    excludeTitles: ef.excludeTitles,
+    locations: ef.locations,
+    excludeLocations: ef.excludeLocations,
+    companies: ef.companies,
+    excludeCompanies: ef.excludeCompanies,
+    isActive:  deriveFlag(ef, 'active',   'inactive'),
+    isRead:    deriveFlag(ef, 'read',     'unread'),
+    isPinned:  deriveFlag(ef, 'pinned',   'unpinned'),
+    minScore: ef.minScore,
     trashed: false,
   });
 
   const trashQuery = useJobAds({
-    boardIds: trashFilters.boardIds,
-    excludeBoardIds: trashFilters.excludeBoardIds,
-    titles: trashFilters.titles,
-    excludeTitles: trashFilters.excludeTitles,
-    locations: trashFilters.locations,
-    excludeLocations: trashFilters.excludeLocations,
-    companies: trashFilters.companies,
-    excludeCompanies: trashFilters.excludeCompanies,
-    isActive:  deriveFlag(trashFilters, 'active',   'inactive'),
-    isRead:    deriveFlag(trashFilters, 'read',     'unread'),
-    isPinned:  deriveFlag(trashFilters, 'pinned',   'unpinned'),
-    minScore: trashFilters.minScore,
+    boardIds: etf.boardIds,
+    excludeBoardIds: etf.excludeBoardIds,
+    titles: etf.titles,
+    excludeTitles: etf.excludeTitles,
+    locations: etf.locations,
+    excludeLocations: etf.excludeLocations,
+    companies: etf.companies,
+    excludeCompanies: etf.excludeCompanies,
+    isActive:  deriveFlag(etf, 'active',   'inactive'),
+    isRead:    deriveFlag(etf, 'read',     'unread'),
+    isPinned:  deriveFlag(etf, 'pinned',   'unpinned'),
+    minScore: etf.minScore,
     trashed: true,
   });
 

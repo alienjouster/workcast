@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useApplications } from '@/lib/hooks/useApplications';
 import { useFilterState } from '@/lib/hooks/useFilterState';
-import { FilterBar, hasActiveFilters } from '@/components/ads/FilterBar';
+import { FilterBar, hasActiveFilters, effectiveFilters } from '@/components/ads/FilterBar';
 import { ApplicationTable } from '@/components/applications/ApplicationTable';
 import { ApplicationTrashTable } from '@/components/applications/ApplicationTrashTable';
 import { Button } from '@/components/ui/Button';
@@ -21,25 +21,28 @@ export default function ApplicationsPage() {
   const activeFilters = view === 'applications' ? filters : trashFilters;
   const setActiveFilters = view === 'applications' ? setFilters : setTrashFilters;
 
+  const ef = effectiveFilters(filters);
+  const etf = effectiveFilters(trashFilters);
+
   const appsQuery = useApplications({
-    titles: filters.titles,
-    excludeTitles: filters.excludeTitles,
-    locations: filters.locations,
-    excludeLocations: filters.excludeLocations,
-    companies: filters.companies,
-    excludeCompanies: filters.excludeCompanies,
-    minScore: filters.minScore,
+    titles: ef.titles,
+    excludeTitles: ef.excludeTitles,
+    locations: ef.locations,
+    excludeLocations: ef.excludeLocations,
+    companies: ef.companies,
+    excludeCompanies: ef.excludeCompanies,
+    minScore: ef.minScore,
     trashed: false,
   });
 
   const trashQuery = useApplications({
-    titles: trashFilters.titles,
-    excludeTitles: trashFilters.excludeTitles,
-    locations: trashFilters.locations,
-    excludeLocations: trashFilters.excludeLocations,
-    companies: trashFilters.companies,
-    excludeCompanies: trashFilters.excludeCompanies,
-    minScore: trashFilters.minScore,
+    titles: etf.titles,
+    excludeTitles: etf.excludeTitles,
+    locations: etf.locations,
+    excludeLocations: etf.excludeLocations,
+    companies: etf.companies,
+    excludeCompanies: etf.excludeCompanies,
+    minScore: etf.minScore,
     trashed: true,
   });
 

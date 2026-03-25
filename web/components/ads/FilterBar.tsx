@@ -21,6 +21,8 @@ export interface FilterState {
   companies: string[];
   excludeCompanies: string[];
   minScore: number | undefined;
+  /** When false, filters are preserved but not applied to queries. */
+  enabled: boolean;
 }
 
 export const EMPTY_FILTERS: FilterState = {
@@ -34,8 +36,10 @@ export const EMPTY_FILTERS: FilterState = {
   companies: [],
   excludeCompanies: [],
   minScore: undefined,
+  enabled: true,
 };
 
+/** True when the state has at least one active filter dimension (ignoring enabled flag). */
 export function hasActiveFilters(f: FilterState): boolean {
   return (
     f.boardIds.length > 0 ||
@@ -49,6 +53,14 @@ export function hasActiveFilters(f: FilterState): boolean {
     f.excludeCompanies.length > 0 ||
     f.minScore !== undefined
   );
+}
+
+/**
+ * Returns the filter state to pass to queries.
+ * When filters are disabled, returns EMPTY_FILTERS so no filtering is applied.
+ */
+export function effectiveFilters(f: FilterState): FilterState {
+  return f.enabled ? f : EMPTY_FILTERS;
 }
 
 const ALL_FEATURES: FilterFeature[] = ['board', 'status', 'title', 'location', 'company', 'score'];
@@ -444,16 +456,39 @@ export function FilterBar({
   return (
     <div className="relative" ref={containerRef}>
       <div className="flex flex-wrap items-center gap-2">
-        {/* Add filter button — always first */}
+
+        {/* 1. Label */}
+        <span className="text-xs font-medium text-gray-500 shrink-0">Filters</span>
+
+        {/* 2. Toggle slider — only when there are active filters */}
+        {active && (
+          <button
+            role="switch"
+            aria-checked={filters.enabled}
+            onClick={() => onChange({ ...filters, enabled: !filters.enabled })}
+            title={filters.enabled ? 'Disable all filters' : 'Enable all filters'}
+            className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+            style={{ backgroundColor: filters.enabled ? '#6366f1' : '#d1d5db' }}
+          >
+            <span
+              className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${filters.enabled ? 'translate-x-4' : 'translate-x-0'}`}
+            />
+          </button>
+        )}
+
+        {/* 3. Add filter button */}
         <button
           onClick={() => setPopover(p => p === null ? 'menu' : null)}
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+          className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-medium text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors shrink-0"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
           </svg>
           Add filter
         </button>
+
+        {/* 4. Chips — dimmed when filters are disabled */}
+        <div className={`flex flex-wrap items-center gap-2 ${!filters.enabled && active ? 'opacity-50 pointer-events-none' : ''}`}>
 
         {/* Title chips */}
         {features.includes('title') && [
@@ -549,15 +584,18 @@ export function FilterBar({
           <Chip label={`Match ≥ ${filters.minScore}%`} onRemove={() => update({ minScore: undefined })} />
         )}
 
+        </div>{/* end chips wrapper */}
+
+        {/* 5. Clear all */}
         {active && (
           <button
             onClick={() => onChange(EMPTY_FILTERS)}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0"
           >
             Clear all
           </button>
         )}
-      </div>
+      </div>{/* end outer flex wrapper */}
 
       {/* Popover */}
       {popover && (
