@@ -3,7 +3,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-interface UseJobAdsParams {
+export interface UseJobAdsParams {
   boardIds?: string[];
   excludeBoardIds?: string[];
   titles?: string[];
@@ -19,16 +19,28 @@ interface UseJobAdsParams {
   trashed?: boolean;
 }
 
-export function useJobAds(params: UseJobAdsParams = {}) {
+interface UseJobAdsOptions {
+  // Set to false for queries whose content only changes via explicit user actions
+  // (e.g. trash bin). Skips the 60 s fallback poll; SSE events still trigger
+  // refetches when relevant.
+  poll?: boolean;
+  // Set to false to disable the query entirely (prevents the HTTP request).
+  enabled?: boolean;
+}
+
+export function useJobAds(params: UseJobAdsParams = {}, { poll = true, enabled = true }: UseJobAdsOptions = {}) {
   return useInfiniteQuery({
     queryKey: ['job-ads', params],
     queryFn: ({ pageParam }) =>
       api.ads.list({ ...params, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    enabled,
     // Poll every 3 s while any ad has a scoring job in flight; otherwise 60 s
     // as a fallback for missed SSE runCompleted events.
-    refetchInterval: (query) => {
+    // Disabled for trash queries: trash content only changes via user actions,
+    // which already trigger cache invalidation via mutation onSuccess handlers.
+    refetchInterval: !poll ? false : (query) => {
       const hasPending = query.state.data?.pages
         .flatMap((p) => p.items)
         .some((a) => a.isScoringPending);

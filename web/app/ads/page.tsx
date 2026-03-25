@@ -60,10 +60,14 @@ export default function AdsPage() {
     isPinned:  deriveFlag(etf, 'pinned',   'unpinned'),
     minScore: etf.minScore,
     trashed: true,
-  });
+  }, { poll: false });
 
-  const totalAdsQuery = useJobAds({ trashed: false });
-  const totalTrashQuery = useJobAds({ trashed: true });
+  // Only fetch a separate unfiltered total when filters are active — otherwise
+  // adsQuery already returns the same data and a second request would be redundant.
+  const adsFiltersActive = hasActiveFilters(filters);
+  const trashFiltersActive = hasActiveFilters(trashFilters);
+  const totalAdsQuery = useJobAds({ trashed: false }, { poll: false, enabled: adsFiltersActive });
+  const totalTrashQuery = useJobAds({ trashed: true }, { poll: false, enabled: trashFiltersActive });
   const markAllRead = useMarkAllRead();
 
   // Scope mark-all-read to the single selected board if exactly one is active
@@ -71,9 +75,14 @@ export default function AdsPage() {
 
   const activeQuery = view === 'ads' ? adsQuery : trashQuery;
   const allAds = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
-  const totalAdsCount = totalAdsQuery.data?.pages[0]?.totalCount ?? 0;
+  // When no filters active, adsQuery already holds the unfiltered total.
+  const totalAdsCount = adsFiltersActive
+    ? (totalAdsQuery.data?.pages[0]?.totalCount ?? 0)
+    : (adsQuery.data?.pages[0]?.totalCount ?? 0);
   const filteredAdsCount = adsQuery.data?.pages[0]?.totalCount ?? 0;
-  const totalTrashCount = totalTrashQuery.data?.pages[0]?.totalCount ?? 0;
+  const totalTrashCount = trashFiltersActive
+    ? (totalTrashQuery.data?.pages[0]?.totalCount ?? 0)
+    : (trashQuery.data?.pages[0]?.totalCount ?? 0);
   const filteredTrashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
 
 

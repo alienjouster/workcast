@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import type { UseJobAdsParams } from '@/lib/hooks/useJobAds';
 
 interface SseEvent {
   type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged' | 'scoringCompleted';
@@ -54,7 +55,12 @@ export function useSSE() {
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });
           qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
-          qc.invalidateQueries({ queryKey: ['job-ads'] });
+          // Scraped ads never land in the trash bin, so only refresh non-trashed queries.
+          qc.invalidateQueries({
+            predicate: (query) =>
+              query.queryKey[0] === 'job-ads' &&
+              !(query.queryKey[1] as UseJobAdsParams | undefined)?.trashed,
+          });
           break;
 
         case 'unreadCountChanged':
@@ -66,7 +72,12 @@ export function useSSE() {
           // is in error state (e.g. a 404 from a poll before the result was ready).
           qc.refetchQueries({ queryKey: ['ad-scoring', event.adId] });
           // Refresh the ads list so isScoringPending clears and overallScore updates.
-          qc.invalidateQueries({ queryKey: ['job-ads'] });
+          // Scoring is only triggered from the main list, not from the trash bin.
+          qc.invalidateQueries({
+            predicate: (query) =>
+              query.queryKey[0] === 'job-ads' &&
+              !(query.queryKey[1] as UseJobAdsParams | undefined)?.trashed,
+          });
           break;
       }
     };
