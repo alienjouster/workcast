@@ -220,6 +220,11 @@ export const api = {
       apiFetch<Application>(`/api/applications/${id}/restore`, { method: 'PATCH' }),
     delete: (id: string) =>
       apiFetch<void>(`/api/applications/${id}`, { method: 'DELETE' }),
+    updateJobAdContent: (id: string, content: string | null) =>
+      apiFetch<Application>(`/api/applications/${id}/job-ad-content`, {
+        method: 'PATCH',
+        body: JSON.stringify({ content }),
+      }),
     distinctTitles: (q?: string) => {
       const qs = q ? `?q=${encodeURIComponent(q)}` : '';
       return apiFetch<string[]>(`/api/applications/distinct-titles${qs}`);

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent } from '@/lib/hooks/useApplications';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import type { ScoringCategory, ScoringRequirement } from '@/types';
 
@@ -28,6 +28,83 @@ const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className: strin
 };
 
 // ── Tab content ───────────────────────────────────────────────────────────────
+
+function JobAdContentSection({ appId, content }: { appId: string; content: string | null }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const { mutate: saveContent, isPending } = useUpdateApplicationJobAdContent(appId);
+
+  function startEdit() {
+    setDraft(content ?? '');
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+  }
+
+  function save() {
+    const trimmed = draft.trim();
+    saveContent(trimmed.length > 0 ? trimmed : null, {
+      onSuccess: () => setEditing(false),
+    });
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Job Ad Detail</p>
+        {!editing ? (
+          <button
+            onClick={startEdit}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+          >
+            Edit
+          </button>
+        ) : (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={save}
+              disabled={isPending}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
+            >
+              {isPending ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              onClick={cancel}
+              disabled={isPending}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="px-6 py-4">
+        {editing ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={20}
+            className="w-full text-sm text-gray-700 border border-gray-200 rounded-md p-3 font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
+        ) : content !== null ? (
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{content}</p>
+        ) : (
+          <div className="flex items-start gap-3 text-sm text-amber-700 bg-amber-50 rounded-md p-4">
+            <span className="shrink-0 text-amber-500 mt-0.5">⚠</span>
+            <div>
+              <p className="font-medium">Job ad not accessible</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                The page could not be fetched or returned insufficient content. You can paste the job ad text manually using the Edit button.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function JobAdTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
   if (!app) return null;
@@ -67,6 +144,8 @@ function JobAdTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
           </div>
         )}
       </div>
+
+      <JobAdContentSection appId={app.id} content={app.jobAdContent} />
     </div>
   );
 }

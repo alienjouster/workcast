@@ -152,6 +152,7 @@ export interface Application {
   summary: string | null;
   recommendation: string | null;
   requirements: ScoringRequirement[];
+  jobAdContent: string | null;
 }
 
 export interface UpdateSettingsRequest {

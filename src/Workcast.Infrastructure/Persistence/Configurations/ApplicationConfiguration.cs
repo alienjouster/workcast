@@ -78,6 +78,10 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
             .HasColumnName("recommendation")
             .HasColumnType("text");
 
+        builder.Property(a => a.JobAdContent)
+            .HasColumnName("job_ad_content")
+            .HasColumnType("text");
+
         builder.Property(a => a.Requirements)
             .HasColumnName("requirements")
             .HasColumnType("jsonb")

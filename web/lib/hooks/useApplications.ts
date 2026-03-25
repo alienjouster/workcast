@@ -66,3 +66,13 @@ export function useDeleteApplication() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applications'] }),
   });
 }
+
+export function useUpdateApplicationJobAdContent(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (content: string | null) => api.applications.updateJobAdContent(id, content),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}

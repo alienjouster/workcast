@@ -92,6 +92,12 @@ public sealed class Application
     /// <summary>Per-requirement scoring breakdown. Empty when no scoring existed at application time.</summary>
     public List<ScoringRequirement> Requirements { get; private set; } = [];
 
+    /// <summary>
+    /// Full text content of the job ad page, fetched at creation time by stripping HTML from the ad URL.
+    /// Null when the fetch failed or returned fewer than 250 characters (page not accessible).
+    /// </summary>
+    public string? JobAdContent { get; private set; }
+
     // ── Mutations ─────────────────────────────────────────────────────────────
 
     /// <summary>Moves this application to the trash bin.</summary>
@@ -105,4 +111,7 @@ public sealed class Application
     /// Called when the source job ad is permanently deleted.
     /// </summary>
     public void ClearJobAdReference() => JobAdId = null;
+
+    /// <summary>Updates the stored job ad page content. Pass null to clear it.</summary>
+    public void UpdateJobAdContent(string? content) => JobAdContent = content;
 }

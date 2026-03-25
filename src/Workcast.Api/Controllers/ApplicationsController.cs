@@ -1,5 +1,7 @@
 using System.Linq.Expressions;
+using System.Net.Http;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Workcast.Api.DTOs.Responses;
@@ -20,10 +22,17 @@ public sealed class ApplicationsController : ControllerBase
 {
     private const string ERROR_TYPE_BASE = "https://workcast.local/errors/";
 
+    private const int MinJobAdContentLength = 250;
+
     private readonly AppDbContext _db;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     /// <summary>Initializes a new instance of <see cref="ApplicationsController"/>.</summary>
-    public ApplicationsController(AppDbContext db) => _db = db;
+    public ApplicationsController(AppDbContext db, IHttpClientFactory httpClientFactory)
+    {
+        _db = db;
+        _httpClientFactory = httpClientFactory;
+    }
 
     /// <summary>
     /// Creates a new application from a job ad, copying all available job ad and scoring data.
@@ -55,6 +64,14 @@ public sealed class ApplicationsController : ControllerBase
         var application = Application.CreateFromJobAd(ad, scoring);
         _db.Applications.Add(application);
         await _db.SaveChangesAsync(ct);
+
+        // Fetch and store the full job ad page content.
+        var content = await FetchJobAdContentAsync(ad.Url, ct);
+        if (content is not null)
+        {
+            application.UpdateJobAdContent(content);
+            await _db.SaveChangesAsync(ct);
+        }
 
         return Created($"/api/applications/{application.Id}", application.ToResponse());
     }
@@ -254,7 +271,59 @@ public sealed class ApplicationsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Updates the stored job ad page content for an application.</summary>
+    [HttpPatch("{id:guid}/job-ad-content")]
+    [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateJobAdContentAsync(
+        Guid id,
+        [FromBody] UpdateJobAdContentRequest request,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.UpdateJobAdContent(request.Content);
+        await _db.SaveChangesAsync(ct);
+        return Ok(application.ToResponse());
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fetches the job ad page and returns its readable text content.
+    /// Returns null if the fetch fails or the content is shorter than <see cref="MinJobAdContentLength"/>.
+    /// </summary>
+    private async Task<string?> FetchJobAdContentAsync(string url, CancellationToken ct)
+    {
+        try
+        {
+            var client = _httpClientFactory.CreateClient("UrlValidation");
+            var html = await client.GetStringAsync(url, ct);
+            var text = ExtractTextFromHtml(html);
+            return text.Length >= MinJobAdContentLength ? text : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string ExtractTextFromHtml(string html)
+    {
+        // Remove script and style blocks entirely.
+        html = Regex.Replace(html, @"<(script|style)[^>]*>[\s\S]*?</(script|style)>", " ", RegexOptions.IgnoreCase);
+        // Replace block-level tags with newlines to preserve structure.
+        html = Regex.Replace(html, @"<(br|p|div|h[1-6]|li|tr|td|th)[^>]*\s*/?>", "\n", RegexOptions.IgnoreCase);
+        // Remove remaining tags.
+        html = Regex.Replace(html, @"<[^>]+>", "");
+        // Decode HTML entities.
+        html = System.Net.WebUtility.HtmlDecode(html);
+        // Normalise whitespace: collapse spaces/tabs but preserve newlines.
+        html = Regex.Replace(html, @"[ \t]+", " ");
+        html = Regex.Replace(html, @"\n{3,}", "\n\n");
+        return html.Trim();
+    }
 
     private static IQueryable<Application> ApplyPartialMatchFilter(
         IQueryable<Application> query,
@@ -342,4 +411,11 @@ public record CreateApplicationRequest
 {
     /// <summary>Gets the identifier of the job ad to apply to.</summary>
     public required Guid JobAdId { get; init; }
+}
+
+/// <summary>Request body for updating the stored job ad page content.</summary>
+public record UpdateJobAdContentRequest
+{
+    /// <summary>Gets the new content. Null clears the stored content.</summary>
+    public string? Content { get; init; }
 }

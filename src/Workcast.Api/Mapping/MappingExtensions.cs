@@ -263,6 +263,7 @@ public static class MappingExtensions
                     Notes = r.Notes,
                 })
                 .ToList(),
+            JobAdContent = app.JobAdContent,
         };
     }
 

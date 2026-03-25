@@ -61,4 +61,10 @@ public record ApplicationResponse
 
     /// <summary>Gets the per-requirement scoring breakdown. Empty when no scoring existed at application time.</summary>
     public required IList<ScoringRequirementResponse> Requirements { get; init; }
+
+    /// <summary>
+    /// Gets the full text content of the job ad page, fetched at creation time.
+    /// Null when the fetch failed or returned fewer than 250 characters.
+    /// </summary>
+    public string? JobAdContent { get; init; }
 }
