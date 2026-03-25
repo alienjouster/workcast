@@ -151,31 +151,39 @@ public sealed class ClaudeAiProvider : IAiProvider
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
 
         var promptSuffix = $"""
-
-            You are an expert executive helping the candidate to apply for an open position in a company.
+            You are an expert ATS (Applicant Tracking System) evaluator. Your role is to analyze a job advertisement and a candidate's resume, then produce a structured evaluation.
 
             You will receive two inputs:
-            - A JOB AD (job description of the open position you are recurting)
-            - A RESUME (complete career history of the applicant)
+            - A JOB AD (job description of the open position)
+            - A RESUME
 
-            Your task is to:
-            - Carefully analyze the JOB AD and identify required skills, experience, seniority, domain exposure, leadership scope, certifications, tools, and impact expectations
-            - Carefully analyze the JSON RESUME skills, experience, seniority, domain exposure, leadership scope, education and certifications
-            For each distinct skill, qualification, or requirement mentioned in the job posting:
-            - category: "match" if clearly present in the resume, "partial_match" if partially covered, "gap" if absent
-            - is_optional: true only if the posting explicitly says "nice to have", "preferred", "optional", "plus", or similar
-            - score: 100 for match, 50 for partial_match, 0 for gap. For optional items, gaps may score 25 and partial matches up to 75.
-            - notes: one short sentence explaining your reasoning
+            PHASE 1 — Read only JOB AD.
+                Extract every skill, experience, tool, and qualification mentioned.
+                These become your list of evaluation criterias. Do not add any criteria from any other source. Keep the JOB AD exact wording. Do not rephrase, add, remove or modify them. Use them as-is.  
 
-            "overall_score" is the arithmetic average of all requirement scores (0–100).
-            "summary" is 1-2 short sentences describing the overall match quality factually.
-            "recommendation" is 1 very short sentence advising whether the candidate should proceed with the application or not.
-
-            Be very factual. Stick with the evidence given in the JOB AD and the RESUME.
+            PHASE 2 — Read DOCUMENT_UNDER_EVALUATION.
+                For each criterion from Phase 1, score how well the RESUME demonstrates it (0–100). Scoring guidelines:
+                - 0–20: No evidence found in the resume
+                - 21–40: Vague or indirect mention, insufficient depth
+                - 41–60: Partial match — relevant experience but not aligned with the job's level or context
+                - 61–80: Good match — clear experience, minor gaps
+                - 81–100: Strong match — directly relevant, well-demonstrated experience or skill
+                Write a note referencing specific evidence (or lack thereof) in the resume.
 
             Call the submit_scoring tool with the complete analysis.
 
-            JOB AD: {jobPageText}
+            For each requirements:
+            - name: skill or experience, exactly as extracted from the JOB AD in PHASE 1
+            - category: match if the RESUME clearly match the JOB AD requirement, partial_match if partially covered, gap if absent
+            - is_optional: set to true if the JOB AD explicitly mentions the requirement is nice to have, preferred, optional, plus, or similar
+            - score: 0 to 100 as per the Scoring Guildine
+            - notes: One-sentence explanation of the match or gap of the requirement RESUME
+
+            Globally, for the overall JOB AD:
+            overall_score is the arithmetic average of all requirement scores (0–100).
+            summary is 1-2 short sentences describing the overall match quality factually.
+            recommendation is 1 very short sentence advising whether the candidate should proceed with the application or not.
+
             """;
 
         object userContent;
@@ -200,7 +208,8 @@ public sealed class ClaudeAiProvider : IAiProvider
         else
         {
             var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
-            userContent = $"RESUME ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
+            //userContent = $"RESUME ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
+            userContent = $"{promptSuffix}\n\nRESUME: {resumeText} \n\n JOB AD: {jobPageText}";
         }
 
         var input = await CallWithRetryAsync(userContent, ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, ct)
@@ -245,7 +254,7 @@ public sealed class ClaudeAiProvider : IAiProvider
         return new ClaudeTool
         {
             Name = "submit_scoring",
-            Description = "Submit the structured scoring result after analyzing the resume against the job posting.",
+            Description = "Submit the structured scoring result after analyzing the RESUME against the JOB AD",
             InputSchema = new
             {
                 type = "object",
@@ -255,18 +264,18 @@ public sealed class ClaudeAiProvider : IAiProvider
                     requirements = new
                     {
                         type = "array",
-                        description = "One entry per distinct skill, qualification, or requirement found in the job posting.",
+                        description = "One entry per distinct requirement found in the JOB AD.",
                         items = new
                         {
                             type = "object",
                             required = new[] { "name", "category", "is_optional", "score" },
                             properties = new
                             {
-                                name        = new { type = "string", description = "Short label for this requirement (e.g. 'React', '5 years C# experience')." },
+                                name        = new { type = "string", description = "skill or experience name, extracted verbatim from the JOB AD" },
                                 category    = new { type = "string", @enum = new[] { "match", "partial_match", "gap" } },
-                                is_optional = new { type = "boolean", description = "True only when the posting explicitly marks this as optional / nice to have." },
+                                is_optional = new { type = "boolean", description = "True only when the posting explicitly marks this as optional / nice to have in the JOB AD." },
                                 score       = new { type = "number", minimum = 0, maximum = 100 },
-                                notes       = new { type = new[] { "string", "null" }, description = "One-sentence explanation." },
+                                notes       = new { type = new[] { "string", "null" }, description = "One-sentence explanation of the match or gap of the requirement RESUME" },
                             },
                         },
                     },
@@ -315,6 +324,10 @@ public sealed class ClaudeAiProvider : IAiProvider
                     },
                 };
 
+                _logger.LogDebug("Claude [{Tool}] request:\n{Json}",
+                    toolName,
+                    JsonSerializer.Serialize(request, JsonOptions));
+
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
@@ -335,8 +348,14 @@ public sealed class ClaudeAiProvider : IAiProvider
                         $"Claude response did not contain a '{toolName}' tool_use block. " +
                         $"Stop reason: {claudeResponse.StopReason}");
 
-                return toolUseBlock.Input
+                var input = toolUseBlock.Input
                     ?? throw new InvalidOperationException("Claude tool_use block has no input.");
+
+                _logger.LogDebug("Claude [{Tool}] response:\n{Json}",
+                    toolName,
+                    input.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+                return input;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

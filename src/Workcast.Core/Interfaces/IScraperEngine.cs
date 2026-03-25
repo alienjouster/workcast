@@ -28,6 +28,24 @@ public interface IScraperEngine
         CancellationToken ct = default);
 
     /// <summary>
+    /// Renders a URL using a headless browser and returns the fully-rendered visible text,
+    /// equivalent to <c>document.body.innerText</c>. No HTML tags, scripts, or attributes are
+    /// included — only the text a user would read. Intended for AI scoring calls where clean
+    /// plain text is required.
+    /// </summary>
+    /// <param name="url">The URL to render.</param>
+    /// <param name="waitForSelector">
+    /// Optional CSS selector to wait for after network-idle, same semantics as
+    /// <see cref="RenderPageAsync"/>.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The visible plain text of the rendered page.</returns>
+    Task<string> RenderPageTextAsync(
+        string url,
+        string? waitForSelector = null,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Renders a URL using a headless browser, then repeatedly clicks a "load more" button
     /// that appends items to the current page without URL navigation. Stops when the button
     /// disappears from the DOM or <paramref name="maxClicks"/> is reached.

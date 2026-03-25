@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using Workcast.Core.Entities;
 using Workcast.Core.Events;
 using Workcast.Core.Interfaces;
-using Workcast.Infrastructure.AI;
 using Workcast.Infrastructure.Persistence;
 
 namespace Workcast.Jobs;
@@ -23,7 +22,6 @@ public sealed class AdScoringJob
     private readonly ISettingsRepository _settingsRepository;
     private readonly IEventBroadcaster _broadcaster;
     private readonly IScraperEngine _scraperEngine;
-    private readonly HtmlCleaningService _htmlCleaner;
     private readonly ILogger<AdScoringJob> _logger;
 
     /// <summary>Initialises a new instance of <see cref="AdScoringJob"/>.</summary>
@@ -34,7 +32,6 @@ public sealed class AdScoringJob
         ISettingsRepository settingsRepository,
         IEventBroadcaster broadcaster,
         IScraperEngine scraperEngine,
-        HtmlCleaningService htmlCleaner,
         ILogger<AdScoringJob> logger)
     {
         _dbContext = dbContext;
@@ -43,7 +40,6 @@ public sealed class AdScoringJob
         _settingsRepository = settingsRepository;
         _broadcaster = broadcaster;
         _scraperEngine = scraperEngine;
-        _htmlCleaner = htmlCleaner;
         _logger = logger;
     }
 
@@ -73,10 +69,11 @@ public sealed class AdScoringJob
 
         try
         {
-            // Render and clean the job ad page via Playwright so JS-heavy SPAs are fully loaded.
+            // Render the job ad page via Playwright and extract visible text directly.
+            // Using innerText avoids the HTML-stripping heuristics in HtmlCleaningService
+            // and guarantees zero HTML markup reaches the scoring prompt.
             _logger.LogInformation("Rendering job ad page {Url}", ad.Url);
-            var html = await _scraperEngine.RenderPageAsync(ad.Url, ct: ct).ConfigureAwait(false);
-            var pageText = _htmlCleaner.ExtractTextFromHtml(html);
+            var pageText = await _scraperEngine.RenderPageTextAsync(ad.Url, ct: ct).ConfigureAwait(false);
 
             // Call Claude for scoring.
             var result = await _aiProvider.ScoreAdAsync(

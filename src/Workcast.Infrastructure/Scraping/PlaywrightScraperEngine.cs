@@ -28,10 +28,24 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     }
 
     /// <inheritdoc />
-    public async Task<string> RenderPageAsync(
+    public Task<string> RenderPageAsync(
         string url,
         string? waitForSelector = null,
         CancellationToken ct = default)
+        => RenderAndExtractAsync(url, waitForSelector, p => p.ContentAsync(), ct);
+
+    /// <inheritdoc />
+    public Task<string> RenderPageTextAsync(
+        string url,
+        string? waitForSelector = null,
+        CancellationToken ct = default)
+        => RenderAndExtractAsync(url, waitForSelector, p => p.InnerTextAsync("body"), ct);
+
+    private async Task<string> RenderAndExtractAsync(
+        string url,
+        string? waitForSelector,
+        Func<IPage, Task<string>> extract,
+        CancellationToken ct)
     {
         var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
 
@@ -54,7 +68,7 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
             // API call after the initial network-idle event, wait for the job card selector
             // to appear in the DOM before capturing the HTML.
             // Non-fatal: if the selector never appears (wrong config or static page),
-            // log a warning and return whatever HTML was already loaded.
+            // proceed with whatever was already loaded.
             if (!string.IsNullOrEmpty(waitForSelector))
             {
                 try
@@ -67,11 +81,11 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
                 }
                 catch (TimeoutException)
                 {
-                    // Selector did not appear within the extra budget — proceed with current HTML.
+                    // Selector did not appear within the extra budget — proceed with current content.
                 }
             }
 
-            return await page.ContentAsync().ConfigureAwait(false);
+            return await extract(page).ConfigureAwait(false);
         }
         finally
         {
