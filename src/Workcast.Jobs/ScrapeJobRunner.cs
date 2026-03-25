@@ -1,4 +1,5 @@
 using AngleSharp.Dom;
+using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using Hangfire;
 using Microsoft.EntityFrameworkCore;
@@ -390,9 +391,12 @@ public sealed class ScrapeJobRunner
         ScrapeRun run,
         CancellationToken ct)
     {
-        // Primary deduplication: normalised URL match.
+        // Primary deduplication: normalised URL match (exact) or raw URL with query string
+        // (e.g. Google Careers appends ?location=... which must be preserved for navigation).
+        var normalizedWithQuery = normalizedUrl + "?";
         var existingByUrl = await _dbContext.JobAds
-            .FirstOrDefaultAsync(a => a.JobBoardId == boardId && a.Url == normalizedUrl, ct)
+            .FirstOrDefaultAsync(a => a.JobBoardId == boardId &&
+                (a.Url == normalizedUrl || a.Url.StartsWith(normalizedWithQuery)), ct)
             .ConfigureAwait(false);
 
         if (existingByUrl is not null)
@@ -429,7 +433,9 @@ public sealed class ScrapeJobRunner
             }
         }
 
-        var ad = JobAd.Create(boardId, normalizedUrl, run.Id);
+        // Store the raw URL (preserving query string) so links remain navigable.
+        // Deduplication uses the normalised URL (see lookup above).
+        var ad = JobAd.Create(boardId, card.Url, run.Id);
         ad.ApplyExtraction(
             card.Title,
             card.Company,
@@ -689,14 +695,10 @@ public sealed class ScrapeJobRunner
 
             if (fieldSelectors.DetailUrl is not null)
             {
-                string? href = null;
-                try { href = card.QuerySelector(fieldSelectors.DetailUrl)?.GetAttribute("href"); }
+                IElement? el = null;
+                try { el = card.QuerySelector(fieldSelectors.DetailUrl); }
                 catch (DomException) { /* invalid selector — fall through to anchor fallback */ }
-                if (!string.IsNullOrWhiteSpace(href) &&
-                    Uri.TryCreate(baseUri, href, out var absolute))
-                {
-                    detailUrl = absolute.AbsoluteUri;
-                }
+                detailUrl = ResolveHref(el, baseUri);
             }
 
             // Fallback: the card element itself if it is an <a>, otherwise the first <a> inside it.
@@ -707,12 +709,7 @@ public sealed class ScrapeJobRunner
                 var anchor = card.TagName.Equals("A", StringComparison.OrdinalIgnoreCase)
                     ? card
                     : card.QuerySelector("a");
-                var href = anchor?.GetAttribute("href");
-                if (!string.IsNullOrWhiteSpace(href) &&
-                    Uri.TryCreate(baseUri, href, out var absolute))
-                {
-                    detailUrl = absolute.AbsoluteUri;
-                }
+                detailUrl = ResolveHref(anchor, baseUri);
             }
 
             if (string.IsNullOrWhiteSpace(detailUrl)) { skippedNoUrl++; continue; }
@@ -761,6 +758,38 @@ public sealed class ScrapeJobRunner
     // -------------------------------------------------------------------------
     // URL normalisation
     // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Resolves the href of <paramref name="element"/> to an absolute URL.
+    /// Prefers <see cref="IHtmlAnchorElement.Href"/> which AngleSharp resolves using the
+    /// document's &lt;base&gt; element (important for pages like Google Careers that use a
+    /// &lt;base&gt; tag whose path differs from the scrape URL). Falls back to the raw
+    /// <c>href</c> attribute resolved against <paramref name="pageBaseUri"/> so that relative
+    /// hrefs on sites without a &lt;base&gt; tag continue to work as before.
+    /// </summary>
+    private static string? ResolveHref(IElement? element, Uri pageBaseUri)
+    {
+        if (element is null) return null;
+
+        // IHtmlAnchorElement.Href is resolved by AngleSharp using the document's <base> element.
+        // Only trust it when it yields a well-formed absolute URL.
+        if (element is IHtmlAnchorElement anchor)
+        {
+            var resolved = anchor.Href;
+            if (!string.IsNullOrWhiteSpace(resolved) &&
+                Uri.TryCreate(resolved, UriKind.Absolute, out var resolvedUri) &&
+                (resolvedUri.Scheme == Uri.UriSchemeHttp || resolvedUri.Scheme == Uri.UriSchemeHttps))
+                return resolved;
+        }
+
+        // Fallback: raw attribute + manual resolution against the scrape page URL.
+        var raw = element.GetAttribute("href");
+        if (!string.IsNullOrWhiteSpace(raw) &&
+            Uri.TryCreate(pageBaseUri, raw, out var absolute))
+            return absolute.AbsoluteUri;
+
+        return null;
+    }
 
     /// <summary>
     /// Normalises a URL for deduplication by stripping the query string and fragment,
