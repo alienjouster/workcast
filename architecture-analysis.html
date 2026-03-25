@@ -303,15 +303,15 @@
         </tr>
 
         <!-- 5 -->
-        <tr>
+        <tr class="fixed">
           <td>5</td>
-          <td class="loc">ClaudeAiProvider<br>L212–283 vs L353–425</td>
+          <td class="loc">ClaudeAiProvider<br><code>CallWithRetryAsync</code></td>
           <td class="issue">
-            <strong><code>CallWithRetryAsync</code> and <code>CallScoringWithRetryAsync</code> are near-identical copy-paste methods</strong>
+            <strong><code>CallWithRetryAsync</code> and <code>CallScoringWithRetryAsync</code> are near-identical copy-paste methods <span class="fixed-badge">&#10003; Fixed</span></strong>
             <p>The only differences are timeout (30 s vs 120 s), <code>MaxTokens</code>, and user-content shape. All retry logic, logging format, exception handling, and response parsing are duplicated verbatim, doubling the maintenance surface.</p>
           </td>
           <td><span class="pill pill-quality">Code Quality</span></td>
-          <td class="refactor">Extract a single <code>CallWithRetryAsync(object userContent, int timeoutSeconds, int maxTokens, ClaudeTool tool, string toolName, string model, CancellationToken ct)</code> and have both callers delegate to it.</td>
+          <td class="refactor">Extracted a single <code>CallWithRetryAsync(object userContent, int maxTokens, int timeoutSeconds, ClaudeTool tool, string toolName, string model, CancellationToken ct)</code>. Both callers delegate to it with their respective constants (<code>MaxTokens</code>/30 s and <code>ScoringMaxTokens</code>/120 s). <code>CallScoringWithRetryAsync</code> removed entirely.</td>
           <td class="risk"><span class="risk-low">Low</span> — Purely internal refactor; no external API change.</td>
         </tr>
 

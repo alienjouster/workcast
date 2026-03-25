@@ -135,7 +135,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             """;
 
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
-        var input = await CallWithRetryAsync(prompt, tool, "save_board_config", settings.BoardAnalyzerModel, ct).ConfigureAwait(false);
+        var input = await CallWithRetryAsync(prompt, MaxTokens, timeoutSeconds: 30, tool, "save_board_config", settings.BoardAnalyzerModel, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
     }
 
@@ -203,84 +203,12 @@ public sealed class ClaudeAiProvider : IAiProvider
             userContent = $"RESUME ({resumeFileName}):\n\n{resumeText}\n\n{promptSuffix}";
         }
 
-        var input = await CallScoringWithRetryAsync(userContent, tool, "submit_scoring", settings.ScoringModel, ct)
+        var input = await CallWithRetryAsync(userContent, ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, ct)
             .ConfigureAwait(false);
 
         return DeserializeAdScoringResult(input);
     }
 
-    private async Task<JsonObject> CallScoringWithRetryAsync(
-        object userContent,
-        ClaudeTool tool,
-        string toolName,
-        string model,
-        CancellationToken ct)
-    {
-        Exception? lastException = null;
-
-        for (var attempt = 0; attempt <= MaxRetries - 1; attempt++)
-        {
-            if (attempt > 0)
-            {
-                _logger.LogWarning(
-                    "Anthropic scoring API call failed (attempt {Attempt}/{MaxRetries}), retrying in {Delay}s...",
-                    attempt, MaxRetries, RetryDelays[attempt - 1].TotalSeconds);
-
-                await Task.Delay(RetryDelays[attempt - 1], ct).ConfigureAwait(false);
-            }
-
-            try
-            {
-                var request = new
-                {
-                    Model = model,
-                    MaxTokens = ScoringMaxTokens,
-                    Temperature = 0,
-                    Tools = new[] { tool },
-                    ToolChoice = new ClaudeToolChoice { Type = "tool", Name = toolName },
-                    Messages = new[]
-                    {
-                        new { Role = "user", Content = userContent },
-                    },
-                };
-
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(120));
-
-                var response = await _httpClient
-                    .PostAsJsonAsync(ApiEndpoint, request, JsonOptions, cts.Token)
-                    .ConfigureAwait(false);
-
-                response.EnsureSuccessStatusCode();
-
-                var claudeResponse = await response.Content
-                    .ReadFromJsonAsync<ClaudeResponse>(JsonOptions, cts.Token)
-                    .ConfigureAwait(false)
-                    ?? throw new InvalidOperationException("Claude API returned an empty response.");
-
-                var toolUseBlock = claudeResponse.Content
-                    .FirstOrDefault(c => c.Type == "tool_use" && c.Name == toolName)
-                    ?? throw new InvalidOperationException(
-                        $"Claude response did not contain a '{toolName}' tool_use block. " +
-                        $"Stop reason: {claudeResponse.StopReason}");
-
-                return toolUseBlock.Input
-                    ?? throw new InvalidOperationException("Claude tool_use block has no input.");
-            }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Anthropic scoring API call attempt {Attempt} failed for tool {Tool}.", attempt + 1, toolName);
-                lastException = ex;
-            }
-        }
-
-        throw new InvalidOperationException(
-            $"Anthropic scoring API call failed after {MaxRetries} attempts.", lastException);
-    }
 
     private static AdScoringResult DeserializeAdScoringResult(JsonObject input)
     {
@@ -351,7 +279,9 @@ public sealed class ClaudeAiProvider : IAiProvider
     }
 
     private async Task<JsonObject> CallWithRetryAsync(
-        string prompt,
+        object userContent,
+        int maxTokens,
+        int timeoutSeconds,
         ClaudeTool tool,
         string toolName,
         string model,
@@ -372,21 +302,21 @@ public sealed class ClaudeAiProvider : IAiProvider
 
             try
             {
-                var request = new ClaudeRequest
+                var request = new
                 {
                     Model = model,
-                    MaxTokens = MaxTokens,
+                    MaxTokens = maxTokens,
                     Temperature = 0,
-                    Tools = [tool],
+                    Tools = new[] { tool },
                     ToolChoice = new ClaudeToolChoice { Type = "tool", Name = toolName },
-                    Messages =
-                    [
-                        new ClaudeMessage { Role = "user", Content = prompt },
-                    ],
+                    Messages = new[]
+                    {
+                        new { Role = "user", Content = userContent },
+                    },
                 };
 
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(30));
+                cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
 
                 var response = await _httpClient
                     .PostAsJsonAsync(ApiEndpoint, request, JsonOptions, cts.Token)
