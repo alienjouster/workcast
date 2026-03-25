@@ -3,7 +3,18 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export function useApplications(params: { trashed?: boolean } = {}) {
+export interface ApplicationsFilter {
+  titles?: string[];
+  excludeTitles?: string[];
+  locations?: string[];
+  excludeLocations?: string[];
+  companies?: string[];
+  excludeCompanies?: string[];
+  minScore?: number;
+  trashed?: boolean;
+}
+
+export function useApplications(params: ApplicationsFilter = {}) {
   return useInfiniteQuery({
     queryKey: ['applications', params],
     queryFn: ({ pageParam }) =>

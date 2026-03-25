@@ -188,8 +188,26 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ jobAdId }),
       }),
-    list: (params: { trashed?: boolean; cursor?: string; limit?: number }) => {
+    list: (params: {
+      titles?: string[];
+      excludeTitles?: string[];
+      locations?: string[];
+      excludeLocations?: string[];
+      companies?: string[];
+      excludeCompanies?: string[];
+      minScore?: number;
+      trashed?: boolean;
+      cursor?: string;
+      limit?: number;
+    }) => {
       const q = new URLSearchParams();
+      params.titles?.forEach(t => q.append('titles', t));
+      params.excludeTitles?.forEach(t => q.append('excludeTitles', t));
+      params.locations?.forEach(l => q.append('locations', l));
+      params.excludeLocations?.forEach(l => q.append('excludeLocations', l));
+      params.companies?.forEach(c => q.append('companies', c));
+      params.excludeCompanies?.forEach(c => q.append('excludeCompanies', c));
+      if (params.minScore !== undefined) q.set('minScore', String(params.minScore));
       if (params.trashed) q.set('trashed', 'true');
       if (params.cursor) q.set('cursor', params.cursor);
       if (params.limit) q.set('limit', String(params.limit));
@@ -203,5 +221,17 @@ export const api = {
       apiFetch<Application>(`/api/applications/${id}/restore`, { method: 'PATCH' }),
     delete: (id: string) =>
       apiFetch<void>(`/api/applications/${id}`, { method: 'DELETE' }),
+    distinctTitles: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/applications/distinct-titles${qs}`);
+    },
+    distinctLocations: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/applications/distinct-locations${qs}`);
+    },
+    distinctCompanies: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+      return apiFetch<string[]>(`/api/applications/distinct-companies${qs}`);
+    },
   },
 };

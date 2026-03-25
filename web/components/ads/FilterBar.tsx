@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type StatusTag = 'active' | 'inactive' | 'read' | 'unread' | 'pinned' | 'unpinned';
+export type FilterFeature = 'board' | 'status' | 'title' | 'location' | 'company' | 'score';
 
 export interface FilterState {
   boardIds: string[];
@@ -35,13 +36,41 @@ export const EMPTY_FILTERS: FilterState = {
   minScore: undefined,
 };
 
+export function hasActiveFilters(f: FilterState): boolean {
+  return (
+    f.boardIds.length > 0 ||
+    f.excludeBoardIds.length > 0 ||
+    f.titles.length > 0 ||
+    f.excludeTitles.length > 0 ||
+    f.statuses.length > 0 ||
+    f.locations.length > 0 ||
+    f.excludeLocations.length > 0 ||
+    f.companies.length > 0 ||
+    f.excludeCompanies.length > 0 ||
+    f.minScore !== undefined
+  );
+}
+
+const ALL_FEATURES: FilterFeature[] = ['board', 'status', 'title', 'location', 'company', 'score'];
+
 type PopoverView = 'menu' | 'board' | 'status' | 'title' | 'location' | 'company' | 'score';
 type TriState = 'none' | 'include' | 'exclude';
+
+export interface SuggestionFetchers {
+  titles?: (q: string) => Promise<string[]>;
+  locations?: (q: string) => Promise<string[]>;
+  companies?: (q: string) => Promise<string[]>;
+}
 
 interface FilterBarProps {
   filters: FilterState;
   onChange: (f: FilterState) => void;
-  boards: JobBoard[];
+  /** Which filter categories to show. Defaults to all. */
+  features?: FilterFeature[];
+  /** Boards list — required when 'board' feature is enabled. */
+  boards?: JobBoard[];
+  /** Override typeahead data sources. Defaults to job-ads distinct endpoints. */
+  suggestionFetchers?: SuggestionFetchers;
 }
 
 // ── Tri-state cycle helper ────────────────────────────────────────────────────
@@ -176,13 +205,17 @@ function BackButton({ onClick }: { onClick: () => void }) {
 // ── Typeahead picker ──────────────────────────────────────────────────────────
 
 function TypeaheadPicker({
-  type,
+  cacheKey,
+  placeholder,
+  fetchFn,
   included,
   excluded,
   onCycle,
   onExclude,
 }: {
-  type: 'titles' | 'locations' | 'companies';
+  cacheKey: string;
+  placeholder: string;
+  fetchFn: (q: string) => Promise<string[]>;
   included: string[];
   excluded: string[];
   onCycle: (value: string) => void;
@@ -190,8 +223,8 @@ function TypeaheadPicker({
 }) {
   const [q, setQ] = useState('');
   const { data: suggestions = [] } = useQuery({
-    queryKey: ['distinct', type, q],
-    queryFn: () => type === 'titles' ? api.ads.distinctTitles(q) : type === 'locations' ? api.ads.distinctLocations(q) : api.ads.distinctCompanies(q),
+    queryKey: ['distinct', cacheKey, q],
+    queryFn: () => fetchFn(q),
     staleTime: 30_000,
   });
 
@@ -202,7 +235,6 @@ function TypeaheadPicker({
     !suggestions.some(s => s.toLowerCase() === trimmed.toLowerCase()) &&
     !allSelected.some(s => s.toLowerCase() === trimmed.toLowerCase());
 
-  // Show included/excluded values not in suggestions first, then suggestions
   const displayList = [
     ...allSelected.filter(s => !suggestions.includes(s)),
     ...suggestions,
@@ -221,7 +253,7 @@ function TypeaheadPicker({
             setQ('');
           }
         }}
-        placeholder={type === 'titles' ? 'Search titles…' : type === 'locations' ? 'Search locations…' : 'Search companies…'}
+        placeholder={placeholder}
         className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
       />
       {canAddRaw && (
@@ -322,9 +354,21 @@ function ScorePicker({ value, onChange }: { value: number | undefined; onChange:
 
 // ── FilterBar ─────────────────────────────────────────────────────────────────
 
-export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
+export function FilterBar({
+  filters,
+  onChange,
+  features = ALL_FEATURES,
+  boards = [],
+  suggestionFetchers,
+}: FilterBarProps) {
   const [popover, setPopover] = useState<PopoverView | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const fetchers: Required<SuggestionFetchers> = {
+    titles:    suggestionFetchers?.titles    ?? ((q) => api.ads.distinctTitles(q)),
+    locations: suggestionFetchers?.locations ?? ((q) => api.ads.distinctLocations(q)),
+    companies: suggestionFetchers?.companies ?? ((q) => api.ads.distinctCompanies(q)),
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -342,22 +386,11 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
 
   const getBoardName = (id: string) => boards.find(b => b.id === id)?.name ?? boards.find(b => b.id === id)?.url ?? id;
 
-  const hasFilters =
-    filters.boardIds.length > 0 ||
-    filters.excludeBoardIds.length > 0 ||
-    filters.titles.length > 0 ||
-    filters.excludeTitles.length > 0 ||
-    filters.statuses.length > 0 ||
-    filters.locations.length > 0 ||
-    filters.excludeLocations.length > 0 ||
-    filters.companies.length > 0 ||
-    filters.excludeCompanies.length > 0 ||
-    filters.minScore !== undefined;
+  const active = hasActiveFilters(filters);
 
-  const MENU_ITEMS: { key: PopoverView; label: string; icon: React.ReactNode }[] = [
+  const ALL_MENU_ITEMS: { key: PopoverView; label: string; feature: FilterFeature; icon: React.ReactNode }[] = [
     {
-      key: 'title',
-      label: 'Title',
+      key: 'title', feature: 'title', label: 'Title',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path fillRule="evenodd" d="M2 4.75A.75.75 0 0 1 2.75 4h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 4.75ZM2 10a.75.75 0 0 1 .75-.75h14.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 10Zm0 5.25a.75.75 0 0 1 .75-.75h9.5a.75.75 0 0 1 0 1.5h-9.5A.75.75 0 0 1 2 15.25Z" clipRule="evenodd" />
@@ -365,8 +398,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
     {
-      key: 'board',
-      label: 'Board',
+      key: 'board', feature: 'board', label: 'Board',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path d="M6.32 2.577a49.255 49.255 0 0 1 11.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 0 1-1.085.67L12 18.089l-7.165 3.583A.75.75 0 0 1 3.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93Z" />
@@ -374,8 +406,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
     {
-      key: 'status',
-      label: 'Status',
+      key: 'status', feature: 'status', label: 'Status',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clipRule="evenodd" />
@@ -383,8 +414,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
     {
-      key: 'location',
-      label: 'Location',
+      key: 'location', feature: 'location', label: 'Location',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path fillRule="evenodd" d="m11.54 22.351.07.04.028.016a.76.76 0 0 0 .723 0l.028-.015.071-.041a16.975 16.975 0 0 0 1.144-.742 19.58 19.58 0 0 0 2.683-2.282c1.944-2.013 3.5-4.608 3.5-8.077a8.01 8.01 0 0 0-2.344-5.657 8.014 8.014 0 0 0-5.656-2.343 8.014 8.014 0 0 0-5.656 2.343A8.01 8.01 0 0 0 3.25 13.25c0 3.469 1.556 6.064 3.5 8.077a19.58 19.58 0 0 0 2.682 2.282 16.975 16.975 0 0 0 1.144.742ZM12 15.75a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" clipRule="evenodd" />
@@ -392,8 +422,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
     {
-      key: 'company',
-      label: 'Company',
+      key: 'company', feature: 'company', label: 'Company',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path fillRule="evenodd" d="M4 16.5v-13h-.25a.75.75 0 0 1 0-1.5h12.5a.75.75 0 0 1 0 1.5H16v13h.25a.75.75 0 0 1 0 1.5h-3.5a.75.75 0 0 1-.75-.75v-2.5a.75.75 0 0 0-.75-.75h-2.5a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5H4Zm3-11a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1ZM7.5 9a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1ZM11 5.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1-.5-.5v-1Zm.5 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5h-1Z" clipRule="evenodd" />
@@ -401,8 +430,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
     {
-      key: 'score',
-      label: 'Match Score',
+      key: 'score', feature: 'score', label: 'Match Score',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
           <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
@@ -410,6 +438,8 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
       ),
     },
   ];
+
+  const MENU_ITEMS = ALL_MENU_ITEMS.filter(item => features.includes(item.feature));
 
   return (
     <div className="relative" ref={containerRef}>
@@ -425,9 +455,8 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
           Add filter
         </button>
 
-        {/* Active chips — each category is rendered as a single sorted list so
-            toggling include↔exclude never changes a chip's position. */}
-        {[
+        {/* Title chips */}
+        {features.includes('title') && [
           ...filters.titles.map(t => ({ val: t, exclude: false })),
           ...filters.excludeTitles.map(t => ({ val: t, exclude: true })),
         ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
@@ -445,7 +474,9 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
             }
           />
         ))}
-        {[
+
+        {/* Board chips */}
+        {features.includes('board') && [
           ...filters.boardIds.map(id => ({ val: id, exclude: false, label: `Board: ${getBoardName(id)}` })),
           ...filters.excludeBoardIds.map(id => ({ val: id, exclude: true, label: `Board: ${getBoardName(id)}` })),
         ].sort((a, b) => a.label.localeCompare(b.label)).map(({ val, exclude, label }) => (
@@ -463,10 +494,18 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
             }
           />
         ))}
-        {filters.statuses.map(s => (
-          <Chip key={s} label={s === 'active' ? 'Active' : s === 'inactive' ? 'Inactive' : s === 'read' ? 'Read' : s === 'unread' ? 'Unread' : s === 'pinned' ? 'Pinned' : 'Unpinned'} onRemove={() => update({ statuses: filters.statuses.filter(x => x !== s) })} />
+
+        {/* Status chips */}
+        {features.includes('status') && filters.statuses.map(s => (
+          <Chip
+            key={s}
+            label={s === 'active' ? 'Active' : s === 'inactive' ? 'Inactive' : s === 'read' ? 'Read' : s === 'unread' ? 'Unread' : s === 'pinned' ? 'Pinned' : 'Unpinned'}
+            onRemove={() => update({ statuses: filters.statuses.filter(x => x !== s) })}
+          />
         ))}
-        {[
+
+        {/* Location chips */}
+        {features.includes('location') && [
           ...filters.locations.map(l => ({ val: l, exclude: false })),
           ...filters.excludeLocations.map(l => ({ val: l, exclude: true })),
         ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
@@ -484,7 +523,9 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
             }
           />
         ))}
-        {[
+
+        {/* Company chips */}
+        {features.includes('company') && [
           ...filters.companies.map(c => ({ val: c, exclude: false })),
           ...filters.excludeCompanies.map(c => ({ val: c, exclude: true })),
         ].sort((a, b) => a.val.localeCompare(b.val)).map(({ val, exclude }) => (
@@ -502,11 +543,13 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
             }
           />
         ))}
-        {filters.minScore !== undefined && (
+
+        {/* Score chip */}
+        {features.includes('score') && filters.minScore !== undefined && (
           <Chip label={`Match ≥ ${filters.minScore}%`} onRemove={() => update({ minScore: undefined })} />
         )}
 
-        {hasFilters && (
+        {active && (
           <button
             onClick={() => onChange(EMPTY_FILTERS)}
             className="text-xs text-gray-400 hover:text-red-500 transition-colors"
@@ -544,7 +587,9 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
                   <BackButton onClick={() => setPopover('menu')} />
                 </div>
                 <TypeaheadPicker
-                  type="titles"
+                  cacheKey="titles"
+                  placeholder="Search titles…"
+                  fetchFn={fetchers.titles}
                   included={filters.titles}
                   excluded={filters.excludeTitles}
                   onCycle={val => {
@@ -561,7 +606,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
               </div>
             )}
 
-            {popover === 'board' && (
+            {popover === 'board' && features.includes('board') && (
               <div className="p-3 w-64">
                 <BackButton onClick={() => setPopover('menu')} />
                 <p className="text-[10px] text-gray-400 mb-1.5 px-1">Click to include · click again to exclude · once more to clear</p>
@@ -588,7 +633,7 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
               </div>
             )}
 
-            {popover === 'status' && (
+            {popover === 'status' && features.includes('status') && (
               <div className="p-3 w-52">
                 <BackButton onClick={() => setPopover('menu')} />
                 <div className="space-y-2">
@@ -619,7 +664,9 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
                   <BackButton onClick={() => setPopover('menu')} />
                 </div>
                 <TypeaheadPicker
-                  type="locations"
+                  cacheKey="locations"
+                  placeholder="Search locations…"
+                  fetchFn={fetchers.locations}
                   included={filters.locations}
                   excluded={filters.excludeLocations}
                   onCycle={val => {
@@ -642,7 +689,9 @@ export function FilterBar({ filters, onChange, boards }: FilterBarProps) {
                   <BackButton onClick={() => setPopover('menu')} />
                 </div>
                 <TypeaheadPicker
-                  type="companies"
+                  cacheKey="companies"
+                  placeholder="Search companies…"
+                  fetchFn={fetchers.companies}
                   included={filters.companies}
                   excluded={filters.excludeCompanies}
                   onCycle={val => {

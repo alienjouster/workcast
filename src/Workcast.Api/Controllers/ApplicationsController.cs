@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -59,13 +60,20 @@ public sealed class ApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Returns a paginated list of applications.
+    /// Returns a paginated list of applications with optional filtering.
     /// Ordered by <c>CreatedAt DESC</c>, then <c>Id DESC</c>.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(PagedResponse<ApplicationResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ListAsync(
+        [FromQuery] string[]? titles,
+        [FromQuery] string[]? excludeTitles,
+        [FromQuery] string[]? locations,
+        [FromQuery] string[]? excludeLocations,
+        [FromQuery] string[]? companies,
+        [FromQuery] string[]? excludeCompanies,
+        [FromQuery] double? minScore,
         [FromQuery] bool trashed = false,
         [FromQuery] string? cursor = null,
         [FromQuery] int limit = 50,
@@ -90,8 +98,23 @@ public sealed class ApplicationsController : ControllerBase
             (cursorCreatedAt, cursorId) = decoded.Value;
         }
 
-        var query = _db.Applications
+        var query = _db.Applications.AsQueryable()
             .Where(a => a.IsTrashed == trashed);
+
+        if (titles?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Title, titles);
+        if (excludeTitles?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Title, excludeTitles);
+        if (locations?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Location, locations);
+        if (excludeLocations?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Location, excludeLocations);
+        if (companies?.Length > 0)
+            query = ApplyPartialMatchFilter(query, a => a.Company, companies);
+        if (excludeCompanies?.Length > 0)
+            query = ApplyPartialMatchExcludeFilter(query, a => a.Company, excludeCompanies);
+        if (minScore is not null)
+            query = query.Where(a => a.OverallScore != null && a.OverallScore >= minScore);
 
         var totalCount = await query.CountAsync(ct);
 
@@ -138,6 +161,57 @@ public sealed class ApplicationsController : ControllerBase
         return Ok(application.ToResponse());
     }
 
+    /// <summary>Returns distinct title values from non-trashed applications, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-titles")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctTitlesAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.Applications.Where(a => !a.IsTrashed && a.Title != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Title, [q]);
+        var results = await query
+            .Select(a => a.Title!)
+            .Distinct()
+            .OrderBy(t => t)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
+    /// <summary>Returns distinct location values from non-trashed applications, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-locations")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctLocationsAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.Applications.Where(a => !a.IsTrashed && a.Location != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Location, [q]);
+        var results = await query
+            .Select(a => a.Location!)
+            .Distinct()
+            .OrderBy(l => l)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
+    /// <summary>Returns distinct company values from non-trashed applications, optionally filtered by a partial query.</summary>
+    [HttpGet("distinct-companies")]
+    [ProducesResponseType(typeof(IList<string>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DistinctCompaniesAsync([FromQuery] string? q, CancellationToken ct)
+    {
+        var query = _db.Applications.Where(a => !a.IsTrashed && a.Company != null);
+        if (!string.IsNullOrEmpty(q))
+            query = ApplyPartialMatchFilter(query, a => a.Company, [q]);
+        var results = await query
+            .Select(a => a.Company!)
+            .Distinct()
+            .OrderBy(c => c)
+            .Take(20)
+            .ToListAsync(ct);
+        return Ok(results);
+    }
+
     /// <summary>Moves an application to the trash bin.</summary>
     [HttpPatch("{id:guid}/trash")]
     [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
@@ -180,7 +254,55 @@ public sealed class ApplicationsController : ControllerBase
         return NoContent();
     }
 
-    // ── Cursor helpers ────────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static IQueryable<Application> ApplyPartialMatchFilter(
+        IQueryable<Application> query,
+        Expression<Func<Application, string?>> selector,
+        string[] values)
+    {
+        var param = Expression.Parameter(typeof(Application), "a");
+        var prop = Expression.Property(param, ((MemberExpression)selector.Body).Member.Name);
+        var toLower = typeof(string).GetMethod("ToLower", Type.EmptyTypes)!;
+        var contains = typeof(string).GetMethod("Contains", [typeof(string)])!;
+
+        Expression? combined = null;
+        foreach (var value in values)
+        {
+            var lower = value.ToLowerInvariant();
+            var notNull = Expression.NotEqual(prop, Expression.Constant(null, typeof(string)));
+            var cond = Expression.AndAlso(
+                notNull,
+                Expression.Call(Expression.Call(prop, toLower), contains, Expression.Constant(lower)));
+            combined = combined is null ? cond : Expression.OrElse(combined, cond);
+        }
+
+        return combined is null ? query : query.Where(Expression.Lambda<Func<Application, bool>>(combined, param));
+    }
+
+    private static IQueryable<Application> ApplyPartialMatchExcludeFilter(
+        IQueryable<Application> query,
+        Expression<Func<Application, string?>> selector,
+        string[] values)
+    {
+        var param = Expression.Parameter(typeof(Application), "a");
+        var prop = Expression.Property(param, ((MemberExpression)selector.Body).Member.Name);
+        var toLower = typeof(string).GetMethod("ToLower", Type.EmptyTypes)!;
+        var contains = typeof(string).GetMethod("Contains", [typeof(string)])!;
+
+        Expression? anyMatch = null;
+        foreach (var value in values)
+        {
+            var lower = value.ToLowerInvariant();
+            var notNull = Expression.NotEqual(prop, Expression.Constant(null, typeof(string)));
+            var cond = Expression.AndAlso(
+                notNull,
+                Expression.Call(Expression.Call(prop, toLower), contains, Expression.Constant(lower)));
+            anyMatch = anyMatch is null ? cond : Expression.OrElse(anyMatch, cond);
+        }
+
+        return anyMatch is null ? query : query.Where(Expression.Lambda<Func<Application, bool>>(Expression.Not(anyMatch), param));
+    }
 
     private static string EncodeCursor(DateTimeOffset createdAt, Guid id)
     {

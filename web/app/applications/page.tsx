@@ -2,26 +2,62 @@
 
 import { useState } from 'react';
 import { useApplications } from '@/lib/hooks/useApplications';
+import { useFilterState } from '@/lib/hooks/useFilterState';
+import { FilterBar, hasActiveFilters } from '@/components/ads/FilterBar';
 import { ApplicationTable } from '@/components/applications/ApplicationTable';
 import { ApplicationTrashTable } from '@/components/applications/ApplicationTrashTable';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { api } from '@/lib/api';
 
 type View = 'applications' | 'trash';
 
 export default function ApplicationsPage() {
   const [view, setView] = useState<View>('applications');
+  const [filters, setFilters] = useFilterState('workcast:applications-filters');
+  const [trashFilters, setTrashFilters] = useFilterState('workcast:applications-trash-filters');
 
-  const appsQuery = useApplications({ trashed: false });
-  const trashQuery = useApplications({ trashed: true });
+  const activeFilters = view === 'applications' ? filters : trashFilters;
+  const setActiveFilters = view === 'applications' ? setFilters : setTrashFilters;
+
+  const appsQuery = useApplications({
+    titles: filters.titles,
+    excludeTitles: filters.excludeTitles,
+    locations: filters.locations,
+    excludeLocations: filters.excludeLocations,
+    companies: filters.companies,
+    excludeCompanies: filters.excludeCompanies,
+    minScore: filters.minScore,
+    trashed: false,
+  });
+
+  const trashQuery = useApplications({
+    titles: trashFilters.titles,
+    excludeTitles: trashFilters.excludeTitles,
+    locations: trashFilters.locations,
+    excludeLocations: trashFilters.excludeLocations,
+    companies: trashFilters.companies,
+    excludeCompanies: trashFilters.excludeCompanies,
+    minScore: trashFilters.minScore,
+    trashed: true,
+  });
+
   const totalAppsQuery = useApplications({ trashed: false });
   const totalTrashQuery = useApplications({ trashed: true });
 
   const activeQuery = view === 'applications' ? appsQuery : trashQuery;
   const allItems = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const totalAppsCount = totalAppsQuery.data?.pages[0]?.totalCount ?? 0;
+  const filteredAppsCount = appsQuery.data?.pages[0]?.totalCount ?? 0;
   const totalTrashCount = totalTrashQuery.data?.pages[0]?.totalCount ?? 0;
+  const filteredTrashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
+
+  const suggestionFetchers = {
+    titles:    (q: string) => api.applications.distinctTitles(q),
+    locations: (q: string) => api.applications.distinctLocations(q),
+    companies: (q: string) => api.applications.distinctCompanies(q),
+  };
 
   return (
     <div>
@@ -33,7 +69,7 @@ export default function ApplicationsPage() {
       </div>
 
       {/* Tab toggle */}
-      <div className="flex items-center gap-1 mb-6 border-b border-gray-200">
+      <div className="flex items-center gap-1 mb-4 border-b border-gray-200">
         <button
           onClick={() => setView('applications')}
           className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
@@ -69,6 +105,26 @@ export default function ApplicationsPage() {
         </button>
       </div>
 
+      {/* Filters */}
+      <div className="mb-4">
+        <FilterBar
+          filters={activeFilters}
+          onChange={setActiveFilters}
+          features={['title', 'location', 'company', 'score']}
+          suggestionFetchers={suggestionFetchers}
+        />
+        {view === 'applications' && hasActiveFilters(filters) && !appsQuery.isLoading && (
+          <p className="mt-2 text-sm text-gray-500">
+            Displaying <span className="font-medium text-gray-700">{filteredAppsCount}</span> applications out of <span className="font-medium text-gray-700">{totalAppsCount}</span>
+          </p>
+        )}
+        {view === 'trash' && hasActiveFilters(trashFilters) && !trashQuery.isLoading && (
+          <p className="mt-2 text-sm text-gray-500">
+            Displaying <span className="font-medium text-gray-700">{filteredTrashCount}</span> applications out of <span className="font-medium text-gray-700">{totalTrashCount}</span>
+          </p>
+        )}
+      </div>
+
       {activeQuery.isLoading ? (
         <LoadingSpinner />
       ) : activeQuery.error ? (
@@ -78,7 +134,10 @@ export default function ApplicationsPage() {
       ) : view === 'trash' ? (
         <>
           {allItems.length === 0 ? (
-            <EmptyState title="Trash bin is empty" description="No applications have been trashed." />
+            <EmptyState
+              title="Trash bin is empty"
+              description={hasActiveFilters(trashFilters) ? 'No trashed applications match your current filters.' : 'No applications have been trashed.'}
+            />
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
               <ApplicationTrashTable applications={allItems} />
@@ -98,8 +157,8 @@ export default function ApplicationsPage() {
         </>
       ) : allItems.length === 0 ? (
         <EmptyState
-          title="No applications yet"
-          description='Open a job ad and click "Apply to this job" to start tracking your application.'
+          title={hasActiveFilters(filters) ? 'No applications match your filters' : 'No applications yet'}
+          description={hasActiveFilters(filters) ? 'Try adjusting your filters.' : 'Open a job ad and click "Apply to this job" to start tracking your application.'}
         />
       ) : (
         <>

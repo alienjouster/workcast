@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
+import { useFilterState } from '@/lib/hooks/useFilterState';
 import { AdTable } from '@/components/ads/AdTable';
 import { TrashTable } from '@/components/ads/TrashTable';
-import { FilterBar, FilterState, EMPTY_FILTERS } from '@/components/ads/FilterBar';
+import { FilterBar, hasActiveFilters, type FilterState } from '@/components/ads/FilterBar';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -14,36 +15,8 @@ type View = 'ads' | 'trash';
 
 export default function AdsPage() {
   const [view, setView] = useState<View>('ads');
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
-  const [trashFilters, setTrashFilters] = useState<FilterState>(EMPTY_FILTERS);
-  const isFirstPersistAds = useRef(true);
-  const isFirstPersistTrash = useRef(true);
-
-  // Restore persisted filters after hydration (must not run on server).
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('workcast:filters');
-      if (stored) setFilters({ ...EMPTY_FILTERS, ...JSON.parse(stored) });
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('workcast:trash-filters');
-      if (stored) setTrashFilters({ ...EMPTY_FILTERS, ...JSON.parse(stored) });
-    } catch {}
-  }, []);
-
-  // Persist whenever filters change, skipping the very first render (EMPTY_FILTERS).
-  useEffect(() => {
-    if (isFirstPersistAds.current) { isFirstPersistAds.current = false; return; }
-    localStorage.setItem('workcast:filters', JSON.stringify(filters));
-  }, [filters]);
-
-  useEffect(() => {
-    if (isFirstPersistTrash.current) { isFirstPersistTrash.current = false; return; }
-    localStorage.setItem('workcast:trash-filters', JSON.stringify(trashFilters));
-  }, [trashFilters]);
+  const [filters, setFilters] = useFilterState('workcast:ads-filters');
+  const [trashFilters, setTrashFilters] = useFilterState('workcast:ads-trash-filters');
 
   const { data: boards = [] } = useJobBoards();
 
@@ -100,17 +73,6 @@ export default function AdsPage() {
   const totalTrashCount = totalTrashQuery.data?.pages[0]?.totalCount ?? 0;
   const filteredTrashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
 
-  const hasActiveFilters = (f: FilterState) =>
-    f.boardIds.length > 0 ||
-    f.excludeBoardIds.length > 0 ||
-    f.titles.length > 0 ||
-    f.excludeTitles.length > 0 ||
-    f.statuses.length > 0 ||
-    f.locations.length > 0 ||
-    f.excludeLocations.length > 0 ||
-    f.companies.length > 0 ||
-    f.excludeCompanies.length > 0 ||
-    f.minScore !== undefined;
 
   return (
     <div>
