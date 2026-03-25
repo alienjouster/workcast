@@ -35,6 +35,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>AI scoring results for job ads.</summary>
     public DbSet<AdScoring> AdScorings => Set<AdScoring>();
 
+    /// <summary>User job application files.</summary>
+    public DbSet<Application> Applications => Set<Application>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -45,5 +48,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ScrapeRunConfiguration());
         modelBuilder.ApplyConfiguration(new AppSettingsConfiguration());
         modelBuilder.ApplyConfiguration(new AdScoringConfiguration());
+        modelBuilder.ApplyConfiguration(new ApplicationConfiguration());
     }
 }

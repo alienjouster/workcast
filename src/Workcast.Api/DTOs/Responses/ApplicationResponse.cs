@@ -1,0 +1,64 @@
+namespace Workcast.Api.DTOs.Responses;
+
+/// <summary>
+/// Response representation of a user job application file.
+/// All job ad and scoring fields are copied at creation time and live independently
+/// of the source job ad.
+/// </summary>
+public record ApplicationResponse
+{
+    /// <summary>Gets the unique identifier of the application.</summary>
+    public required Guid Id { get; init; }
+
+    /// <summary>Gets the identifier of the source job ad, or null if the ad has been deleted.</summary>
+    public Guid? JobAdId { get; init; }
+
+    /// <summary>Gets the UTC timestamp when the application was created.</summary>
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>Gets a value indicating whether this application is in the trash bin.</summary>
+    public required bool IsTrashed { get; init; }
+
+    // ── Copied from JobAd ────────────────────────────────────────────────────
+
+    /// <summary>Gets the URL of the original job ad.</summary>
+    public required string Url { get; init; }
+
+    /// <summary>Gets the job title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>Gets the company name.</summary>
+    public string? Company { get; init; }
+
+    /// <summary>Gets the location.</summary>
+    public string? Location { get; init; }
+
+    /// <summary>Gets the raw salary string.</summary>
+    public string? SalaryRaw { get; init; }
+
+    /// <summary>Gets the description snippet.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Gets the date the ad was originally posted.</summary>
+    public DateTimeOffset? PostedAt { get; init; }
+
+    /// <summary>Gets the board-specific external identifier.</summary>
+    public string? ExternalId { get; init; }
+
+    // ── Copied from AdScoring ────────────────────────────────────────────────
+
+    /// <summary>Gets the overall resume-matching score (0–100), or null if no scoring existed at application time.</summary>
+    public double? OverallScore { get; init; }
+
+    /// <summary>Gets the timestamp when scoring was performed, or null if no scoring existed.</summary>
+    public DateTimeOffset? ScoredAt { get; init; }
+
+    /// <summary>Gets the AI-generated narrative summary, or null if no scoring existed.</summary>
+    public string? Summary { get; init; }
+
+    /// <summary>Gets the AI-generated recommendation, or null if no scoring existed.</summary>
+    public string? Recommendation { get; init; }
+
+    /// <summary>Gets the per-requirement scoring breakdown. Empty when no scoring existed at application time.</summary>
+    public required IList<ScoringRequirementResponse> Requirements { get; init; }
+}

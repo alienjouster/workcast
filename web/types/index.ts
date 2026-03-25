@@ -133,6 +133,26 @@ export interface AdScoring {
   requirements: ScoringRequirement[];
 }
 
+export interface Application {
+  id: string;
+  jobAdId: string | null;
+  createdAt: string;
+  isTrashed: boolean;
+  url: string;
+  title: string | null;
+  company: string | null;
+  location: string | null;
+  salaryRaw: string | null;
+  description: string | null;
+  postedAt: string | null;
+  externalId: string | null;
+  overallScore: number | null;
+  scoredAt: string | null;
+  summary: string | null;
+  recommendation: string | null;
+  requirements: ScoringRequirement[];
+}
+
 export interface UpdateSettingsRequest {
   boardAnalyzerModel: string;
   scoringModel: string;

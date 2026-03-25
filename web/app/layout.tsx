@@ -34,6 +34,12 @@ export default function RootLayout({
                       Boards
                     </Link>
                     <NavJobAdsLink />
+                    <Link
+                      href="/applications"
+                      className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition-colors"
+                    >
+                      Applications
+                    </Link>
                   </div>
                 </div>
                 <Link

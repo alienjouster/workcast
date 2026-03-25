@@ -230,6 +230,42 @@ public static class MappingExtensions
     }
 
     /// <summary>
+    /// Maps an <see cref="Application"/> entity to an <see cref="ApplicationResponse"/> DTO.
+    /// </summary>
+    public static ApplicationResponse ToResponse(this Core.Entities.Application app)
+    {
+        return new ApplicationResponse
+        {
+            Id = app.Id,
+            JobAdId = app.JobAdId,
+            CreatedAt = app.CreatedAt,
+            IsTrashed = app.IsTrashed,
+            Url = app.Url,
+            Title = app.Title,
+            Company = app.Company,
+            Location = app.Location,
+            SalaryRaw = app.SalaryRaw,
+            Description = app.Description,
+            PostedAt = app.PostedAt,
+            ExternalId = app.ExternalId,
+            OverallScore = app.OverallScore,
+            ScoredAt = app.ScoredAt,
+            Summary = app.Summary,
+            Recommendation = app.Recommendation,
+            Requirements = app.Requirements
+                .Select(r => new ScoringRequirementResponse
+                {
+                    Name = r.Name,
+                    Category = r.Category,
+                    IsOptional = r.IsOptional,
+                    Score = r.Score,
+                    Notes = r.Notes,
+                })
+                .ToList(),
+        };
+    }
+
+    /// <summary>
     /// Converts a <see cref="PaginationType"/> enum value to its snake_case string representation
     /// as required by TECHSPEC section 3.5 (e.g. UrlParam → "url_param").
     /// </summary>

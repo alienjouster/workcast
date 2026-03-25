@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { JobAd, ScoringCategory } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { useMarkAdRead, usePinAd, useTrashAd, useBulkAction } from '@/lib/hooks/useJobAds';
 import { useAdScoring, useRunScoring } from '@/lib/hooks/useAdScoring';
 import { useSettings } from '@/lib/hooks/useSettings';
+import { useCreateApplication } from '@/lib/hooks/useApplications';
 import { NoteModal } from '@/components/ads/NoteModal';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -242,9 +244,11 @@ export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [noteAdId, setNoteAdId] = useState<string | null>(null);
+  const router = useRouter();
   const trashAd = useTrashAd();
   const pinAd = usePinAd();
   const markRead = useMarkAdRead();
+  const createApplication = useCreateApplication();
 
   const noteAd = noteAdId ? ads.find((a) => a.id === noteAdId) ?? null : null;
 
@@ -456,6 +460,23 @@ export function AdTable({ ads }: AdTableProps) {
               {expandedId === ad.id && (
                 <tr key={`${ad.id}-expand`}>
                   <td colSpan={9} className="px-4 py-4 bg-gray-50">
+                    <div className="flex justify-end mb-3">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const application = await createApplication.mutateAsync(ad.id);
+                          router.push(`/applications/${application.id}`);
+                        }}
+                        loading={createApplication.isPending}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1.5">
+                          <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
+                        </svg>
+                        Apply to this job
+                      </Button>
+                    </div>
                     {ad.description ? (
                       <p className="text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
                         {ad.description}

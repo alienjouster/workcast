@@ -9,6 +9,7 @@ import type {
   UpdateScraperConfigRequest,
   AppSettings,
   UpdateSettingsRequest,
+  Application,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -180,5 +181,27 @@ export const api = {
     },
     deleteResume: () =>
       apiFetch<AppSettings>('/api/settings/resume', { method: 'DELETE' }),
+  },
+  applications: {
+    create: (jobAdId: string) =>
+      apiFetch<Application>('/api/applications', {
+        method: 'POST',
+        body: JSON.stringify({ jobAdId }),
+      }),
+    list: (params: { trashed?: boolean; cursor?: string; limit?: number }) => {
+      const q = new URLSearchParams();
+      if (params.trashed) q.set('trashed', 'true');
+      if (params.cursor) q.set('cursor', params.cursor);
+      if (params.limit) q.set('limit', String(params.limit));
+      const qs = q.toString();
+      return apiFetch<PagedResponse<Application>>(`/api/applications${qs ? `?${qs}` : ''}`);
+    },
+    get: (id: string) => apiFetch<Application>(`/api/applications/${id}`),
+    trash: (id: string) =>
+      apiFetch<Application>(`/api/applications/${id}/trash`, { method: 'PATCH' }),
+    restore: (id: string) =>
+      apiFetch<Application>(`/api/applications/${id}/restore`, { method: 'PATCH' }),
+    delete: (id: string) =>
+      apiFetch<void>(`/api/applications/${id}`, { method: 'DELETE' }),
   },
 };
