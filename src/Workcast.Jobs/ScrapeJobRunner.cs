@@ -284,16 +284,18 @@ public sealed class ScrapeJobRunner
                 counters.AdsFound += loadMoreCards.Count;
                 _logger.LogDebug("Extracted {Count} job cards from accumulated load-more HTML", loadMoreCards.Count);
 
+                var newLoadMoreAds = new List<JobAd>();
                 foreach (var card in loadMoreCards)
                 {
                     var normalizedUrl = NormalizeUrl(card.Url);
                     seenNormalizedUrls.Add(normalizedUrl);
 
-                    bool isNew = await ProcessAdCardAsync(card, normalizedUrl, board.Id, run, ct)
+                    var newAd = await PrepareNewAdAsync(card, normalizedUrl, board.Id, run, ct)
                         .ConfigureAwait(false);
-                    if (isNew) counters.AdsNew++;
+                    if (newAd is not null) newLoadMoreAds.Add(newAd);
                 }
 
+                counters.AdsNew += await PersistNewAdsAsync(newLoadMoreAds, ct).ConfigureAwait(false);
                 break;
             }
 
@@ -330,19 +332,21 @@ public sealed class ScrapeJobRunner
 
             _logger.LogDebug("Extracted {Count} job cards on page {Number}", cardsOnPage, pageNumber);
 
+            var newAds = new List<JobAd>();
             foreach (var card in cards)
             {
                 var normalizedUrl = NormalizeUrl(card.Url);
                 seenNormalizedUrls.Add(normalizedUrl);
 
-                bool isNew = await ProcessAdCardAsync(card, normalizedUrl, board.Id, run, ct)
+                var newAd = await PrepareNewAdAsync(card, normalizedUrl, board.Id, run, ct)
                     .ConfigureAwait(false);
-
-                if (isNew) counters.AdsNew++;
+                if (newAd is not null) newAds.Add(newAd);
 
                 if (config.SuggestedDelayMs > 0)
                     await Task.Delay(config.SuggestedDelayMs, ct).ConfigureAwait(false);
             }
+
+            counters.AdsNew += await PersistNewAdsAsync(newAds, ct).ConfigureAwait(false);
 
             // Determine the next page URL.
             string? nextUrl = GetNextPageUrl(
@@ -374,17 +378,13 @@ public sealed class ScrapeJobRunner
         string? DescriptionSnippet);
 
     /// <summary>
-    /// Processes a single extracted ad: checks deduplication and, if new, persists the ad with
-    /// the field values already extracted via CSS selectors.
-    /// Returns <c>true</c> if a new ad was created; <c>false</c> if the ad already existed.
-    /// Non-fatal errors are logged to the run's error list rather than aborting the run.
+    /// Checks deduplication for a single extracted ad and, if new, constructs and returns
+    /// the unsaved <see cref="JobAd"/> entity. Returns <c>null</c> if the ad already exists.
+    /// Re-activates stale ads immediately (they are updates to existing rows and do not
+    /// benefit from batching). New entities are returned to the caller for batch persistence
+    /// via <see cref="PersistNewAdsAsync"/>.
     /// </summary>
-    /// <param name="card">Extracted ad data with all field values.</param>
-    /// <param name="normalizedUrl">URL with query string stripped, used for deduplication and storage.</param>
-    /// <param name="boardId">Owning board ID.</param>
-    /// <param name="run">Current scrape run, used to log non-fatal errors.</param>
-    /// <param name="ct">Cancellation token.</param>
-    private async Task<bool> ProcessAdCardAsync(
+    private async Task<JobAd?> PrepareNewAdAsync(
         ExtractedAdData card,
         string normalizedUrl,
         Guid boardId,
@@ -409,7 +409,7 @@ public sealed class ScrapeJobRunner
                 _logger.LogDebug("Re-activated stale ad {AdId} ({Url})", existingByUrl.Id, normalizedUrl);
             }
 
-            return false;
+            return null;
         }
 
         // Secondary deduplication: ExternalId match (board-specific job reference numbers).
@@ -429,7 +429,7 @@ public sealed class ScrapeJobRunner
                     await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
                 }
 
-                return false;
+                return null;
             }
         }
 
@@ -445,26 +445,62 @@ public sealed class ScrapeJobRunner
             card.ExternalId,
             card.DescriptionSnippet);
 
-        _dbContext.JobAds.Add(ad);
+        return ad;
+    }
+
+    /// <summary>
+    /// Persists a batch of new <see cref="JobAd"/> entities in a single
+    /// <see cref="DbContext.SaveChangesAsync"/> call and returns the count of
+    /// successfully saved ads.
+    /// <para>
+    /// Falls back to one-by-one saves when a <see cref="DbUpdateException"/> is thrown,
+    /// which occurs when a concurrent scrape run inserted the same URL between our
+    /// deduplication check and this save. The fallback preserves all valid ads in the
+    /// batch — only the conflicting row is discarded.
+    /// </para>
+    /// </summary>
+    private async Task<int> PersistNewAdsAsync(List<JobAd> newAds, CancellationToken ct)
+    {
+        if (newAds.Count == 0) return 0;
+
+        foreach (var ad in newAds)
+            _dbContext.JobAds.Add(ad);
 
         try
         {
             await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+            _logger.LogDebug("Saved batch of {Count} new ads", newAds.Count);
+            return newAds.Count;
         }
-        catch (DbUpdateException ex)
+        catch (DbUpdateException)
         {
-            // A concurrent run may have inserted the same URL between our dedup check and
-            // the save. Log as a non-fatal warning and skip rather than failing the run.
-            _logger.LogWarning(ex,
-                "Duplicate key conflict saving ad {Url} — likely inserted by a concurrent run",
-                normalizedUrl);
-            _dbContext.Entry(ad).State = EntityState.Detached;
-            return false;
+            // At least one URL in this batch conflicted with a concurrent insert.
+            // Detach all pending entities and fall back to one-by-one saves so that
+            // valid ads in the batch are not lost along with the conflicting one.
+            foreach (var ad in newAds)
+                _dbContext.Entry(ad).State = EntityState.Detached;
+
+            int saved = 0;
+            foreach (var ad in newAds)
+            {
+                _dbContext.JobAds.Add(ad);
+                try
+                {
+                    await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+                    _logger.LogDebug("Saved new ad '{Title}' ({Url})", ad.Title, ad.Url);
+                    saved++;
+                }
+                catch (DbUpdateException ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Duplicate key conflict saving ad {Url} — likely inserted by a concurrent run",
+                        ad.Url);
+                    _dbContext.Entry(ad).State = EntityState.Detached;
+                }
+            }
+
+            return saved;
         }
-
-        _logger.LogDebug("Saved new ad '{Title}' ({Url})", ad.Title, normalizedUrl);
-
-        return true;
     }
 
     // -------------------------------------------------------------------------

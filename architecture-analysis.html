@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workcast — Backend Architecture Analysis</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      background: #f5f7fa;
+      color: #1a1d23;
+      padding: 32px 24px 64px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .subtitle {
+      color: #6b7280;
+      font-size: 13px;
+      margin-bottom: 32px;
+    }
+
+    /* ── Summary badges ── */
+    .summary {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 32px;
+    }
+
+    .badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-bug       { background: #fee2e2; color: #991b1b; }
+    .badge-perf      { background: #fef3c7; color: #92400e; }
+    .badge-arch      { background: #ede9fe; color: #5b21b6; }
+    .badge-resilience{ background: #dbeafe; color: #1e40af; }
+    .badge-security  { background: #fce7f3; color: #9d174d; }
+    .badge-quality   { background: #d1fae5; color: #065f46; }
+
+    /* ── Table wrapper ── */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    thead tr {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid #f1f5f9;
+      transition: background 0.1s;
+    }
+
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+
+    td {
+      padding: 13px 16px;
+      vertical-align: top;
+    }
+
+    td:first-child {
+      font-weight: 700;
+      color: #6b7280;
+      font-size: 13px;
+      white-space: nowrap;
+      width: 30px;
+    }
+
+    /* Location cell */
+    td.loc {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      color: #374151;
+      white-space: nowrap;
+    }
+
+    /* Issue cell */
+    td.issue strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13.5px;
+    }
+
+    td.issue p {
+      color: #4b5563;
+      font-size: 13px;
+    }
+
+    /* Category pill */
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .pill-bug        { background: #fee2e2; color: #991b1b; }
+    .pill-perf       { background: #fef3c7; color: #92400e; }
+    .pill-arch       { background: #ede9fe; color: #5b21b6; }
+    .pill-resilience { background: #dbeafe; color: #1e40af; }
+    .pill-security   { background: #fce7f3; color: #9d174d; }
+    .pill-quality    { background: #d1fae5; color: #065f46; }
+
+    /* Refactoring & Risk cells */
+    td.refactor, td.risk {
+      font-size: 13px;
+      color: #374151;
+    }
+
+    /* Risk level */
+    .risk-low    { color: #15803d; font-weight: 600; }
+    .risk-medium { color: #b45309; font-weight: 600; }
+    .risk-trivial{ color: #6b7280; font-weight: 600; }
+
+    /* ── Well-done section ── */
+    .well-done {
+      margin-top: 40px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08);
+      padding: 24px 28px;
+    }
+
+    .well-done h2 {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: #065f46;
+    }
+
+    .well-done ul {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 8px 24px;
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .well-done li::before {
+      content: "✓ ";
+      color: #10b981;
+      font-weight: 700;
+    }
+
+    .well-done li {
+      font-size: 13px;
+      color: #374151;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 12px;
+      background: #f1f5f9;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: #0f172a;
+    }
+
+    /* ── Fixed rows ── */
+    tr.fixed { background: #f0fdf4; }
+    tr.fixed:hover { background: #dcfce7; }
+    tr.fixed td { opacity: 0.7; }
+    tr.fixed td.issue strong { text-decoration: line-through; text-decoration-color: #86efac; }
+
+    .pill-fixed { background: #dcfce7; color: #15803d; }
+
+    .fixed-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #dcfce7;
+      color: #15803d;
+      margin-left: 8px;
+      vertical-align: middle;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Workcast — Backend Architecture Analysis</h1>
+  <p class="subtitle">Scope: <code>src/Workcast.Core</code> · <code>src/Workcast.Infrastructure</code> · <code>src/Workcast.Jobs</code> · <code>src/Workcast.Api</code></p>
+
+  <div class="summary">
+    <span class="badge badge-bug">2 Bugs</span>
+    <span class="badge badge-perf">5 Performance</span>
+    <span class="badge badge-arch">1 Architecture</span>
+    <span class="badge badge-resilience">2 Resilience / Correctness</span>
+    <span class="badge badge-security">1 Security</span>
+    <span class="badge badge-quality">3 Code Quality</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Location</th>
+          <th>Issue</th>
+          <th>Category</th>
+          <th>Recommended Refactoring</th>
+          <th>Risk</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- 1 -->
+        <tr>
+          <td>1</td>
+          <td class="loc">
+            JobAdsController<br>
+            JobBoardsController<br>
+            ApplicationsController
+          </td>
+          <td class="issue">
+            <strong>Controllers inject <code>AppDbContext</code> directly</strong>
+            <p><code>ISettingsRepository</code> and <code>IAdScoringRepository</code> exist, but most query/mutation logic bypasses them and builds EF Core queries inline in controllers. There is no consistent data-access layer — the API layer is tightly coupled to the ORM.</p>
+          </td>
+          <td><span class="pill pill-arch">Architecture</span></td>
+          <td class="refactor">Introduce repositories or query-services for the major entities. Controllers should orchestrate, not build EF queries.</td>
+          <td class="risk"><span class="risk-medium">Medium</span> — Large refactor touching all controllers; requires care with EF change-tracking semantics.</td>
+        </tr>
+
+        <!-- 2 -->
+        <tr class="fixed">
+          <td>2</td>
+          <td class="loc">ScrapeJobRunner<br><code>PrepareNewAdAsync</code><br><code>PersistNewAdsAsync</code></td>
+          <td class="issue">
+            <strong><code>SaveChangesAsync</code> called once per new ad inside the card loop <span class="fixed-badge">&#10003; Fixed</span></strong>
+            <p>For a page with 50 new ads that is 50 sequential Postgres round-trips. On a board with 10 pages and all-new ads, that is up to 500 individual writes per run instead of at most 10 (one per page).</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Split into <code>PrepareNewAdAsync</code> (dedup + entity construction, no save) and <code>PersistNewAdsAsync</code> (one <code>SaveChangesAsync</code> per page). Fallback to one-by-one saves on <code>DbUpdateException</code> to preserve valid ads from the batch on concurrent-run races.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Logic change is isolated; the main complication is adapting the duplicate-key catch block.</td>
+        </tr>
+
+        <!-- 3 -->
+        <tr>
+          <td>3</td>
+          <td class="loc">ScrapeJobRunner<br><code>MarkStaleAdsAsync</code> ~L494</td>
+          <td class="issue">
+            <strong>Entire active ad set for a board loaded into memory for stale detection</strong>
+            <p><code>ToListAsync</code> fetches all active ads then filters in C#. For a board with thousands of accumulated ads this is an unbounded memory allocation and client-side evaluation.</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Use a set-based <code>ExecuteUpdateAsync</code>: <code>UPDATE job_ads SET is_active = false WHERE job_board_id = @id AND is_active = true AND url NOT IN (@seenUrls)</code>. For very large URL sets, batch the <code>IN</code> clause or use a temp table.</td>
+          <td class="risk"><span class="risk-medium">Low–Medium</span> — For very large <code>seenUrls</code> sets the <code>NOT IN</code> list can have limits; a temp table approach is safer but more complex.</td>
+        </tr>
+
+        <!-- 4 -->
+        <tr>
+          <td>4</td>
+          <td class="loc">JobAdsController<br><code>ListAsync</code> ~L129–141</td>
+          <td class="issue">
+            <strong><code>TotalCount</code> is computed after the cursor predicate is applied — bug</strong>
+            <p>The comment reads <em>"Count total matching items (before cursor is applied) for the badge"</em> but at that point <code>query</code> already has the cursor <code>Where</code> clause applied. On page 2+, <code>TotalCount</code> returned to the client reflects remaining items after the cursor, not the total filtered set.</p>
+          </td>
+          <td><span class="pill pill-bug">Bug</span></td>
+          <td class="refactor">Snapshot a pre-cursor <code>countQuery</code> variable before applying the cursor <code>Where</code> clause and run <code>CountAsync</code> on that.</td>
+          <td class="risk"><span class="risk-trivial">Trivial</span> — One-variable change, isolated to this method.</td>
+        </tr>
+
+        <!-- 5 -->
+        <tr>
+          <td>5</td>
+          <td class="loc">ClaudeAiProvider<br>L212–283 vs L353–425</td>
+          <td class="issue">
+            <strong><code>CallWithRetryAsync</code> and <code>CallScoringWithRetryAsync</code> are near-identical copy-paste methods</strong>
+            <p>The only differences are timeout (30 s vs 120 s), <code>MaxTokens</code>, and user-content shape. All retry logic, logging format, exception handling, and response parsing are duplicated verbatim, doubling the maintenance surface.</p>
+          </td>
+          <td><span class="pill pill-quality">Code Quality</span></td>
+          <td class="refactor">Extract a single <code>CallWithRetryAsync(object userContent, int timeoutSeconds, int maxTokens, ClaudeTool tool, string toolName, string model, CancellationToken ct)</code> and have both callers delegate to it.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Purely internal refactor; no external API change.</td>
+        </tr>
+
+        <!-- 6 -->
+        <tr>
+          <td>6</td>
+          <td class="loc">JobAdsController<br><code>ListAsync</code> ~L121–126</td>
+          <td class="issue">
+            <strong><code>minScore</code> filter uses a correlated subquery</strong>
+            <p><code>_db.Set&lt;AdScoring&gt;().Any(s =&gt; s.JobAdId == a.Id &amp;&amp; s.OverallScore &gt;= threshold)</code> translates to <code>WHERE EXISTS (SELECT …)</code> — a probe per row when combined with other filters, rather than a join that can be optimised by the query planner.</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Join <code>AdScorings</code> explicitly in the query and filter on the joined row's score. A partial index on <code>AdScorings(overall_score)</code> would further help.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Query-local change; no schema change required.</td>
+        </tr>
+
+        <!-- 7 -->
+        <tr>
+          <td>7</td>
+          <td class="loc">ScrapeJobRunner<br><code>ExtractAdsFromPage</code> ~L694</td>
+          <td class="issue">
+            <strong><code>new Uri(baseUrl)</code> constructed inside the card <code>foreach</code> loop</strong>
+            <p>A new <code>Uri</code> object is allocated for every card on a page when the base URL is constant across the entire loop iteration.</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Hoist <code>var baseUri = new Uri(baseUrl)</code> to before the <code>foreach</code>.</td>
+          <td class="risk"><span class="risk-trivial">Trivial</span> — One-line move, zero risk.</td>
+        </tr>
+
+        <!-- 8 -->
+        <tr>
+          <td>8</td>
+          <td class="loc">AdScoringRepository<br><code>UpsertAsync</code></td>
+          <td class="issue">
+            <strong>Upsert implemented as delete-then-insert — not atomic</strong>
+            <p>Between the <code>DELETE</code> and the <code>INSERT</code> there is a brief window where no row exists. A concurrent scoring job for the same ad could race on the insert and trigger a unique-constraint violation. PostgreSQL's native <code>ON CONFLICT DO UPDATE</code> eliminates this window entirely.</p>
+          </td>
+          <td><span class="pill pill-resilience">Correctness</span></td>
+          <td class="refactor">Use a raw SQL <code>INSERT … ON CONFLICT (job_ad_id) DO UPDATE SET …</code> via <code>ExecuteSqlRawAsync</code>, or use EF Core 8's <code>ExecuteUpdateAsync</code> for the existing-row path.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Isolated to the repository class; no schema change needed.</td>
+        </tr>
+
+        <!-- 9 -->
+        <tr>
+          <td>9</td>
+          <td class="loc">AdScoringJob<br><code>ExecuteAsync</code> ~L115 (<code>finally</code>)</td>
+          <td class="issue">
+            <strong>Cleanup save in <code>finally</code> uses the job's <code>CancellationToken</code> — bug</strong>
+            <p>If the job is cancelled, <code>ct</code> is already in a cancelled state when the <code>finally</code> block runs. <code>SaveChangesAsync(ct)</code> and <code>PublishAsync</code> both throw <code>OperationCanceledException</code>, leaving the ad permanently stuck with <code>IsScoringPending = true</code> and never emitting the SSE event. <code>ScrapeJobRunner</code> correctly uses <code>CancellationToken.None</code> in its cleanup blocks.</p>
+          </td>
+          <td><span class="pill pill-bug">Bug</span></td>
+          <td class="refactor">Pass <code>CancellationToken.None</code> to both <code>SaveChangesAsync</code> and <code>PublishAsync</code> inside the <code>finally</code> block.</td>
+          <td class="risk"><span class="risk-trivial">Trivial</span> — Two-argument changes; zero risk.</td>
+        </tr>
+
+        <!-- 10 -->
+        <tr>
+          <td>10</td>
+          <td class="loc">AdScoringJob ~L70<br>+ ClaudeAiProvider ~L151</td>
+          <td class="issue">
+            <strong><code>ISettingsRepository.GetAsync</code> called twice per scoring job</strong>
+            <p>The settings row (a single-row table) is fetched once in <code>AdScoringJob.ExecuteAsync</code> (to check for a resume) and again inside <code>ClaudeAiProvider.ScoreAdAsync</code> (to read the model name). Two round-trips to Postgres for identical data within the same logical operation.</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Pass the already-loaded model name string as a parameter to <code>IAiProvider.ScoreAdAsync</code>, or cache settings in a short-lived <code>IMemoryCache</code> (e.g. 60 s TTL).</td>
+          <td class="risk"><span class="risk-low">Low</span> — Small interface change to <code>IAiProvider</code>; all callers are in the same solution.</td>
+        </tr>
+
+        <!-- 11 -->
+        <tr>
+          <td>11</td>
+          <td class="loc">JobAdsController<br><code>ApplyPartialMatchFilter</code> ~L543</td>
+          <td class="issue">
+            <strong>Case-insensitive search uses <code>string.ToLower()</code> — prevents index use</strong>
+            <p>EF Core translates <code>.ToLower().Contains(value)</code> to <code>LOWER(field) LIKE '%value%'</code>. This forces a full-table scan on every filtered request and is incompatible with <code>pg_trgm</code> GIN indexes or Postgres's native <code>ILIKE</code>.</p>
+          </td>
+          <td><span class="pill pill-perf">Performance</span></td>
+          <td class="refactor">Replace with <code>EF.Functions.ILike(field, $"%{value}%")</code> which maps to <code>ILIKE</code>. Add <code>CREATE INDEX … USING GIN (title gin_trgm_ops)</code> if query latency on large datasets becomes a concern.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Code change is trivial; index creation is non-blocking in Postgres but requires a migration.</td>
+        </tr>
+
+        <!-- 12 -->
+        <tr>
+          <td>12</td>
+          <td class="loc">PlaywrightScraperEngine<br>(Singleton)<br><code>GetBrowserAsync</code></td>
+          <td class="issue">
+            <strong>No browser crash recovery</strong>
+            <p>The singleton <code>_browser</code> field is set once. If the Chromium process crashes (OOM, segfault, container OOM-kill) mid-run, subsequent calls will attempt to use a disconnected browser and throw on every scrape until the application is restarted.</p>
+          </td>
+          <td><span class="pill pill-resilience">Resilience</span></td>
+          <td class="refactor">In <code>GetBrowserAsync</code>, check <code>_browser?.IsConnected == true</code> before returning the cached instance. If disconnected, null out <code>_browser</code> and <code>_playwright</code>, re-acquire the <code>SemaphoreSlim</code>, and re-initialize.</td>
+          <td class="risk"><span class="risk-medium">Medium</span> — Concurrent callers during re-init need careful handling; the existing lock already provides the right structure.</td>
+        </tr>
+
+        <!-- 13 -->
+        <tr>
+          <td>13</td>
+          <td class="loc">Program.cs ~L44</td>
+          <td class="issue">
+            <strong>Hangfire dashboard has no authentication</strong>
+            <p><code>Authorization = Array.Empty&lt;IDashboardAuthorizationFilter&gt;()</code> exposes full job history (including board URLs and parameters), manual job trigger/delete, and worker status to anyone who can reach the port. Acknowledged in a comment but unresolved.</p>
+          </td>
+          <td><span class="pill pill-security">Security</span></td>
+          <td class="refactor">Use Hangfire's built-in <code>LocalRequestsOnlyAuthorizationFilter</code> for local dev, or add a simple header/env-var token filter. Must be hardened before any non-localhost deployment.</td>
+          <td class="risk"><span class="risk-low">Low</span> — Additive change; does not affect functionality.</td>
+        </tr>
+
+        <!-- 14 -->
+        <tr>
+          <td>14</td>
+          <td class="loc">ScrapeJobRunner<br>JobBoardsController<br>(<code>/refresh</code> endpoint)</td>
+          <td class="issue">
+            <strong>No distributed lock prevents two concurrent scrape runs on the same board</strong>
+            <p>A manual <code>/refresh</code> trigger while the scheduled run is already executing starts a second <code>ScrapeJobRunner</code> for the same <code>JobBoardId</code>: two Playwright pages consumed, two <code>ScrapeRun</code> records created, and a race on <code>LastScrapedAt</code>. The duplicate-key catch in <code>ProcessAdCardAsync</code> treats the symptom, not the cause.</p>
+          </td>
+          <td><span class="pill pill-quality">Code Quality</span></td>
+          <td class="refactor">Add <code>[DisableConcurrentExecution(timeoutInSeconds: 0)]</code> to <code>ScrapeJobRunner.ExecuteAsync</code> (Hangfire distributed lock keyed by <code>jobBoardId</code>), or check for an existing <code>Running</code> <code>ScrapeRun</code> for that board before creating a new one and return early.</td>
+          <td class="risk"><span class="risk-low">Low</span> — <code>DisableConcurrentExecution</code> is a one-attribute fix with no logic change.</td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Well done -->
+  <div class="well-done">
+    <h2>What is well-implemented</h2>
+    <ul>
+      <li>Clean layer separation — Core / Infrastructure / Jobs / Api boundaries respected throughout</li>
+      <li>Forced AI tool-use with retry-backoff, per-operation timeouts, and configurable models</li>
+      <li>Correct multi-column cursor pagination sort key (<code>IsPinned DESC, ScrapedAt DESC, Id DESC</code>)</li>
+      <li>Bulk mutations via <code>ExecuteUpdateAsync</code> — single SQL <code>UPDATE</code> per bulk action, no change-tracking overhead</li>
+      <li>Timestamp interceptor — clean, non-intrusive, correctly registered as Singleton</li>
+      <li>Stale run cleanup job — 30-minute orphan detection guards against hung Playwright sessions</li>
+      <li>JSONB for complex types — <code>ScraperConfig</code>, <code>ScrapeRun.Errors</code>, <code>AdScoring.Requirements</code> stored as JSONB rather than normalised tables</li>
+      <li>CSS selector determinism — no per-ad AI call; all field extraction is done via AI-generated selectors</li>
+      <li>Playwright browser-context isolation — new context per render, no cross-run cookie/session contamination</li>
+      <li><code>OperationCanceledException</code> propagation — cancellation is correctly distinguished from other failures throughout the retry loops</li>
+    </ul>
+  </div>
+
+</body>
+</html>
