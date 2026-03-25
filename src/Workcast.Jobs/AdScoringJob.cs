@@ -67,6 +67,9 @@ public sealed class AdScoringJob
         if (!settings.HasResume)
             throw new InvalidOperationException("Cannot score: no resume has been uploaded in Settings.");
 
+        const int MinPageTextLength = 250;
+        string? scoringError = null;
+
         try
         {
             // Render the job ad page via Playwright and extract visible text directly.
@@ -74,6 +77,11 @@ public sealed class AdScoringJob
             // and guarantees zero HTML markup reaches the scoring prompt.
             _logger.LogInformation("Rendering job ad page {Url}", ad.Url);
             var pageText = await _scraperEngine.RenderPageTextAsync(ad.Url, ct: ct).ConfigureAwait(false);
+
+            if (pageText.Length < MinPageTextLength)
+                throw new InvalidOperationException(
+                    $"Job ad page rendered less than {MinPageTextLength} characters of text ({pageText.Length} chars). " +
+                    "The page may require authentication, be geo-blocked, or be temporarily unavailable.");
 
             // Call Claude for scoring.
             var result = await _aiProvider.ScoreAdAsync(
@@ -104,12 +112,24 @@ public sealed class AdScoringJob
                 "Scoring completed for job ad {AdId}. Overall score: {Score:F1}",
                 adId, result.OverallScore);
         }
+        catch (OperationCanceledException)
+        {
+            scoringError = "Scoring was cancelled.";
+        }
+        catch (Exception ex)
+        {
+            scoringError = ex.Message;
+            _logger.LogError(ex, "Scoring failed for job ad {AdId}", adId);
+        }
         finally
         {
-            // Always clear the pending flag so the UI re-enables the button,
-            // regardless of whether the job succeeded or failed.
-            ad.ClearScoringPending();
-            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+            // Always update the ad so the UI reflects the outcome.
+            if (scoringError is not null)
+                ad.SetScoringFailed(scoringError);
+            else
+                ad.ClearScoringPending();
+
+            await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
 
             await _broadcaster.PublishAsync(new WorkcastEvent
             {

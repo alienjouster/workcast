@@ -21,6 +21,83 @@ function timeAgo(date: string): string {
   return rtf.format(-Math.floor(seconds / 86400), 'day');
 }
 
+// ── Apply column cell ─────────────────────────────────────────────────────────
+
+function ApplyCell({ adId }: { adId: string }) {
+  const router = useRouter();
+  const createApplication = useCreateApplication();
+
+  return (
+    <button
+      title="Apply to this job"
+      disabled={createApplication.isPending}
+      onClick={(e) => {
+        e.stopPropagation();
+        createApplication.mutateAsync(adId).then((application) => {
+          router.push(`/applications/${application.id}`);
+        });
+      }}
+      className="text-gray-300 hover:text-indigo-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      {createApplication.isPending ? (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-indigo-400 animate-spin">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.2" />
+          <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M8 13h8m0 0-3-3m3 3-3 3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ── Score column cell ─────────────────────────────────────────────────────────
+
+function ScoreCell({ ad }: { ad: JobAd }) {
+  const runScoring = useRunScoring();
+  const { data: settings } = useSettings();
+  const hasResume = settings?.hasResume ?? false;
+
+  if (ad.isScoringPending || runScoring.isPending) {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-indigo-400 animate-spin">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.2" />
+        <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (ad.overallScore != null) {
+    return (
+      <span className={`text-xs font-medium tabular-nums ${
+        ad.overallScore >= 70 ? 'text-green-600' :
+        ad.overallScore >= 40 ? 'text-amber-500' : 'text-red-500'
+      }`}>
+        {Math.round(ad.overallScore)}%
+      </span>
+    );
+  }
+
+  return (
+    <button
+      title="✨ Run scoring analysis"
+      disabled={!hasResume}
+      onClick={(e) => { e.stopPropagation(); runScoring.mutate(ad.id); }}
+      className="text-gray-300 hover:text-indigo-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+        <path d="M3.75 13.5a8.25 8.25 0 1 1 16.5 0" />
+        <path d="M12 13.5 9.5 8.5" />
+        <circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none" />
+      </svg>
+    </button>
+  );
+}
+
 // ── Scoring sub-component ────────────────────────────────────────────────────
 
 const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className: string }> = {
@@ -29,13 +106,15 @@ const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className: strin
   gap:           { label: 'Gap',     className: 'bg-red-100   text-red-800'   },
 };
 
-function AdScoringPanel({ adId, isScoringPending }: { adId: string; isScoringPending: boolean }) {
+function AdScoringPanel({ adId, isScoringPending, lastScoringError }: { adId: string; isScoringPending: boolean; lastScoringError: string | null }) {
   const { data: scoring, isLoading, isFetching } = useAdScoring(adId, isScoringPending);
   const { data: settings } = useSettings();
   const runScoring = useRunScoring();
 
   const hasResume = settings?.hasResume ?? false;
   const isRunning = runScoring.isPending || isFetching || isScoringPending;
+
+  if (!scoring && !isRunning && !lastScoringError) return null;
 
   return (
     <div className="mt-4 border-t border-gray-200 pt-3">
@@ -46,39 +125,48 @@ function AdScoringPanel({ adId, isScoringPending }: { adId: string; isScoringPen
             <span className="ml-2 normal-case font-normal text-gray-400">{timeAgo(scoring.scoredAt)}</span>
           )}
         </span>
-        <div className="flex items-center gap-2">
-          {!hasResume && (
-            <span className="text-xs text-gray-400 italic">
-              Upload a resume from the{' '}
-              <a href="/settings" className="text-indigo-500 hover:underline">Settings page</a>
-            </span>
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => runScoring.mutate(adId)}
-            loading={isRunning}
-            disabled={isRunning || !hasResume}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 mr-1">
-              <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
-            </svg>
-            {isLoading ? 'Loading…' : scoring ? 'Re-score' : 'Run scoring'}
-          </Button>
-        </div>
+        {!scoring && !hasResume && (
+          <span className="text-xs text-gray-400 italic">
+            Upload a resume from the{' '}
+            <a href="/settings" className="text-indigo-500 hover:underline">Settings page</a>
+          </span>
+        )}
       </div>
 
       {isRunning && !scoring && (
         <p className="text-xs text-gray-400 italic">Analysing…</p>
       )}
 
+      {!isRunning && !scoring && lastScoringError && (
+        <div className="flex items-start gap-2 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0 mt-0.5">
+            <path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.28 7.22a.75.75 0 0 0-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 1 0 1.06 1.06L10 11.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L11.06 10l1.72-1.72a.75.75 0 0 0-1.06-1.06L10 8.94 8.28 7.22Z" clipRule="evenodd" />
+          </svg>
+          <span>{lastScoringError}</span>
+        </div>
+      )}
+
       {scoring && (
         <div className="space-y-3">
           {/* Score + summary box */}
-          <div className="flex items-start gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <span className="shrink-0 text-3xl font-bold text-gray-800 leading-none pt-0.5">
-              {Math.round(scoring.overallScore)}<span className="text-base font-normal text-gray-400">/100</span>
-            </span>
+          <div className="flex items-stretch gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3">
+            <div className="shrink-0 flex flex-col items-center justify-between pt-0.5">
+              <span className="text-3xl font-bold text-gray-800 leading-none">
+                {Math.round(scoring.overallScore)}<span className="text-base font-normal text-gray-400">/100</span>
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => runScoring.mutate(adId)}
+                loading={isRunning}
+                disabled={isRunning || !hasResume}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 mr-1">
+                  <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
+                </svg>
+                Re-score
+              </Button>
+            </div>
             <div className="flex-1 space-y-2">
               {scoring.recommendation && (
                 <div>
@@ -244,11 +332,9 @@ export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [noteAdId, setNoteAdId] = useState<string | null>(null);
-  const router = useRouter();
   const trashAd = useTrashAd();
   const pinAd = usePinAd();
   const markRead = useMarkAdRead();
-  const createApplication = useCreateApplication();
 
   const noteAd = noteAdId ? ads.find((a) => a.id === noteAdId) ?? null : null;
 
@@ -316,14 +402,8 @@ export function AdTable({ ads }: AdTableProps) {
             </th>
             <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
             <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
-            <th className="px-4 py-3 text-left font-medium text-gray-500 w-16">
-              <span className="flex items-center gap-1">
-                Match
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-indigo-400">
-                  <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
-                </svg>
-              </span>
-            </th>
+            <th className="px-4 py-3 w-16"></th>
+            <th className="px-4 py-3 w-10"></th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Title</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Company</th>
             <th className="px-4 py-3 text-left font-medium text-gray-500">Location</th>
@@ -387,17 +467,15 @@ export function AdTable({ ads }: AdTableProps) {
                     )}
                   </button>
                 </td>
-                <td className="px-4 py-3 text-xs font-medium tabular-nums">
-                  {ad.overallScore != null ? (
-                    <span className={
-                      ad.overallScore >= 70 ? 'text-green-600' :
-                      ad.overallScore >= 40 ? 'text-amber-500' : 'text-red-500'
-                    }>
-                      {Math.round(ad.overallScore)}%
-                    </span>
-                  ) : (
-                    <span className="text-gray-300">—</span>
-                  )}
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center">
+                    <ScoreCell ad={ad} />
+                  </div>
+                </td>
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center">
+                    <ApplyCell adId={ad.id} />
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -460,24 +538,7 @@ export function AdTable({ ads }: AdTableProps) {
               </tr>
               {expandedId === ad.id && (
                 <tr key={`${ad.id}-expand`}>
-                  <td colSpan={9} className="px-4 py-4 bg-gray-50">
-                    <div className="flex justify-end mb-3">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const application = await createApplication.mutateAsync(ad.id);
-                          router.push(`/applications/${application.id}`);
-                        }}
-                        loading={createApplication.isPending}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mr-1.5">
-                          <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-                        </svg>
-                        Apply to this job
-                      </Button>
-                    </div>
+                  <td colSpan={10} className="px-4 py-4 bg-gray-50">
                     {ad.description ? (
                       <p className="text-sm text-gray-700 whitespace-pre-wrap max-h-48 overflow-y-auto">
                         {ad.description}
@@ -491,7 +552,7 @@ export function AdTable({ ads }: AdTableProps) {
                         <span>Posted: {new Date(ad.postedAt).toLocaleDateString()}</span>
                       )}
                     </div>
-                    <AdScoringPanel adId={ad.id} isScoringPending={ad.isScoringPending} />
+                    <AdScoringPanel adId={ad.id} isScoringPending={ad.isScoringPending} lastScoringError={ad.lastScoringError} />
                   </td>
                 </tr>
               )}

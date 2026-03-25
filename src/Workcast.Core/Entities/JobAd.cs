@@ -95,6 +95,12 @@ public class JobAd
     /// </summary>
     public bool IsScoringPending { get; private set; }
 
+    /// <summary>
+    /// Human-readable error message from the last failed scoring attempt, or null if the
+    /// last scoring succeeded or has never been run.
+    /// </summary>
+    public string? LastScoringError { get; private set; }
+
     /// <summary>Navigation property — the owning job board.</summary>
     public JobBoard? JobBoard { get; private set; }
 
@@ -187,16 +193,25 @@ public class JobAd
         IsTrashed = false;
     }
 
-    /// <summary>Marks scoring as in-progress for this ad.</summary>
+    /// <summary>Marks scoring as in-progress for this ad and clears any previous error.</summary>
     public void SetScoringPending()
     {
         IsScoringPending = true;
+        LastScoringError = null;
     }
 
-    /// <summary>Clears the scoring-in-progress flag once the job completes or fails.</summary>
+    /// <summary>Clears the scoring-in-progress flag once the job completes successfully.</summary>
     public void ClearScoringPending()
     {
         IsScoringPending = false;
+        LastScoringError = null;
+    }
+
+    /// <summary>Clears the scoring-in-progress flag and records the failure reason.</summary>
+    public void SetScoringFailed(string error)
+    {
+        IsScoringPending = false;
+        LastScoringError = error;
     }
 
     /// <summary>

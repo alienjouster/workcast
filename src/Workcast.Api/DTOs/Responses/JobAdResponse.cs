@@ -63,4 +63,7 @@ public record JobAdResponse
 
     /// <summary>Gets the personal note written by the user, or null if none.</summary>
     public string? Note { get; init; }
+
+    /// <summary>Gets the error message from the last failed scoring attempt, or null if scoring succeeded or has never been run.</summary>
+    public string? LastScoringError { get; init; }
 }
