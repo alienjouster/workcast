@@ -52,7 +52,10 @@ export function useTrashAd() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.ads.trash(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    },
   });
 }
 
