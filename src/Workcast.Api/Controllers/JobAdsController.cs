@@ -314,18 +314,6 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the total count of unread job ads.
-    /// </summary>
-    /// <param name="ct">Cancellation token.</param>
-    [HttpGet("unread-count")]
-    [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
-    public async Task<IActionResult> UnreadCountAsync(CancellationToken ct)
-    {
-        var count = await _db.JobAds.CountAsync(a => !a.IsRead && !a.IsTrashed, ct);
-        return Ok(count);
-    }
-
-    /// <summary>
     /// Marks all job ads as read, optionally scoped to a specific board.
     /// </summary>
     /// <param name="boardId">Optional filter: only ads from this board.</param>

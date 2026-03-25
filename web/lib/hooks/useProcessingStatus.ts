@@ -5,9 +5,18 @@ import { api } from '@/lib/api';
 
 export function useIsProcessing() {
   return useQuery({
-    queryKey: ['processing-status'],
-    queryFn: () => api.status.isProcessing(),
+    queryKey: ['status'],
+    queryFn: () => api.status.get(),
     refetchInterval: 10_000,
     select: (data) => data.isProcessing,
+  });
+}
+
+export function useUnreadCount() {
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: () => api.status.get(),
+    refetchInterval: 10_000,
+    select: (data) => data.unreadCount,
   });
 }

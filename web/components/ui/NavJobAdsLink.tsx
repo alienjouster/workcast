@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useUnreadCount } from '@/lib/hooks/useJobAds';
+import { useUnreadCount } from '@/lib/hooks/useProcessingStatus';
 
 export function NavJobAdsLink() {
   const { data: unreadCount } = useUnreadCount();

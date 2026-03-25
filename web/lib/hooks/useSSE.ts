@@ -26,7 +26,7 @@ export function useSSE() {
       qc.invalidateQueries({ queryKey: ['job-boards'] });
       qc.invalidateQueries({ queryKey: ['scrape-runs'] });
       qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     };
 
     es.onmessage = (e: MessageEvent) => {
@@ -54,7 +54,7 @@ export function useSSE() {
           qc.invalidateQueries({ queryKey: ['scrape-runs', 'detail', event.runId] });
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });
-          qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+          qc.invalidateQueries({ queryKey: ['status'] });
           // Scraped ads never land in the trash bin, so only refresh non-trashed queries.
           qc.invalidateQueries({
             predicate: (query) =>
@@ -64,7 +64,10 @@ export function useSSE() {
           break;
 
         case 'unreadCountChanged':
-          qc.setQueryData(['job-ads-unread-count'], event.unreadCount);
+          qc.setQueryData<{ isProcessing: boolean; unreadCount: number }>(
+            ['status'],
+            (old) => old ? { ...old, unreadCount: event.unreadCount! } : old,
+          );
           break;
 
         case 'scoringCompleted':

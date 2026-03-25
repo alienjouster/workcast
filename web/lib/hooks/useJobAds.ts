@@ -1,6 +1,6 @@
 'use client';
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export interface UseJobAdsParams {
@@ -55,7 +55,7 @@ export function useDeleteAd() {
     mutationFn: (id: string) => api.ads.delete(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     },
   });
 }
@@ -66,7 +66,7 @@ export function useTrashAd() {
     mutationFn: (id: string) => api.ads.trash(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     },
   });
 }
@@ -95,7 +95,7 @@ export function useMarkAdRead() {
       read ? api.ads.markUnread(id) : api.ads.markRead(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     },
   });
 }
@@ -106,7 +106,7 @@ export function useMarkAllRead() {
     mutationFn: (boardId?: string) => api.ads.markAllRead(boardId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     },
   });
 }
@@ -115,7 +115,7 @@ export function useBulkAction() {
   const qc = useQueryClient();
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['job-ads'] });
-    qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+    qc.invalidateQueries({ queryKey: ['status'] });
   };
   const pin      = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkPin(ids),        onSuccess: invalidate });
   const unpin    = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkUnpin(ids),      onSuccess: invalidate });
@@ -134,11 +134,3 @@ export function useSetNote() {
   });
 }
 
-export function useUnreadCount() {
-  return useQuery({
-    queryKey: ['job-ads-unread-count'],
-    queryFn: () => api.ads.unreadCount(),
-    // Poll every 60 s as a fallback for missed SSE runCompleted events.
-    refetchInterval: 60_000,
-  });
-}

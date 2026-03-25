@@ -127,7 +127,6 @@ export const api = {
       apiFetch<JobAd>(`/api/job-ads/${id}/unread`, { method: 'PATCH' }),
     markAllRead: (boardId?: string) =>
       apiFetch<void>(`/api/job-ads/mark-all-read${boardId ? `?boardId=${boardId}` : ''}`, { method: 'POST' }),
-    unreadCount: () => apiFetch<number>('/api/job-ads/unread-count'),
     trash: (id: string) =>
       apiFetch<JobAd>(`/api/job-ads/${id}/trash`, { method: 'PATCH' }),
     restore: (id: string) =>
@@ -154,7 +153,7 @@ export const api = {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),
   },
   status: {
-    isProcessing: () => apiFetch<{ isProcessing: boolean }>('/api/status'),
+    get: () => apiFetch<{ isProcessing: boolean; unreadCount: number }>('/api/status'),
   },
   scoring: {
     get: (adId: string) => apiFetch<AdScoring>(`/api/job-ads/${adId}/scoring`),

@@ -174,7 +174,7 @@ export default function BoardDetailPage() {
     const hasRunning = runs.some((r) => r.status === 'running');
     if (hadRunningRunRef.current && !hasRunning) {
       qc.invalidateQueries({ queryKey: ['job-boards', id] });
-      qc.invalidateQueries({ queryKey: ['job-ads-unread-count'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     }
     hadRunningRunRef.current = hasRunning;
   }, [runs, id, qc]);
