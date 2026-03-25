@@ -290,15 +290,15 @@
         </tr>
 
         <!-- 4 -->
-        <tr>
+        <tr class="fixed">
           <td>4</td>
-          <td class="loc">JobAdsController<br><code>ListAsync</code> ~L129–141</td>
+          <td class="loc">JobAdsController<br><code>ListAsync</code> ~L125–142</td>
           <td class="issue">
-            <strong><code>TotalCount</code> is computed after the cursor predicate is applied — bug</strong>
+            <strong><code>TotalCount</code> is computed after the cursor predicate is applied — bug <span class="fixed-badge">&#10003; Fixed</span></strong>
             <p>The comment reads <em>"Count total matching items (before cursor is applied) for the badge"</em> but at that point <code>query</code> already has the cursor <code>Where</code> clause applied. On page 2+, <code>TotalCount</code> returned to the client reflects remaining items after the cursor, not the total filtered set.</p>
           </td>
           <td><span class="pill pill-bug">Bug</span></td>
-          <td class="refactor">Snapshot a pre-cursor <code>countQuery</code> variable before applying the cursor <code>Where</code> clause and run <code>CountAsync</code> on that.</td>
+          <td class="refactor">Snapshot <code>var countQuery = query</code> before the cursor <code>Where</code> clause is applied, then run <code>CountAsync</code> on <code>countQuery</code> instead of <code>query</code>.</td>
           <td class="risk"><span class="risk-trivial">Trivial</span> — One-variable change, isolated to this method.</td>
         </tr>
 

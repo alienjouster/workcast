@@ -125,6 +125,10 @@ public sealed class JobAdsController : ControllerBase
                 .Any(s => s.JobAdId == a.Id && s.OverallScore >= threshold));
         }
 
+        // Snapshot the filtered query before the cursor predicate is applied.
+        // TotalCount reflects the full filtered set regardless of which page is being fetched.
+        var countQuery = query;
+
         // Apply cursor: pinned items sort before unpinned, then ScrapedAt DESC, then Id DESC.
         if (cursorIsPinned.HasValue && cursorScrapedAt.HasValue && cursorId.HasValue)
         {
@@ -137,8 +141,7 @@ public sealed class JobAdsController : ControllerBase
                 (a.IsPinned == cPinned && a.ScrapedAt == cTs && a.Id.CompareTo(cGuid) < 0));
         }
 
-        // Count total matching items (before cursor is applied) for the badge.
-        var totalCount = await query.CountAsync(ct);
+        var totalCount = await countQuery.CountAsync(ct);
 
         // Fetch one extra item to determine if a next page exists.
         var items = await query
