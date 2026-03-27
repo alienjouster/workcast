@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { Application } from '@/types';
 import { Button } from '@/components/ui/Button';
+import { scoreColorClass } from '@/components/scoring/ScoringShared';
 import { useTrashApplication } from '@/lib/hooks/useApplications';
 
 interface ApplicationTableProps {
@@ -32,10 +33,7 @@ export function ApplicationTable({ applications }: ApplicationTableProps) {
             <tr key={app.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 text-xs font-medium tabular-nums">
                 {app.overallScore != null ? (
-                  <span className={
-                    app.overallScore >= 70 ? 'text-green-600' :
-                    app.overallScore >= 40 ? 'text-amber-500' : 'text-red-500'
-                  }>
+                  <span className={scoreColorClass(app.overallScore)}>
                     {Math.round(app.overallScore)}%
                   </span>
                 ) : (

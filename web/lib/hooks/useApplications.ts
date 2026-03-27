@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { STALE_TIMES } from '@/lib/constants';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -21,7 +22,7 @@ export function useApplications(params: ApplicationsFilter = {}, { enabled = tru
       api.applications.list({ ...params, cursor: pageParam as string | undefined }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    staleTime: 30_000,
+    staleTime: STALE_TIMES.MEDIUM,
     enabled,
   });
 }
@@ -30,7 +31,7 @@ export function useApplication(id: string) {
   return useQuery({
     queryKey: ['applications', id],
     queryFn: () => api.applications.get(id),
-    staleTime: 60_000,
+    staleTime: STALE_TIMES.LONG,
   });
 }
 

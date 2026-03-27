@@ -4,12 +4,18 @@ Technical Specification Document
 
 |             |                                |
 |-------------|--------------------------------|
-| **Version** | 1.1                            |
-| **Status**  | Draft — For Engineering Review |
-| **Date**    | March 13, 2026                 |
+| **Version** | 1.2                            |
+| **Status**  | Updated — Post-Implementation  |
+| **Date**    | March 25, 2026                 |
 | **Author**  | Solutions Architecture         |
 
 *CONFIDENTIAL — INTERNAL USE ONLY*
+
+> **Changelog — v1.2 (2026-03-25)**
+> Gap analysis pass to align specification with implemented code.
+> Major additions: AdScoring entity, Application entity, AppSettings entity, ad management
+> endpoints (pin/read/trash/note/bulk), applications API, scoring API, settings API, SSE
+> real-time events, three new background jobs, updated frontend structure.
 
 **Table of Contents**
 
@@ -23,15 +29,19 @@ This document defines the complete technical specification for the Workcast Plat
 
 Workcast allows users to register any job board URL. The platform automatically analyzes the target website using AI, generates a scraping configuration, and then scrapes job advertisements on a configurable schedule. No manual selector configuration is required from the user.
 
+Beyond scraping, the platform supports a full job-search workflow: AI-powered relevance scoring of ads against a user resume, personal notes and pinning, application tracking, and a read/trash lifecycle for managing the ad inbox.
+
 **Core value proposition:** A user provides a URL. The system handles everything else.
 
 **1.3 Scope**
 
 This specification covers:
 
-- REST API backend built with .NET 8
+- REST API backend built with .NET 10
 
 - AI-powered scraping engine using Claude API (Anthropic)
+
+- AI-powered job ad scoring engine using Claude API (Anthropic)
 
 - JavaScript-rendering layer using Microsoft Playwright
 
@@ -60,10 +70,13 @@ Out of scope for v1:
 | Scrape Run     | A single execution of the scraping pipeline for one job board                       |
 | Board Analysis | The one-time AI process that generates a scraper config from a job board URL        |
 | Scraper Config | A structured JSON document describing how to navigate and extract data from a board |
+| Ad Scoring     | The AI process that evaluates a job ad's fit against the user's resume              |
+| Application    | A user-created record tracking their application to a specific job ad               |
 | AI Provider    | An abstracted service that handles all communication with an LLM API                |
 | Hangfire       | An embedded .NET background job framework used for scheduling and queuing           |
 | Playwright     | A .NET browser automation library used to render JavaScript-heavy pages             |
 | Deduplication  | The process of preventing the same job ad from being stored more than once          |
+| SSE            | Server-Sent Events — used for real-time push notifications from API to frontend     |
 
 **2. System Architecture**
 
@@ -76,12 +89,13 @@ The platform is composed of three Docker services communicating over a private n
 │                        Docker Network                      │
 │                                                            │
 │  ┌──────────────┐    ┌─────────────────────────────────┐   │
-│  │   Next.js    │ ─▶│           .NET 8 API            │   │
+│  │   Next.js    │ ─▶│           .NET 10 API           │   │
 │  │  (port 3000) │    │           (port 8080)           │   │
 │  └──────────────┘    │  ┌─────────────────────────┐    │   │
-│                      │  │   Hangfire Scheduler    │    │   │
+│       SSE ◀──────────┤  │   Hangfire Scheduler    │    │   │
 │                      │  │   Playwright Engine     │    │   │
 │                      │  │   AI Extraction Service │    │   │
+│                      │  │   Ad Scoring Service    │    │   │
 │                      │  └─────────────────────────┘    │   │
 │                      └──────────────┬──────────────────┘   │
 │                                     │                      │
@@ -101,66 +115,33 @@ The platform is composed of three Docker services communicating over a private n
 |                    |                                                |
 |--------------------|------------------------------------------------|
 | **Component**      | **Technology & Version**                       |
-| Backend API        | .NET 8 — ASP.NET Core Web API                  |
+| Backend API        | .NET 10 — ASP.NET Core Web API                 |
 | ORM                | Entity Framework Core 8 + Npgsql provider      |
 | Database           | PostgreSQL 16                                  |
 | Browser Automation | Microsoft.Playwright for .NET                  |
 | Background Jobs    | Hangfire 1.8 (in-process, PostgreSQL storage)  |
-| AI Provider        | Anthropic Claude API (claude-sonnet-4-5 model) |
+| AI Provider        | Anthropic Claude API (configurable model)      |
 | Frontend           | Next.js 14 (App Router)                        |
 | Frontend State     | TanStack Query (React Query v5)                |
 | Containerisation   | Docker + Docker Compose v2                     |
-| API Documentation  | Scalar / OpenAPI 3                             |
+| API Documentation  | Swashbuckle / Swagger UI                       |
+| Real-Time Events   | Server-Sent Events (SSE)                       |
 
-**2.3 Solution Structure (.NET)**
+**2.3 Solution Structure**
 
-The backend follows Clean Architecture principles with clear separation of concerns.
+The backend follows Clean Architecture with four projects. The frontend is a separate Next.js application.
 
 ```
 Workcast.sln
 ├── src/
-│ ├── Workcast.Api/ # Entry point, controllers, middleware
-│ │ ├── Controllers/
-│ │ │ ├── JobBoardsController.cs
-│ │ │ └── JobAdsController.cs
-│ │ ├── Program.cs
-│ │ └── appsettings.json
-│ │
-│ ├── Workcast.Core/ # Domain entities, interfaces
-│ │ ├── Entities/
-│ │ │ ├── JobBoard.cs
-│ │ │ ├── JobAd.cs
-│ │ │ └── ScrapeRun.cs
-│ │ ├── Interfaces/
-│ │ │ ├── IScraperEngine.cs
-│ │ │ ├── IAiProvider.cs
-│ │ │ └── IJobBoardAnalyzer.cs
-│ │ └── Models/
-│ │ ├── BoardAnalysisResult.cs
-│ │ └── JobAdExtractionResult.cs
-│ │
-│ ├── Workcast.Infrastructure/ # All external concerns
-│ │ ├── Persistence/
-│ │ │ ├── AppDbContext.cs
-│ │ │ └── Migrations/
-│ │ ├── Scraping/
-│ │ │ └── PlaywrightScraperEngine.cs
-│ │ ├── AI/
-│ │ │ ├── IAiProvider.cs
-│ │ │ ├── ClaudeAiProvider.cs
-│ │ │ └── AiExtractionService.cs
-│ │ └── Scheduling/
-│ │ └── HangfireJobScheduler.cs
-│ │
-│ └── Workcast.Jobs/ # Hangfire job implementations
-│ ├── ScrapeJobRunner.cs
-│ └── BoardAnalysisJob.cs
+│ ├── Workcast.Core/          # Domain layer — entities, enums, value objects, interfaces, events
+│ ├── Workcast.Infrastructure/ # Infrastructure layer — EF Core, Playwright, Claude AI, Hangfire, SSE
+│ ├── Workcast.Jobs/          # Background jobs — board analysis, scraping, scoring, cleanup
+│ └── Workcast.Api/           # Presentation layer — controllers, DTOs, mapping, Program.cs
 │
-└── docker/
-├── docker-compose.yml
-├── .env.example
-├── api.Dockerfile
-└── web.Dockerfile
+├── web/                      # Next.js 14 frontend (App Router, TanStack Query, Tailwind)
+│
+└── docker/                   # Docker Compose, Dockerfiles, .env.example
 ```
 
 **3. Data Model**
@@ -168,9 +149,14 @@ Workcast.sln
 **3.1 Entity Relationship Overview**
 
 ```
-JobBoard 1 ──────&lt; ScrapeRun
-1 ──────&lt; JobAd
-ScrapeRun 1 ──────&lt; JobAd (optional fk, tracks which run discovered each ad)
+AppSettings (singleton)
+
+JobBoard 1 ──────< ScrapeRun
+         1 ──────< JobAd
+ScrapeRun 1 ──────< JobAd (optional fk, tracks which run discovered each ad)
+JobAd     1 ──────< AdScoring (optional, generated on demand)
+Application (independent; optionally linked to JobAd via nullable FK)
+Application 1 ──────< AdScoring (optional, same scoring model)
 ```
 
 **3.2 JobBoard**
@@ -182,7 +168,7 @@ ScrapeRun 1 ──────&lt; JobAd (optional fk, tracks which run discover
 | Name          | VARCHAR(255) — Nullable, auto-populated from page title if not provided |
 | Url           | VARCHAR(2048) — NOT NULL, the seed URL provided by the user             |
 | ScraperConfig | JSONB — Nullable, populated after board analysis completes              |
-| ScheduleCron  | VARCHAR(100) — NOT NULL, default "0  0  \* \* \*" (every day at 00:00)  |
+| ScheduleCron  | VARCHAR(100) — NOT NULL, default "0 * * * *" (every hour, on the hour) |
 | Status        | VARCHAR(50) — ENUM: pending \| active \| paused \| error                |
 | LastScrapedAt | TIMESTAMPTZ — Nullable                                                  |
 | CreatedAt     | TIMESTAMPTZ — NOT NULL, default NOW()                                   |
@@ -190,22 +176,27 @@ ScrapeRun 1 ──────&lt; JobAd (optional fk, tracks which run discover
 
 **3.3 JobAd**
 
-|                   |                                                              |
-|-------------------|--------------------------------------------------------------|
-| **Column**        | **Type / Constraints / Notes**                               |
-| Id                | UUID — Primary Key                                           |
-| JobBoardId        | UUID — FK → JobBoard.Id, CASCADE DELETE                      |
-| ScrapeRunId       | UUID — FK → ScrapeRun.Id, SET NULL (nullable)                |
-| ExternalId        | VARCHAR(512) — Nullable, board-specific identifier for dedup |
-| Url               | VARCHAR(2048) — NOT NULL                                     |
-| Title             | VARCHAR(512) — Nullable                                      |
-| Company           | VARCHAR(255) — Nullable                                      |
-| Location          | VARCHAR(255) — Nullable                                      |
-| SalaryRaw         | VARCHAR(255) — Nullable, stored as-is from listing page      |
-| Description       | TEXT — Nullable, short snippet if visible on listing page    |
-| PostedAt          | TIMESTAMPTZ — Nullable                                       |
-| ScrapedAt         | TIMESTAMPTZ — NOT NULL, default NOW()                        |
-| IsActive          | BOOLEAN — default TRUE, set FALSE if ad disappears           |
+|                   |                                                                  |
+|-------------------|------------------------------------------------------------------|
+| **Column**        | **Type / Constraints / Notes**                                   |
+| Id                | UUID — Primary Key                                               |
+| JobBoardId        | UUID — FK → JobBoard.Id, CASCADE DELETE                          |
+| ScrapeRunId       | UUID — FK → ScrapeRun.Id, SET NULL (nullable)                    |
+| ExternalId        | VARCHAR(512) — Nullable, board-specific identifier for dedup     |
+| Url               | VARCHAR(2048) — NOT NULL                                         |
+| Title             | VARCHAR(512) — Nullable                                          |
+| Company           | VARCHAR(255) — Nullable                                          |
+| Location          | VARCHAR(255) — Nullable                                          |
+| SalaryRaw         | VARCHAR(255) — Nullable, stored as-is from listing page          |
+| Description       | TEXT — Nullable, short snippet if visible on listing page        |
+| PostedAt          | TIMESTAMPTZ — Nullable                                           |
+| ScrapedAt         | TIMESTAMPTZ — NOT NULL, default NOW()                            |
+| IsActive          | BOOLEAN — default TRUE, set FALSE if ad disappears               |
+| IsRead            | BOOLEAN — default FALSE, set TRUE when user views the ad         |
+| IsPinned          | BOOLEAN — default FALSE, manually set by user                    |
+| IsTrashed         | BOOLEAN — default FALSE, soft-delete flag                        |
+| IsScoringPending  | BOOLEAN — default FALSE, TRUE while AdScoringJob is running      |
+| Note              | TEXT — Nullable, personal note written by the user per ad        |
 
 **3.4 ScrapeRun**
 
@@ -223,13 +214,61 @@ ScrapeRun 1 ──────&lt; JobAd (optional fk, tracks which run discover
 | AdsNew       | INTEGER — default 0                                           |
 | Errors       | JSONB — Array of error objects: { page, message, timestamp }  |
 
-**3.5 ScraperConfig JSON Schema**
+**3.5 AdScoring**
+
+AI-generated relevance score for a single job ad or application, computed on demand against the user's uploaded resume.
+
+|                   |                                                                          |
+|-------------------|--------------------------------------------------------------------------|
+| **Column**        | **Type / Constraints / Notes**                                           |
+| Id                | UUID — Primary Key                                                       |
+| JobAdId           | UUID — FK → JobAd.Id, CASCADE DELETE (nullable if attached to Application)|
+| ApplicationId     | UUID — FK → Application.Id, CASCADE DELETE (nullable if attached to ad)  |
+| OverallScore      | INTEGER — 0–100, AI-computed relevance score                             |
+| Recommendation    | VARCHAR(50) — e.g. "strong match", "partial match", "not recommended"    |
+| Summary           | TEXT — AI-generated summary of fit                                       |
+| Requirements      | JSONB — Array of { requirement, met (bool), explanation } breakdowns     |
+| CreatedAt         | TIMESTAMPTZ — NOT NULL, default NOW()                                    |
+
+**3.6 Application**
+
+User-created record tracking their application to a job. Mirrors key JobAd fields to remain self-contained even if the source ad is later deleted or deactivated.
+
+|                   |                                                                           |
+|-------------------|---------------------------------------------------------------------------|
+| **Column**        | **Type / Constraints / Notes**                                            |
+| Id                | UUID — Primary Key                                                        |
+| JobAdId           | UUID — FK → JobAd.Id, SET NULL (nullable) — source ad                    |
+| Title             | VARCHAR(512) — Nullable, mirrored from JobAd at creation time             |
+| Company           | VARCHAR(255) — Nullable, mirrored from JobAd                              |
+| Location          | VARCHAR(255) — Nullable, mirrored from JobAd                              |
+| SalaryRaw         | VARCHAR(255) — Nullable, mirrored from JobAd                              |
+| Description       | TEXT — Nullable, mirrored from JobAd                                      |
+| IsTrashed         | BOOLEAN — default FALSE, soft-delete flag                                 |
+| CreatedAt         | TIMESTAMPTZ — NOT NULL, default NOW()                                     |
+| UpdatedAt         | TIMESTAMPTZ — NOT NULL, updated via EF Core interceptor                   |
+
+**3.7 AppSettings**
+
+Singleton settings record for the user's global preferences. Only one row exists in the table.
+
+|                   |                                                                             |
+|-------------------|-----------------------------------------------------------------------------|
+| **Column**        | **Type / Constraints / Notes**                                              |
+| Id                | UUID — Primary Key (singleton, single known row)                            |
+| BoardAnalyzerModel| VARCHAR(100) — Claude model ID used for board analysis                      |
+| ScoringModel      | VARCHAR(100) — Claude model ID used for ad scoring                          |
+| HasResume         | BOOLEAN — default FALSE, TRUE when a resume has been uploaded               |
+| ResumeFileName    | VARCHAR(255) — Nullable, original filename of the uploaded resume           |
+| ResumeUploadedAt  | TIMESTAMPTZ — Nullable, timestamp of last successful upload                 |
+
+**3.8 ScraperConfig JSON Schema**
 
 The ScraperConfig column on JobBoard stores a structured object validated against this schema. It is generated by the AI board analysis step and stored verbatim.
 
 ```
 {
-"pagination_type": "url_param" | "next_button" | "infinite_scroll" | "none",
+"pagination_type": "url_param" | "next_button" | "infinite_scroll" | "load_more_button" | "none",
 "job_card_selector": "string (CSS selector matching each job card container on the listing page)",
 "field_selectors": {
   "detail_url": "string | null (CSS selector within card for the <a> link; null = first <a> in card)",
@@ -253,9 +292,9 @@ The ScraperConfig column on JobBoard stores a structured object validated agains
 }
 ```
 
-The `job_card_selector` replaces the former `job_links_selector`. Instead of selecting only the `<a>` link, it selects the entire card container. All field selectors are evaluated relative to each matched card element, enabling full job ad data extraction from the listing page alone — no detail page visits are required.
+The `job_card_selector` selects the entire card container. All field selectors are evaluated relative to each matched card element, enabling full job ad data extraction from the listing page alone — no detail page visits are required.
 
-**3.6 Indexes**
+**3.9 Indexes**
 
 |                                                                   |                                       |
 |-------------------------------------------------------------------|---------------------------------------|
@@ -264,6 +303,7 @@ The `job_card_selector` replaces the former `job_links_selector`. Instead of sel
 | JobAd(JobBoardId, ExternalId) UNIQUE WHERE ExternalId IS NOT NULL | Secondary dedup using board ID        |
 | JobAd(ScrapedAt DESC)                                             | Timeline queries on the ads dashboard |
 | JobAd(JobBoardId, IsActive)                                       | Filtered listing queries              |
+| JobAd(IsRead, IsTrashed)                                          | Unread count and inbox queries        |
 | ScrapeRun(JobBoardId, StartedAt DESC)                             | Run history per board                 |
 | JobBoard(Status)                                                  | Filtering active/paused boards        |
 
@@ -276,20 +316,29 @@ All AI interactions are routed through a single interface. This decouples busine
 ```
 public interface IAiProvider
 {
-// Called once when a job board is first registered (or re-analyzed).
-// Returns a structured config describing how to scrape the board,
-// including card-level CSS selectors for extracting all job ad fields
-// directly from the listing page — no detail page visits required.
-Task&lt;BoardAnalysisResult&gt; AnalyzeBoardAsync(
-string html,
-string url,
-CancellationToken ct = default);
+    // Called once when a job board is first registered (or re-analyzed).
+    // Returns a structured config describing how to scrape the board,
+    // including card-level CSS selectors for extracting all job ad fields
+    // directly from the listing page — no detail page visits required.
+    Task<BoardAnalysisResult> AnalyzeBoardAsync(
+        string html,
+        string url,
+        CancellationToken ct = default);
+
+    // Called on demand per ad to score its relevance against the user's resume.
+    // Returns a structured scoring result with overall score and per-requirement breakdown.
+    Task<AdScoringResult> ScoreAdAsync(
+        string adContent,
+        string resumeContent,
+        CancellationToken ct = default);
 }
 ```
 
+The active Claude models for each operation are configurable via `AppSettings.BoardAnalyzerModel` and `AppSettings.ScoringModel`, read from the database at runtime. This allows the user to switch models via the Settings UI without a code deployment.
+
 **4.2 Structured Output via Tool Use**
 
-To guarantee consistent response schemas, both AI operations use the Claude Tool Use API. Claude is instructed to call a specific tool with a fixed schema — it cannot return free-form JSON. The tool input is then deserialized directly into the corresponding C# record.
+To guarantee consistent response schemas, all AI operations use the Claude Tool Use API. Claude is instructed to call a specific tool with a fixed schema — it cannot return free-form JSON. The tool input is then deserialized directly into the corresponding C# record.
 
 ```
 Why Tool Use instead of a JSON prompt?
@@ -307,7 +356,7 @@ Tool name: "save_board_config"
 "properties": {
 "pagination_type": {
   "type": "string",
-  "enum": ["url_param", "next_button", "infinite_scroll", "none"]
+  "enum": ["url_param", "next_button", "infinite_scroll", "load_more_button", "none"]
 },
 "job_card_selector": { "type": "string" },
 "field_selectors": {
@@ -336,18 +385,45 @@ Tool name: "save_board_config"
 }
 ```
 
-**4.4 Job Ad Extraction — Deterministic CSS Extraction (No AI)**
+**4.4 Ad Scoring — Tool Schema**
 
-Job ad data is extracted entirely from the listing page using the `field_selectors` map generated during board analysis. For each element matching `job_card_selector`, the scraper evaluates each selector relative to the card element and reads the text content of the matched node. No AI call is made per ad.
+The ad scorer is called on demand per ad (triggered by the user or by `AdScoringJob`). It receives the ad's text content and the user's resume text, and returns a structured relevance assessment.
+
+```
+Tool name: "save_ad_score"
+{
+"type": "object",
+"required": ["overall_score", "recommendation", "summary", "requirements"],
+"properties": {
+  "overall_score":   { "type": "integer", "minimum": 0, "maximum": 100 },
+  "recommendation":  { "type": "string" },
+  "summary":         { "type": "string" },
+  "requirements": {
+    "type": "array",
+    "items": {
+      "type": "object",
+      "required": ["requirement", "met", "explanation"],
+      "properties": {
+        "requirement": { "type": "string" },
+        "met":         { "type": "boolean" },
+        "explanation": { "type": "string" }
+      }
+    }
+  }
+}
+}
+```
+
+**4.5 Job Ad Extraction — Deterministic CSS Extraction (No AI)**
+
+Job ad data is extracted entirely from the listing page using the `field_selectors` map generated during board analysis. For each element matching `job_card_selector`, the scraper evaluates each selector relative to the card element and reads the text content of the matched node. No AI call is made per ad during a scrape run.
 
 This approach means:
 - Zero AI calls per scrape run (after initial board analysis)
 - Detail pages are never visited; the user opens the ad URL directly in their browser
 - If a selector stops matching (board redesigned), self-healing triggers a new board analysis
 
-The `JobAdExtractionResult` model and the `ExtractJobAdAsync` method on `IAiProvider` are removed in this architecture.
-
-**4.5 HTML Pre-Processing (Cost Optimisation)**
+**4.6 HTML Pre-Processing (Cost Optimisation)**
 
 Raw Playwright HTML can exceed 500KB (roughly 125,000 tokens). Before sending HTML to Claude, the system applies a cleaning pipeline to reduce token consumption by 5–10x:
 
@@ -367,23 +443,23 @@ Raw Playwright HTML can exceed 500KB (roughly 125,000 tokens). Before sending HT
 
 Target: under 10,000 tokens per API call after cleaning.
 
-**4.6 Self-Healing**
+**4.7 Self-Healing**
 
-Since there are no per-ad AI calls, there are no per-ad confidence scores. Self-healing is instead triggered structurally: if `job_card_selector` matches zero elements on the first listing page of a scrape run, the system automatically enqueues a new `BoardAnalysisJob` to regenerate the `ScraperConfig`. This indicates the board's HTML structure has changed and the selectors are stale.
+Since there are no per-ad AI calls, there are no per-ad confidence scores. Self-healing is triggered structurally: if `job_card_selector` matches zero elements on the first listing page of a scrape run, the system automatically enqueues a new `BoardAnalysisJob` to regenerate the `ScraperConfig`. This indicates the board's HTML structure has changed and the selectors are stale.
 
 The `JobBoard` status is set to `error` if the re-analysis also fails.
 
-**4.7 Claude API Configuration**
+**4.8 Claude API Configuration**
 
-|               |                                                               |
-|---------------|---------------------------------------------------------------|
-| **Parameter** | **Value**                                                     |
-| Model         | claude-sonnet-4-5 (balance of quality and cost)               |
-| Max Tokens    | 1,024 (tool use responses are compact)                        |
-| Temperature   | 0 (deterministic structured output)                           |
-| tool_choice   | { "type": "tool", "name": "\<tool_name\>" } (force tool call) |
-| Timeout       | 30 seconds per call                                           |
-| Retry Policy  | 3 attempts with exponential backoff (1s, 2s, 4s)              |
+|               |                                                                      |
+|---------------|----------------------------------------------------------------------|
+| **Parameter** | **Value**                                                            |
+| Model         | Configurable per operation via AppSettings (board analyzer / scorer) |
+| Max Tokens    | 1,024 (tool use responses are compact)                               |
+| Temperature   | 0 (deterministic structured output)                                  |
+| tool_choice   | { "type": "tool", "name": "\<tool_name\>" } (force tool call)       |
+| Timeout       | 30 seconds per call                                                  |
+| Retry Policy  | 3 attempts with exponential backoff (1s, 2s, 4s)                    |
 
 **5. Scraping Pipeline**
 
@@ -398,7 +474,7 @@ POST /api/job-boards { "url": "https://example-jobs.com" }
 └─ Return 202 Accepted + board ID
 BoardAnalysisJob:
 ├─ Playwright renders the URL (full JS execution, wait for networkidle)
-├─ Extract &amp; clean HTML
+├─ Extract & clean HTML
 ├─ Send to ClaudeAiProvider.AnalyzeBoardAsync()
 ├─ Deserialize tool_use response → BoardAnalysisResult
 ├─ Persist ScraperConfig to JobBoard.ScraperConfig
@@ -428,22 +504,24 @@ ScrapeJobRunner.ExecuteAsync(jobBoardId):
 │ │ │   posted_at, description_snippet, external_id
 │ │ └─ Persist JobAd
 │ │
-│ └─ PAGINATION: (unchanged)
-│ ├─ url_param → increment param, build next URL
-│ ├─ next_button → find selector, check disabled, get href
-│ ├─ infinite_scroll → single page only (not supported)
-│ └─ none → stop
+│ └─ PAGINATION:
+│   ├─ url_param → increment param, build next URL
+│   ├─ next_button → find selector, check disabled, get href
+│   ├─ load_more_button → click selector, wait for new cards to load
+│   ├─ infinite_scroll → single page only (not supported)
+│   └─ none → stop
 │
 ├─ Update ScrapeRun (status: "completed", counts)
 ├─ Update JobBoard.LastScrapedAt
-└─ Apply stale detection (ads not seen this run → IsActive = false)
+├─ Apply stale detection (ads not seen this run → IsActive = false)
+└─ Broadcast SSE event: runCompleted
 ```
 
 No AI calls are made during a scrape run. All extraction is deterministic CSS-based logic using the selectors generated during board analysis. The `suggested_delay_ms` applies between listing pages, not between ads.
 
 **5.3 Deduplication Strategy**
 
-Deduplication is applied before rendering the detail page to avoid unnecessary Playwright and Claude API calls:
+Deduplication is applied before rendering the detail page to avoid unnecessary Playwright calls:
 
 - **Primary:** Exact URL match — JobAd.Url = detail link href (normalised, query strings stripped for comparison)
 
@@ -489,19 +567,32 @@ Deduplication is applied before rendering the detail page to avoid unnecessary P
 | POST /api/job-boards                | Register a new job board. Accepts { url, name? (optional), schedule_cron? }. Returns 202 Accepted with the created board. Triggers async board analysis. |
 | GET /api/job-boards                 | List all job boards. Returns array with status, last_scraped_at, ad counts.                                                                              |
 | GET /api/job-boards/{id}            | Get a single board with full scraper_config.                                                                                                             |
-| PATCH /api/job-boards/{id}          | Update name, schedule_cron, or status (active/paused). Re-registers Hangfire job if cron changes.                                                        |
-| DELETE /api/job-boards/{id}         | Soft delete board, cancels Hangfire job. Cascade deletes ads and runs.                                                                                   |
+| PATCH /api/job-boards/{id}          | Update name, url, schedule_cron, or status (active/paused). Re-registers Hangfire job if cron changes.                                                   |
+| DELETE /api/job-boards/{id}         | Delete board and cancel Hangfire job. Cascade deletes ads and runs.                                                                                      |
 | POST /api/job-boards/{id}/refresh   | Trigger an immediate scrape run (fire-and-forget Hangfire enqueue). Returns 202.                                                                         |
 | POST /api/job-boards/{id}/reanalyze | Trigger a new board analysis to regenerate scraper_config. Returns 202.                                                                                  |
 
 **6.3 Job Ads Endpoints**
 
-|                          |                                                                                      |
-|--------------------------|--------------------------------------------------------------------------------------|
-| **Endpoint**             | **Description**                                                                      |
-| GET /api/job-ads         | List ads. Supports: ?board_id=, ?search= (full-text), ?is_active=, ?cursor=, ?limit= |
-| GET /api/job-ads/{id}    | Get a single ad with full description and raw_html.                                  |
-| DELETE /api/job-ads/{id} | Hard delete a single ad.                                                             |
+|                                      |                                                                                                                        |
+|--------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| **Endpoint**                         | **Description**                                                                                                        |
+| GET /api/job-ads                     | List ads. Supports: ?board_ids= (multi), ?titles= (multi, include/exclude), ?locations= (multi), ?companies= (multi), ?is_active=, ?is_read=, ?is_pinned=, ?min_score=, ?trashed=, ?cursor=, ?limit= |
+| GET /api/job-ads/{id}                | Get a single ad with full fields including scoring if available.                                                       |
+| DELETE /api/job-ads/{id}             | Hard delete a single ad (typically used after trashing).                                                               |
+| PATCH /api/job-ads/{id}/pin          | Pin the ad (IsPinned = true).                                                                                          |
+| PATCH /api/job-ads/{id}/unpin        | Unpin the ad (IsPinned = false).                                                                                       |
+| PATCH /api/job-ads/{id}/read         | Mark ad as read (IsRead = true).                                                                                       |
+| PATCH /api/job-ads/{id}/unread       | Mark ad as unread (IsRead = false).                                                                                    |
+| PATCH /api/job-ads/{id}/trash        | Soft-delete the ad (IsTrashed = true).                                                                                 |
+| PATCH /api/job-ads/{id}/restore      | Restore a trashed ad (IsTrashed = false).                                                                              |
+| PATCH /api/job-ads/{id}/note         | Set or clear a personal note. Accepts { note: string \| null }.                                                        |
+| POST /api/job-ads/bulk               | Bulk action on a set of ad IDs. Accepts { ids: uuid[], action: pin\|unpin\|read\|unread\|trash }.                      |
+| POST /api/job-ads/mark-all-read      | Mark all visible (non-trashed) ads as read for a given board_id or globally.                                           |
+| GET /api/job-ads/unread-count        | Returns the count of unread, non-trashed ads. Used for the nav badge.                                                  |
+| GET /api/job-ads/distinct-titles     | Returns distinct title values for filter typeahead. Supports ?board_id=.                                               |
+| GET /api/job-ads/distinct-locations  | Returns distinct location values for filter typeahead.                                                                 |
+| GET /api/job-ads/distinct-companies  | Returns distinct company values for filter typeahead.                                                                  |
 
 **6.4 Scrape Runs Endpoints**
 
@@ -511,7 +602,62 @@ Deduplication is applied before rendering the detail page to avoid unnecessary P
 | GET /api/job-boards/{id}/runs | List scrape run history for a board (newest first). Supports ?limit=. |
 | GET /api/runs/{id}            | Get details of a single run including errors array.                   |
 
-**6.5 Error Response Format**
+**6.5 Ad Scoring Endpoints**
+
+|                               |                                                                                               |
+|-------------------------------|-----------------------------------------------------------------------------------------------|
+| **Endpoint**                  | **Description**                                                                               |
+| GET /api/ad-scoring/{adId}    | Get the existing scoring for an ad. Returns 404 if not yet scored.                            |
+| POST /api/ad-scoring/{adId}   | Trigger on-demand scoring for an ad. Enqueues AdScoringJob. Returns 202.                      |
+
+**6.6 Applications Endpoints**
+
+|                                       |                                                                                                     |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------|
+| **Endpoint**                          | **Description**                                                                                     |
+| GET /api/applications                 | List applications. Supports: ?titles=, ?locations=, ?companies=, ?min_score=, ?trashed=, ?cursor=, ?limit= |
+| GET /api/applications/{id}            | Get a single application with scoring if available.                                                 |
+| POST /api/applications                | Create an application. Accepts { job_ad_id? } — mirrors fields from the source ad if provided.     |
+| PATCH /api/applications/{id}/trash    | Soft-delete an application.                                                                         |
+| PATCH /api/applications/{id}/restore  | Restore a trashed application.                                                                      |
+| DELETE /api/applications/{id}         | Hard delete an application.                                                                         |
+| GET /api/applications/distinct-titles     | Distinct title values for filter typeahead.                                                     |
+| GET /api/applications/distinct-locations  | Distinct location values for filter typeahead.                                                  |
+| GET /api/applications/distinct-companies  | Distinct company values for filter typeahead.                                                   |
+
+**6.7 Settings Endpoints**
+
+|                               |                                                                                                              |
+|-------------------------------|--------------------------------------------------------------------------------------------------------------|
+| **Endpoint**                  | **Description**                                                                                              |
+| GET /api/settings             | Get current user settings (model choices, resume status).                                                    |
+| PATCH /api/settings           | Update settings. Accepts { board_analyzer_model?, scoring_model? }.                                          |
+| PUT /api/settings/resume      | Upload a resume file. Stored server-side; used as input to ad scoring. Returns 200 on success.               |
+| DELETE /api/settings/resume   | Delete the stored resume. Sets HasResume = false.                                                            |
+
+**6.8 Server-Sent Events Endpoint**
+
+|                |                                                                                                                 |
+|----------------|-----------------------------------------------------------------------------------------------------------------|
+| **Endpoint**   | **Description**                                                                                                 |
+| GET /api/events | SSE stream. The client holds a persistent connection. The server pushes named events as domain activity occurs. |
+
+**SSE Event Types:**
+
+| **Event Name**  | **Payload**                                | **When Fired**                                       |
+|-----------------|--------------------------------------------|------------------------------------------------------|
+| runCompleted    | { boardId, runId, adsFound, adsNew }       | When a ScrapeJobRunner finishes (success or partial)  |
+| adsExtracted    | { boardId, count }                         | Batch of new ads persisted during a scrape run        |
+| scoringComplete | { adId }                                   | When AdScoringJob finishes for an ad                  |
+
+**6.9 Status Endpoint**
+
+|                    |                                                                                              |
+|--------------------|----------------------------------------------------------------------------------------------|
+| **Endpoint**       | **Description**                                                                              |
+| GET /api/status    | Returns { is_processing: bool } — TRUE if any Hangfire jobs are currently enqueued/running. |
+
+**6.10 Error Response Format**
 
 ```
 {
@@ -539,34 +685,41 @@ Hangfire runs in-process within the .NET API container. It uses PostgreSQL as it
 
 **7.2 Job Types**
 
-|                  |                 |                                                                               |
-|------------------|-----------------|-------------------------------------------------------------------------------|
-| **Job Class**    | **Type**        | **Description**                                                               |
-| BoardAnalysisJob | Fire-and-forget | Runs once on board registration. Analyzes the board and stores ScraperConfig. |
-| ScrapeJobRunner  | Recurring       | Runs on board's cron schedule. Executes full scrape pipeline.                 |
-| ScrapeJobRunner  | Fire-and-forget | Triggered by manual refresh endpoint. Same logic, different trigger source.   |
+|                    |                 |                                                                                                     |
+|--------------------|-----------------|-----------------------------------------------------------------------------------------------------|
+| **Job Class**      | **Type**        | **Description**                                                                                     |
+| BoardAnalysisJob   | Fire-and-forget | Runs once on board registration. Analyzes the board and stores ScraperConfig.                       |
+| ScrapeJobRunner    | Recurring       | Runs on board's cron schedule. Executes full scrape pipeline.                                       |
+| ScrapeJobRunner    | Fire-and-forget | Triggered by manual refresh endpoint. Same logic, different trigger source.                         |
+| AdScoringJob       | Fire-and-forget | Triggered on-demand per ad or application. Calls AI scorer → stores AdScoring record.               |
+| AdCleanupJob       | Recurring       | Runs daily. Hard-deletes ads that have been in IsTrashed=true state for more than 30 days.          |
+| StaleRunCleanupJob | Recurring       | Runs periodically. Removes old ScrapeRun records beyond the configured retention window.            |
 
 **7.3 Schedule Management**
 
 ```
 // On board creation (after analysis):
-RecurringJob.AddOrUpdate&lt;ScrapeJobRunner&gt;(
-recurringJobId: $"scrape-{board.Id}",
-methodCall: x =&gt; x.ExecuteAsync(board.Id, CancellationToken.None),
-cronExpression: board.ScheduleCron,
-options: new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc }
+RecurringJob.AddOrUpdate<ScrapeJobRunner>(
+    recurringJobId: $"scrape-{board.Id}",
+    methodCall: x => x.ExecuteAsync(board.Id, CancellationToken.None),
+    cronExpression: board.ScheduleCron,
+    options: new RecurringJobOptions { TimeZone = TimeZoneInfo.Utc }
 );
 // On schedule update (PATCH /api/job-boards/{id}):
-RecurringJob.AddOrUpdate&lt;ScrapeJobRunner&gt;( // same ID = update
-recurringJobId: $"scrape-{board.Id}",
-...
-cronExpression: updatedBoard.ScheduleCron
+RecurringJob.AddOrUpdate<ScrapeJobRunner>( // same ID = update
+    recurringJobId: $"scrape-{board.Id}",
+    ...
+    cronExpression: updatedBoard.ScheduleCron
 );
 // On board pause or delete:
 RecurringJob.RemoveIfExists($"scrape-{board.Id}");
 // On manual refresh:
-BackgroundJob.Enqueue&lt;ScrapeJobRunner&gt;(
-x =&gt; x.ExecuteAsync(board.Id, CancellationToken.None)
+BackgroundJob.Enqueue<ScrapeJobRunner>(
+    x => x.ExecuteAsync(board.Id, CancellationToken.None)
+);
+// On ad scoring request:
+BackgroundJob.Enqueue<AdScoringJob>(
+    x => x.ExecuteAsync(adId, CancellationToken.None)
 );
 ```
 
@@ -581,53 +734,53 @@ Every new job board is assigned a default cron of "0 \* \* \* \*" (every hour, o
 ```
 version: "3.9"
 services:
-db:
-image: postgres:16-alpine
-environment:
-POSTGRES_DB: ${POSTGRES_DB}
-POSTGRES_USER: ${POSTGRES_USER}
-POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-volumes:
-- ./volumes/postgres:/var/lib/postgresql/data
-ports:
-- "5432:5432"
-healthcheck:
-test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-interval: 5s
-retries: 5
-restart: unless-stopped
-api:
-build:
-context: ..
-dockerfile: docker/api.Dockerfile
-environment:
-ConnectionStrings__Default: &gt;
-Host=db;Database=${POSTGRES_DB};
-Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-Anthropic__ApiKey: ${ANTHROPIC_API_KEY}
-Anthropic__Model: claude-sonnet-4-5
-PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
-ASPNETCORE_URLS: http://+:8080
-volumes:
-- ./volumes/playwright:/ms-playwright
-ports:
-- "8080:8080"
-depends_on:
-db:
-condition: service_healthy
-restart: unless-stopped
-web:
-build:
-context: ../web
-dockerfile: ../docker/web.Dockerfile
-environment:
-NEXT_PUBLIC_API_URL: http://localhost:8080
-API_INTERNAL_URL: http://api:8080
-ports:
-- "3000:3000"
-depends_on:
-- api
-restart: unless-stopped
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./volumes/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    environment:
+      ConnectionStrings__Default: >
+        Host=db;Database=${POSTGRES_DB};
+        Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Anthropic__ApiKey: ${ANTHROPIC_API_KEY}
+      Anthropic__Model: ${ANTHROPIC_MODEL}
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+      ASPNETCORE_URLS: http://+:8080
+    volumes:
+      - ./volumes/playwright:/ms-playwright
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  web:
+    build:
+      context: ../web
+      dockerfile: ../docker/web.Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+      API_INTERNAL_URL: http://api:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
 ```
 
 **8.2 .env.example**
@@ -638,32 +791,29 @@ POSTGRES_DB=jobscraper
 POSTGRES_USER=jobscraper
 POSTGRES_PASSWORD=changeme
 ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-sonnet-4-5
 ```
 
 **8.3 API Dockerfile**
 
+The API image uses the official `playwright/dotnet` base image which bundles Playwright browser binaries and all required system dependencies. This eliminates the need to install system packages or run `playwright install` at build time.
+
 ```
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/playwright/dotnet:v1.x.x-noble AS build
 WORKDIR /src
 COPY . .
 RUN dotnet publish src/Workcast.Api/Workcast.Api.csproj \
--c Release -o /app/publish
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+    -c Release -o /app/publish
+
+FROM mcr.microsoft.com/playwright/dotnet:v1.x.x-noble AS runtime
 WORKDIR /app
-# Playwright system dependencies
-RUN apt-get update &amp;&amp; apt-get install -y \
-libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
-libcups2 libdrm2 libxkbcommon0 libxcomposite1 \
-libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 \
-&amp;&amp; rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
-# Install Playwright browsers — uses PLAYWRIGHT_BROWSERS_PATH env var
-# Browsers are stored in the external volume, so this only runs
-# on first start or if the volume is empty.
-RUN dotnet tool install --global Microsoft.Playwright.CLI \
-&amp;&amp; ~/.dotnet/tools/playwright install chromium
+# PLAYWRIGHT_BROWSERS_PATH is set via docker-compose environment.
+# On first start (or after volume cleared), browsers are downloaded to the volume.
 ENTRYPOINT ["dotnet", "Workcast.Api.dll"]
 ```
+
+> **Important:** Do not use `apt-get` to install browser system dependencies manually, and do not use `Microsoft.Playwright.CLI` (`playwright install`). The `playwright/dotnet` base image handles both. Never bind-mount over `/ms-playwright` in a way that would shadow the image's own Playwright installation.
 
 **8.4 External Volume Strategy**
 
@@ -684,7 +834,7 @@ The API applies pending EF Core migrations automatically on startup using the fo
 
 ```
 using var scope = app.Services.CreateScope();
-var db = scope.ServiceProvider.GetRequiredService&lt;AppDbContext&gt;();
+var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 await db.Database.MigrateAsync();
 ```
 
@@ -697,63 +847,118 @@ This ensures the schema is always up to date when the container starts, includin
 ```
 web/
 ├── app/
-│ ├── layout.tsx # Root layout, navigation
-│ ├── page.tsx # Redirect to /boards
+│ ├── layout.tsx           # Root layout, navigation (Boards, Job Ads, Applications, Settings)
+│ ├── page.tsx             # Redirect to /boards
+│ ├── providers.tsx        # TanStack Query provider, theme
 │ ├── boards/
-│ │ ├── page.tsx # Board list + add board form
+│ │ ├── page.tsx           # Board list + add board form; recent runs tab
 │ │ └── [id]/
-│ │ ├── page.tsx # Board detail: config, run history
-│ │ └── ads/page.tsx # Ads for this board
-│ ├── ads/page.tsx # Global ad search/browse
-│ └── runs/[id]/page.tsx # Scrape run detail + error log
+│ │   ├── page.tsx         # Board detail: config, run history, edit schedule
+│ │   └── ads/page.tsx     # Ads for this board with active/inactive filter
+│ ├── ads/page.tsx         # Global ad search/browse with FilterBar; Trash Bin tab
+│ ├── applications/
+│ │ ├── page.tsx           # Application tracking list with filtering; Trash tab
+│ │ └── [id]/page.tsx      # Application detail view
+│ ├── runs/[id]/page.tsx   # Scrape run detail + error log
+│ ├── settings/page.tsx    # User settings: model selector, resume upload
+│ └── api/
+│   ├── [...path]/route.ts # Proxy to backend API (API_INTERNAL_URL)
+│   └── events/route.ts    # SSE relay to backend /api/events
 ├── components/
-│ ├── boards/ # Board-specific components
-│ ├── ads/ # Ad card, ad table
-│ └── ui/ # Shared design system components
+│ ├── boards/
+│ │ ├── AddBoardForm.tsx   # URL, name, cron registration form
+│ │ └── ScraperConfigView.tsx # Read-only JSON view of AI-generated config
+│ ├── ads/
+│ │ ├── AdTable.tsx        # Paginated ad table; expandable scoring panel; bulk actions
+│ │ ├── FilterBar.tsx      # Reusable filter UI with tri-state include/exclude logic
+│ │ ├── TrashTable.tsx     # Trash bin table with restore/delete actions
+│ │ └── NoteModal.tsx      # Modal for editing per-ad notes
+│ ├── applications/
+│ │ ├── ApplicationTable.tsx       # Application list with filtering
+│ │ └── ApplicationTrashTable.tsx  # Trashed applications
+│ └── ui/
+│   ├── Badge.tsx           # Status badges (board status, run status)
+│   ├── Button.tsx          # Unified button with variants and loading states
+│   ├── Card.tsx            # Container with CardHeader/CardBody
+│   ├── EmptyState.tsx      # Empty placeholder with optional action
+│   ├── LoadingSpinner.tsx  # Centered spinner
+│   ├── NavJobAdsLink.tsx   # Nav link with live unread count badge
+│   ├── SSEProvider.tsx     # Global SSE listener; triggers query invalidations
+│   └── WorkcastLogo.tsx    # Logo/branding
 ├── lib/
-│ ├── api.ts # Typed API client (fetch wrapper)
-│ └── hooks/ # TanStack Query hooks
-└── types/ # TypeScript interfaces matching API DTOs
+│ ├── api.ts               # Typed API client (fetch wrapper, all resources)
+│ └── hooks/
+│   ├── useJobBoards.ts
+│   ├── useJobAds.ts
+│   ├── useScrapeRuns.ts
+│   ├── useAdScoring.ts
+│   ├── useSettings.ts
+│   ├── useApplications.ts
+│   ├── useFilterState.ts   # Filter persistence via localStorage
+│   ├── useSSE.ts           # SSE connection hook
+│   └── useProcessingStatus.ts  # Polls /api/status for Hangfire queue state
+└── types/
+    └── index.ts            # TypeScript interfaces matching all API DTOs
 ```
 
 **9.2 Key Pages**
 
-|                              |                                                                                                                                                                                    |
-|------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Page**                     | **Functionality**                                                                                                                                                                  |
-| Boards List /boards          | List all boards with status badge, last scraped time, ad count. "Add Board" button opens inline form (just a URL field). Status polling for boards in "pending" state.             |
-| Board Detail /boards/\[id\]  | Displays name, URL, status, cron schedule (editable), scraper_config (collapsible JSON view). Buttons: Manual Refresh, Re-analyze, Pause/Resume, Delete. Recent run history table. |
-| Board Ads /boards/\[id\]/ads | Paginated ad table for this board. Columns: title, company, location, salary_raw, scraped_at, link. The link opens the original job ad URL in a new browser tab. |
-| Global Ads /ads              | Same as above but across all boards. Adds a board filter dropdown.                                                                                                |
-| Run Detail /runs/\[id\]      | Shows run metadata, pages scraped, ads found/new, and error log (if any) with page URL and error message.                                                                          |
-| Hangfire Dashboard /hangfire | Exposed directly from the API container. Links to it from the admin nav.                                                                                                           |
+|                              |                                                                                                                                                                                                                       |
+|------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Page**                     | **Functionality**                                                                                                                                                                                                     |
+| Boards List /boards          | Lists all boards with status badge, last scraped time, ad count. "Add Board" button opens inline form (URL, name, cron). Status polling for pending boards. Secondary tab shows recent scrape runs.                    |
+| Board Detail /boards/\[id\]  | Displays name, URL, status, cron schedule (editable), scraper_config (collapsible JSON view). Buttons: Manual Refresh, Re-analyze, Pause/Resume, Delete. Recent run history table.                                    |
+| Board Ads /boards/\[id\]/ads | Paginated ad table for this board. Active/inactive filter. Mark All Read button. Columns: title, company, location, salary_raw, scraped_at, link. The link opens the original job ad URL in a new browser tab.        |
+| Global Ads /ads              | Same as above but across all boards. Adds full FilterBar (board, status, title, location, company, score). Trash Bin secondary tab. Expandable rows show scoring panel.                                               |
+| Applications /applications   | Lists tracked applications with filtering (title, location, company, score). Create application from ad. Trash Bin secondary tab.                                                                                     |
+| Run Detail /runs/\[id\]      | Shows run metadata, pages scraped, ads found/new, and error log (if any) with page URL and error message.                                                                                                             |
+| Settings /settings           | Configure boardAnalyzerModel and scoringModel (Claude model IDs). Upload / delete resume file used for scoring.                                                                                                       |
+| Hangfire Dashboard /hangfire | Exposed directly from the API container. Linked from the admin nav.                                                                                                                                                   |
 
-**9.3 Polling & Real-Time Updates**
+**9.3 Real-Time Updates**
 
-Since there is no WebSocket or SSE implementation in v1, the frontend uses client-side polling for live feedback:
+The frontend uses a combination of SSE push and client-side polling:
 
-- Board status polling: every 3 seconds while any board is in "pending" state
+- **SSE (primary):** A persistent `GET /api/events` connection is maintained by `SSEProvider`. On receiving a named event, the provider invalidates the relevant TanStack Query cache keys, triggering automatic refetches.
 
-- Active run polling: every 5 seconds while a run shows status "running"
+  | **Event**       | **Queries Invalidated**              |
+  |-----------------|--------------------------------------|
+  | runCompleted    | boards, scrapeRuns, jobAds, unreadCount |
+  | adsExtracted    | jobAds, unreadCount                  |
+  | scoringComplete | adScoring for the specific adId      |
 
-- TanStack Query refetchInterval handles both cases cleanly
+- **Polling (fallback):** Used for boards still in `pending` status (every 3 seconds) and for active runs showing `running` status (every 5 seconds), in case an SSE event is missed.
+
+- **Processing indicator:** `useProcessingStatus` polls `GET /api/status` every 5 seconds to show a global activity indicator while Hangfire jobs are running.
+
+**9.4 Filter System**
+
+The `FilterBar` component is shared between the Global Ads page and the Applications page. It provides:
+
+- **Multi-value filters** with tri-state logic: include (show only matching) / exclude (hide matching) / off
+- **Typeahead inputs** for title, location, and company backed by `/api/job-ads/distinct-*` endpoints
+- **Score slider** for minimum relevance score filtering
+- **Status chips** for IsActive, IsRead, IsPinned
+- **Enable/disable toggle** to temporarily suspend all active filters without clearing them
+- Filter state is persisted to `localStorage` via `useFilterState` hook
 
 **10. Claude API Cost Analysis**
 
 **10.1 Call Volume Model**
 
-Assumptions: 20 job boards, each refreshed hourly. All extraction is deterministic after board analysis — no AI calls are made during scrape runs.
+Assumptions: 20 job boards, each refreshed hourly. All extraction is deterministic after board analysis — no AI calls are made during scrape runs. Ad scoring is on-demand only.
 
 |                       |                 |                                                         |
 |-----------------------|-----------------|---------------------------------------------------------|
 | **Phase**             | **Calls / Day** | **Breakdown**                                           |
 | Board setup (one-off) | 20 total        | 1 analysis call per board                               |
 | Recurring scrapes     | 0               | No AI per scrape run — CSS extraction only              |
+| Ad scoring            | User-driven     | 1 call per ad scored (triggered manually)               |
 | Self-heal (rare)      | ~1–2 total      | Only when a board redesigns its listing page structure  |
 
 **10.2 Cost Estimate**
 
-Based on Claude claude-sonnet-4-5 pricing (~\$3 per million input tokens) and an estimated average of 2,000 tokens per call after HTML pre-processing:
+Based on claude-sonnet-4-5 pricing (~\$3 per million input tokens) and an estimated average of 2,000 tokens per board analysis call after HTML pre-processing:
 
 |                       |                            |
 |-----------------------|----------------------------|
@@ -762,12 +967,14 @@ Based on Claude claude-sonnet-4-5 pricing (~\$3 per million input tokens) and an
 | Steady state          | ~\$0.00/day                |
 | Monthly steady state  | ~\$0.12 total (one-off)    |
 
+Ad scoring cost is negligible per call (compact ad text input) and fully user-controlled.
+
 ```
 Key architectural decision: listing-page-only extraction
 By generating field-level CSS selectors during board analysis, all subsequent
 scrape runs require zero AI calls. Claude is only invoked once per board (on
-registration or re-analysis). This reduces operational AI cost to near-zero
-regardless of scrape frequency or ad volume.
+registration or re-analysis), and optionally per ad when the user requests scoring.
+This reduces operational AI cost to near-zero regardless of scrape frequency or ad volume.
 ```
 
 **11. Non-Functional Requirements**
@@ -780,23 +987,29 @@ regardless of scrape frequency or ad volume.
 
 - Scrape run: no hard SLA, but should complete within the scheduling interval (default 1 hour)
 
+- Ad scoring: async — user triggers via UI, result available within 10–30 seconds
+
 **11.2 Reliability**
 
 - Hangfire retries failed jobs up to 3 times with exponential backoff
 
 - Playwright page load failures are caught, logged to ScrapeRun.Errors, and do not abort the entire run
 
-- Claude API call failures retry 3 times before logging the ad as an error
+- Claude API call failures retry 3 times before marking the operation as failed
 
 - A single ad extraction failure does not stop the processing of remaining ads in a run
+
+- SSE client reconnects automatically on connection drop (standard EventSource behavior)
 
 **11.3 Maintainability**
 
 - AI provider is fully abstracted — adding a new provider requires only implementing IAiProvider and updating DI registration
 
+- AI models are configurable at runtime via AppSettings — no code deployment needed to switch models
+
 - ScraperConfig (including field selectors) is stored as JSONB on JobBoard — triggering re-analysis regenerates it without any code change
 
-- Self-healing is structural (selector yields 0 results) rather than probabilistic (confidence scores), making it deterministic and observable in logs
+- Self-healing is structural (selector yields 0 results) rather than probabilistic, making it deterministic and observable in logs
 
 **11.4 Security (Local Dev Scope)**
 
@@ -807,6 +1020,8 @@ regardless of scrape frequency or ad volume.
 - volumes/ directory gitignored
 
 - Hangfire dashboard has no authentication in local dev — add middleware auth before any non-local deployment
+
+- Resume files stored server-side; access is not authenticated in v1 (single-user local dev scope)
 
 **12. Implementation Phases**
 
@@ -828,7 +1043,7 @@ The recommended build order minimises integration risk by establishing the data 
 
 - EF Core auto-migration on startup
 
-- OpenAPI/Scalar documentation
+- Swagger/Swashbuckle documentation
 
 **Phase 2 — Playwright Integration**
 
@@ -848,9 +1063,9 @@ The recommended build order minimises integration risk by establishing the data 
 
 - **Goal:** Analyze a board URL and extract job ads with Claude
 
-- IAiProvider interface (AnalyzeBoardAsync only)
+- IAiProvider interface (AnalyzeBoardAsync + ScoreAdAsync)
 
-- ClaudeAiProvider — AnalyzeBoardAsync with updated tool use schema (includes field_selectors)
+- ClaudeAiProvider — AnalyzeBoardAsync with tool use schema (includes field_selectors)
 
 - BoardAnalysisJob implementation
 
@@ -866,7 +1081,7 @@ The recommended build order minimises integration risk by establishing the data 
 
 - ScrapeJobRunner — listing-only pipeline: render listing page → CSS-extract all cards → dedup → persist
 
-- Deterministic field extraction using field_selectors from ScraperConfig (AngleSharp CSS queries)
+- Deterministic field extraction using field_selectors from ScraperConfig
 
 - Deduplication logic (URL normalisation, ExternalId check)
 
@@ -892,7 +1107,51 @@ The recommended build order minimises integration risk by establishing the data 
 
 - Hangfire dashboard exposed at /hangfire
 
-**Phase 6 — Next.js Frontend**
+**Phase 6 — Ad Lifecycle & User Features**
+
+- **Goal:** Full ad management workflow (read, pin, trash, note, bulk actions)
+
+- JobAd fields: IsRead, IsPinned, IsTrashed, IsScoringPending, Note
+
+- PATCH endpoints: pin, unpin, read, unread, trash, restore, note
+
+- POST /api/job-ads/bulk for bulk actions
+
+- GET /api/job-ads/unread-count for nav badge
+
+- Distinct-values endpoints for filter typeahead
+
+- AdCleanupJob — 30-day auto-delete of trashed ads
+
+**Phase 7 — AI Scoring**
+
+- **Goal:** Per-ad relevance scoring against user resume
+
+- AppSettings entity + SettingsController
+
+- Resume upload/delete endpoints
+
+- ClaudeAiProvider.ScoreAdAsync with tool use schema
+
+- AdScoringJob fire-and-forget background job
+
+- AdScoringController endpoints
+
+- IsScoringPending flag lifecycle
+
+**Phase 8 — Applications & SSE**
+
+- **Goal:** Application tracking and real-time UI updates
+
+- Application entity + ApplicationsController
+
+- SSE: EventBroadcaster, IEventBroadcaster interface, EventsController
+
+- SSEProvider in frontend, NavJobAdsLink unread badge
+
+- useSSE hook and query invalidation on events
+
+**Phase 9 — Next.js Frontend**
 
 - **Goal:** Usable UI for the complete feature set
 
@@ -900,15 +1159,17 @@ The recommended build order minimises integration risk by establishing the data 
 
 - TanStack Query hooks for all entities
 
-- Boards List page with Add Board form
+- Boards List, Board Detail, Board Ads pages
 
-- Board Detail page with schedule editor and run history
+- Global Ads page with FilterBar (tri-state, typeahead, score slider) and Trash Bin tab
 
-- Ads browser (per-board and global)
+- Applications page with filtering and Trash Bin tab
+
+- Settings page (model selector, resume management)
 
 - Run detail page with error log
 
-- Status polling for pending boards and active runs
+- SSE integration and real-time cache invalidation
 
 - web.Dockerfile and docker-compose service
 
@@ -920,10 +1181,11 @@ The recommended build order minimises integration risk by establishing the data 
 |------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
 | **Topic**              | **Question**                                                                                                                             |
 | Playwright concurrency | Single browser instance is safe but slow for many boards. Consider a browser pool if scrape run duration becomes a problem.              |
-| HTML cleaning depth    | The cleaning pipeline targets 10,000 tokens. Measure actual token usage on real boards in Phase 3 and tune accordingly.                  |
-| Confidence threshold   | Self-heal triggers below 0.5 confidence on \>50% of ads. Validate this threshold against real extractions.                               |
+| HTML cleaning depth    | The cleaning pipeline targets 10,000 tokens. Measure actual token usage on real boards and tune accordingly.                             |
 | Max pages safety cap   | ScraperConfig includes max_pages. Define a global hard cap (e.g. 100 pages) as a fallback if AI does not set one.                        |
-| Stale ad window        | "3 consecutive runs" for stale detection may be too aggressive or too lenient depending on board update frequency. Make it configurable. |
+| Stale ad window        | Current stale detection marks ads inactive after a single run where they don't appear. A multi-run window may be more robust.            |
+| Resume storage         | Resume file is stored on the container filesystem. For durability across container rebuilds, consider an external volume mount.           |
+| SSE reconnect backoff  | The browser's native EventSource reconnects immediately. A backoff strategy should be added before production use.                       |
 
 **13.2 Future Enhancements (Out of v1 Scope)**
 
@@ -940,3 +1202,5 @@ The recommended build order minimises integration risk by establishing the data 
 - Metrics / observability — Prometheus + Grafana for scrape run latency and AI cost tracking
 
 - Ad deduplication across boards — detect the same ad posted on multiple boards
+
+- Saved searches — persist filter configurations and get notified on new matches

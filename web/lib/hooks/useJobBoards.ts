@@ -2,12 +2,14 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { STALE_TIMES } from '@/lib/constants';
 import type { CreateJobBoardRequest, UpdateJobBoardRequest, UpdateScraperConfigRequest } from '@/types';
 
 export function useJobBoards() {
   return useQuery({
     queryKey: ['job-boards'],
     queryFn: () => api.boards.list(),
+    staleTime: STALE_TIMES.MEDIUM,
     // SSE handles instant updates; slow poll catches boards whose status changed
     // while this component was not the active SSE recipient.
     refetchInterval: (query) => {
@@ -21,6 +23,7 @@ export function useJobBoard(id: string) {
   return useQuery({
     queryKey: ['job-boards', id],
     queryFn: () => api.boards.get(id),
+    staleTime: STALE_TIMES.MEDIUM,
     // SSE handles instant updates; poll every 3 s as a fallback while board
     // analysis is in progress in case the boardStatusChanged event is delayed.
     refetchInterval: (query) =>

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { STALE_TIMES } from '@/lib/constants';
 
 const QUERY_KEY = ['settings'] as const;
 
@@ -9,6 +10,7 @@ export function useSettings() {
   return useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => api.settings.get(),
+    staleTime: STALE_TIMES.LONG,
   });
 }
 

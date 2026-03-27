@@ -37,6 +37,39 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return JSON.parse(text) as T;
 }
 
+// ── Shared query-building helpers ────────────────────────────────────────────
+
+type CommonFilterParams = {
+  titles?: string[];
+  excludeTitles?: string[];
+  locations?: string[];
+  excludeLocations?: string[];
+  companies?: string[];
+  excludeCompanies?: string[];
+  minScore?: number;
+  trashed?: boolean;
+  cursor?: string;
+  limit?: number;
+};
+
+function buildCommonFilterParams(q: URLSearchParams, params: CommonFilterParams): void {
+  params.titles?.forEach(t => q.append('titles', t));
+  params.excludeTitles?.forEach(t => q.append('excludeTitles', t));
+  params.locations?.forEach(l => q.append('locations', l));
+  params.excludeLocations?.forEach(l => q.append('excludeLocations', l));
+  params.companies?.forEach(c => q.append('companies', c));
+  params.excludeCompanies?.forEach(c => q.append('excludeCompanies', c));
+  if (params.minScore !== undefined) q.set('minScore', String(params.minScore));
+  if (params.trashed) q.set('trashed', 'true');
+  if (params.cursor) q.set('cursor', params.cursor);
+  if (params.limit) q.set('limit', String(params.limit));
+}
+
+function makeDistinctEndpoint(path: string) {
+  return (q?: string) =>
+    apiFetch<string[]>(`${path}${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+}
+
 export const api = {
   boards: {
     list: () => apiFetch<JobBoard[]>('/api/job-boards'),
@@ -69,51 +102,23 @@ export const api = {
     list: (params: {
       boardIds?: string[];
       excludeBoardIds?: string[];
-      titles?: string[];
-      excludeTitles?: string[];
-      locations?: string[];
-      excludeLocations?: string[];
-      companies?: string[];
-      excludeCompanies?: string[];
       isActive?: boolean;
       isRead?: boolean;
       isPinned?: boolean;
-      minScore?: number;
-      trashed?: boolean;
-      cursor?: string;
-      limit?: number;
-    }) => {
+    } & CommonFilterParams) => {
       const q = new URLSearchParams();
       params.boardIds?.forEach(id => q.append('boardIds', id));
       params.excludeBoardIds?.forEach(id => q.append('excludeBoardIds', id));
-      params.titles?.forEach(t => q.append('titles', t));
-      params.excludeTitles?.forEach(t => q.append('excludeTitles', t));
-      params.locations?.forEach(l => q.append('locations', l));
-      params.excludeLocations?.forEach(l => q.append('excludeLocations', l));
-      params.companies?.forEach(c => q.append('companies', c));
-      params.excludeCompanies?.forEach(c => q.append('excludeCompanies', c));
       if (params.isActive !== undefined) q.set('isActive', String(params.isActive));
       if (params.isRead !== undefined) q.set('isRead', String(params.isRead));
       if (params.isPinned !== undefined) q.set('isPinned', String(params.isPinned));
-      if (params.minScore !== undefined) q.set('minScore', String(params.minScore));
-      if (params.trashed) q.set('trashed', 'true');
-      if (params.cursor) q.set('cursor', params.cursor);
-      if (params.limit) q.set('limit', String(params.limit));
+      buildCommonFilterParams(q, params);
       const qs = q.toString();
       return apiFetch<PagedResponse<JobAd>>(`/api/job-ads${qs ? `?${qs}` : ''}`);
     },
-    distinctTitles: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/job-ads/distinct-titles${qs}`);
-    },
-    distinctLocations: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/job-ads/distinct-locations${qs}`);
-    },
-    distinctCompanies: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/job-ads/distinct-companies${qs}`);
-    },
+    distinctTitles: makeDistinctEndpoint('/api/job-ads/distinct-titles'),
+    distinctLocations: makeDistinctEndpoint('/api/job-ads/distinct-locations'),
+    distinctCompanies: makeDistinctEndpoint('/api/job-ads/distinct-companies'),
     get: (id: string) => apiFetch<JobAd>(`/api/job-ads/${id}`),
     delete: (id: string) =>
       apiFetch<void>(`/api/job-ads/${id}`, { method: 'DELETE' }),
@@ -187,29 +192,9 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ jobAdId }),
       }),
-    list: (params: {
-      titles?: string[];
-      excludeTitles?: string[];
-      locations?: string[];
-      excludeLocations?: string[];
-      companies?: string[];
-      excludeCompanies?: string[];
-      minScore?: number;
-      trashed?: boolean;
-      cursor?: string;
-      limit?: number;
-    }) => {
+    list: (params: CommonFilterParams) => {
       const q = new URLSearchParams();
-      params.titles?.forEach(t => q.append('titles', t));
-      params.excludeTitles?.forEach(t => q.append('excludeTitles', t));
-      params.locations?.forEach(l => q.append('locations', l));
-      params.excludeLocations?.forEach(l => q.append('excludeLocations', l));
-      params.companies?.forEach(c => q.append('companies', c));
-      params.excludeCompanies?.forEach(c => q.append('excludeCompanies', c));
-      if (params.minScore !== undefined) q.set('minScore', String(params.minScore));
-      if (params.trashed) q.set('trashed', 'true');
-      if (params.cursor) q.set('cursor', params.cursor);
-      if (params.limit) q.set('limit', String(params.limit));
+      buildCommonFilterParams(q, params);
       const qs = q.toString();
       return apiFetch<PagedResponse<Application>>(`/api/applications${qs ? `?${qs}` : ''}`);
     },
@@ -229,17 +214,8 @@ export const api = {
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'POST' }),
     cancelScoring: (id: string) =>
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'DELETE' }),
-    distinctTitles: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/applications/distinct-titles${qs}`);
-    },
-    distinctLocations: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/applications/distinct-locations${qs}`);
-    },
-    distinctCompanies: (q?: string) => {
-      const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-      return apiFetch<string[]>(`/api/applications/distinct-companies${qs}`);
-    },
+    distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
+    distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
+    distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),
   },
 };

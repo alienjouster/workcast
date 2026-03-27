@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { JobBoard } from '@/types';
 import { api } from '@/lib/api';
+import { STALE_TIMES, SCORE_FILTER_PRESETS } from '@/lib/constants';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ function Chip({
 
 // ── Checkbox row (binary, for Status) ────────────────────────────────────────
 
-function CheckRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
+const CheckRow = React.memo(function CheckRow({ label, checked, onToggle }: { label: string; checked: boolean; onToggle: () => void }) {
   return (
     <button
       onClick={onToggle}
@@ -165,11 +166,11 @@ function CheckRow({ label, checked, onToggle }: { label: string; checked: boolea
       {label}
     </button>
   );
-}
+});
 
 // ── Tri-state row (none → include → exclude → none) ──────────────────────────
 
-function TriStateCheckRow({ label, state, onCycle }: { label: string; state: TriState; onCycle: () => void }) {
+const TriStateCheckRow = React.memo(function TriStateCheckRow({ label, state, onCycle }: { label: string; state: TriState; onCycle: () => void }) {
   const isInclude = state === 'include';
   const isExclude = state === 'exclude';
   const textClass = isInclude ? 'text-indigo-700 font-medium' : isExclude ? 'text-rose-700 font-medium' : 'text-gray-700';
@@ -199,7 +200,7 @@ function TriStateCheckRow({ label, state, onCycle }: { label: string; state: Tri
       {label}
     </button>
   );
-}
+});
 
 // ── Back button ───────────────────────────────────────────────────────────────
 
@@ -237,7 +238,7 @@ function TypeaheadPicker({
   const { data: suggestions = [] } = useQuery({
     queryKey: ['distinct', cacheKey, q],
     queryFn: () => fetchFn(q),
-    staleTime: 30_000,
+    staleTime: STALE_TIMES.MEDIUM,
   });
 
   const trimmed = q.trim();
@@ -320,7 +321,7 @@ function ScorePicker({ value, onChange }: { value: number | undefined; onChange:
     <div className="p-4 w-60">
       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Minimum match score</p>
       <div className="flex gap-2 mb-4">
-        {[70, 80, 90].map(preset => (
+        {SCORE_FILTER_PRESETS.map(preset => (
           <button
             key={preset}
             onClick={() => { setLocal(preset); onChange(preset); }}
@@ -364,43 +365,9 @@ function ScorePicker({ value, onChange }: { value: number | undefined; onChange:
   );
 }
 
-// ── FilterBar ─────────────────────────────────────────────────────────────────
+// ── Filter menu items (static — defined outside to avoid recreation on every render) ──
 
-export function FilterBar({
-  filters,
-  onChange,
-  features = ALL_FEATURES,
-  boards = [],
-  suggestionFetchers,
-}: FilterBarProps) {
-  const [popover, setPopover] = useState<PopoverView | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const fetchers: Required<SuggestionFetchers> = {
-    titles:    suggestionFetchers?.titles    ?? ((q) => api.ads.distinctTitles(q)),
-    locations: suggestionFetchers?.locations ?? ((q) => api.ads.distinctLocations(q)),
-    companies: suggestionFetchers?.companies ?? ((q) => api.ads.distinctCompanies(q)),
-  };
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node))
-        setPopover(null);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  const update = (patch: Partial<FilterState>) => onChange({ ...filters, ...patch });
-
-  const toggle = <T extends string>(arr: T[], val: T): T[] =>
-    arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
-
-  const getBoardName = (id: string) => boards.find(b => b.id === id)?.name ?? boards.find(b => b.id === id)?.url ?? id;
-
-  const active = hasActiveFilters(filters);
-
-  const ALL_MENU_ITEMS: { key: PopoverView; label: string; feature: FilterFeature; icon: React.ReactNode }[] = [
+const ALL_MENU_ITEMS: { key: PopoverView; label: string; feature: FilterFeature; icon: React.ReactNode }[] = [
     {
       key: 'title', feature: 'title', label: 'Title',
       icon: (
@@ -449,9 +416,54 @@ export function FilterBar({
         </svg>
       ),
     },
-  ];
+];
 
-  const MENU_ITEMS = ALL_MENU_ITEMS.filter(item => features.includes(item.feature));
+// ── FilterBar ─────────────────────────────────────────────────────────────────
+
+export function FilterBar({
+  filters,
+  onChange,
+  features = ALL_FEATURES,
+  boards = [],
+  suggestionFetchers,
+}: FilterBarProps) {
+  const [popover, setPopover] = useState<PopoverView | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const fetchers: Required<SuggestionFetchers> = useMemo(() => ({
+    titles:    suggestionFetchers?.titles    ?? ((q) => api.ads.distinctTitles(q)),
+    locations: suggestionFetchers?.locations ?? ((q) => api.ads.distinctLocations(q)),
+    companies: suggestionFetchers?.companies ?? ((q) => api.ads.distinctCompanies(q)),
+  }), [suggestionFetchers]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node))
+        setPopover(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const update = useCallback(
+    (patch: Partial<FilterState>) => onChange({ ...filters, ...patch }),
+    [filters, onChange]
+  );
+
+  const toggle = <T extends string>(arr: T[], val: T): T[] =>
+    arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+
+  const getBoardName = useCallback(
+    (id: string) => boards.find(b => b.id === id)?.name ?? boards.find(b => b.id === id)?.url ?? id,
+    [boards]
+  );
+
+  const active = hasActiveFilters(filters);
+
+  const MENU_ITEMS = useMemo(
+    () => ALL_MENU_ITEMS.filter(item => features.includes(item.feature)),
+    [features]
+  );
 
   return (
     <div className="relative" ref={containerRef}>

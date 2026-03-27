@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { PagedResponse, JobAd } from '@/types';
 import { api } from '@/lib/api';
+import { STALE_TIMES } from '@/lib/constants';
 
 export function useAdScoring(adId: string, isScoringPending = false) {
   return useQuery({
@@ -17,6 +18,7 @@ export function useAdScoring(adId: string, isScoringPending = false) {
         return null;
       }
     },
+    staleTime: STALE_TIMES.SHORT,
     // Poll every 3 s while a scoring job is in flight so results appear as soon
     // as the job finishes, without relying solely on the SSE event.
     refetchInterval: isScoringPending ? 3_000 : false,

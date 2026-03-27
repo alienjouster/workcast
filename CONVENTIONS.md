@@ -204,9 +204,8 @@ export function useJobBoard(id: string) {
 
 ## Git Conventions
 
-- Branch per agent: `agent/1-core`, `agent/2-infrastructure`, etc.
-- Commit message format: `[Agent N] short description`
-  - e.g. `[Agent 1] Add JobBoard entity and IAiProvider interface`
+- Commit message format: `short description`
+  - e.g. `Add JobBoard entity and IAiProvider interface`
 - One commit per logical unit of work — not one giant commit per agent
 - No merge commits — use rebase
 

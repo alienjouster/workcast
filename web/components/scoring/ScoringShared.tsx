@@ -1,4 +1,5 @@
 import type { ScoringCategory, ScoringRequirement } from '@/types';
+import { SCORE_GOOD, SCORE_FAIR } from '@/lib/constants';
 
 // ── Category styles ────────────────────────────────────────────────────────────
 
@@ -11,7 +12,7 @@ export const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className
 // ── Score colour helper ────────────────────────────────────────────────────────
 
 export function scoreColorClass(score: number): string {
-  return score >= 70 ? 'text-green-600' : score >= 40 ? 'text-amber-500' : 'text-red-500';
+  return score >= SCORE_GOOD ? 'text-green-600' : score >= SCORE_FAIR ? 'text-amber-500' : 'text-red-500';
 }
 
 // ── Scoring spinner ────────────────────────────────────────────────────────────

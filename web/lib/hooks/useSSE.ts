@@ -4,16 +4,13 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { UseJobAdsParams } from '@/lib/hooks/useJobAds';
 
-interface SseEvent {
-  type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged' | 'scoringCompleted' | 'applicationScoringCompleted';
-  boardId?: string;
-  runId?: string;
-  adId?: string;
-  applicationId?: string;
-  status?: string;
-  adsNew?: number;
-  unreadCount?: number;
-}
+type SseEvent =
+  | { type: 'boardStatusChanged'; boardId: string }
+  | { type: 'runStarted'; boardId: string }
+  | { type: 'runCompleted'; boardId: string; runId: string }
+  | { type: 'unreadCountChanged'; unreadCount: number }
+  | { type: 'scoringCompleted'; adId: string }
+  | { type: 'applicationScoringCompleted'; applicationId: string };
 
 export function useSSE() {
   const qc = useQueryClient();
@@ -67,7 +64,7 @@ export function useSSE() {
         case 'unreadCountChanged':
           qc.setQueryData<{ isProcessing: boolean; unreadCount: number }>(
             ['status'],
-            (old) => old ? { ...old, unreadCount: event.unreadCount! } : old,
+            (old) => old ? { ...old, unreadCount: event.unreadCount } : old,
           );
           break;
 
