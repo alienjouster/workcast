@@ -14,7 +14,7 @@ export interface ApplicationsFilter {
   trashed?: boolean;
 }
 
-export function useApplications(params: ApplicationsFilter = {}) {
+export function useApplications(params: ApplicationsFilter = {}, { enabled = true }: { enabled?: boolean } = {}) {
   return useInfiniteQuery({
     queryKey: ['applications', params],
     queryFn: ({ pageParam }) =>
@@ -22,6 +22,7 @@ export function useApplications(params: ApplicationsFilter = {}) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     staleTime: 30_000,
+    enabled,
   });
 }
 
@@ -73,6 +74,31 @@ export function useUpdateApplicationJobAdContent(id: string) {
     mutationFn: (content: string | null) => api.applications.updateJobAdContent(id, content),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}
+
+export function useCancelApplicationScoring(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.cancelScoring(id),
+    onSuccess: () => {
+      queryClient.setQueryData<import('@/types').Application>(['applications', id], (old) =>
+        old ? { ...old, isScoringPending: false } : old
+      );
+    },
+  });
+}
+
+export function useRunApplicationScoring(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.score(id),
+    onSuccess: () => {
+      // Optimistically mark as pending so the button disables immediately.
+      queryClient.setQueryData<import('@/types').Application>(['applications', id], (old) =>
+        old ? { ...old, isScoringPending: true, lastScoringError: null } : old
+      );
     },
   });
 }

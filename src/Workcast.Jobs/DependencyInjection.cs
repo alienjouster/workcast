@@ -17,11 +17,13 @@ public static class DependencyInjection
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddJobs(this IServiceCollection services)
     {
+        services.AddTransient<ScoringPipeline>();
         services.AddTransient<BoardAnalysisJob>();
         services.AddTransient<ScrapeJobRunner>();
         services.AddTransient<StaleRunCleanupJob>();
         services.AddTransient<AdScoringJob>();
         services.AddTransient<AdCleanupJob>();
+        services.AddTransient<ApplicationScoringJob>();
         return services;
     }
 }

@@ -67,4 +67,10 @@ public record ApplicationResponse
     /// Null when the fetch failed or returned fewer than 250 characters.
     /// </summary>
     public string? JobAdContent { get; init; }
+
+    /// <summary>Gets a value indicating whether a scoring job is currently in progress.</summary>
+    public required bool IsScoringPending { get; init; }
+
+    /// <summary>Gets the error message from the most recent failed scoring attempt, or null.</summary>
+    public string? LastScoringError { get; init; }
 }

@@ -225,6 +225,10 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ content }),
       }),
+    score: (id: string) =>
+      apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'POST' }),
+    cancelScoring: (id: string) =>
+      apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'DELETE' }),
     distinctTitles: (q?: string) => {
       const qs = q ? `?q=${encodeURIComponent(q)}` : '';
       return apiFetch<string[]>(`/api/applications/distinct-titles${qs}`);

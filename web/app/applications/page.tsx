@@ -46,15 +46,18 @@ export default function ApplicationsPage() {
     trashed: true,
   });
 
-  const totalAppsQuery = useApplications({ trashed: false });
-  const totalTrashQuery = useApplications({ trashed: true });
+  const appsFiltered = hasActiveFilters(filters);
+  const trashFiltered = hasActiveFilters(trashFilters);
+
+  const totalAppsQuery = useApplications({ trashed: false }, { enabled: appsFiltered });
+  const totalTrashQuery = useApplications({ trashed: true }, { enabled: trashFiltered });
 
   const activeQuery = view === 'applications' ? appsQuery : trashQuery;
   const allItems = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
-  const totalAppsCount = totalAppsQuery.data?.pages[0]?.totalCount ?? 0;
   const filteredAppsCount = appsQuery.data?.pages[0]?.totalCount ?? 0;
-  const totalTrashCount = totalTrashQuery.data?.pages[0]?.totalCount ?? 0;
+  const totalAppsCount = appsFiltered ? (totalAppsQuery.data?.pages[0]?.totalCount ?? 0) : filteredAppsCount;
   const filteredTrashCount = trashQuery.data?.pages[0]?.totalCount ?? 0;
+  const totalTrashCount = trashFiltered ? (totalTrashQuery.data?.pages[0]?.totalCount ?? 0) : filteredTrashCount;
 
   const suggestionFetchers = {
     titles:    (q: string) => api.applications.distinctTitles(q),

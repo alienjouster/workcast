@@ -263,7 +263,9 @@ public static class MappingExtensions
                     Notes = r.Notes,
                 })
                 .ToList(),
-            JobAdContent = app.JobAdContent,
+            JobAdContent     = app.JobAdContent,
+            IsScoringPending = app.IsScoringPending,
+            LastScoringError = app.LastScoringError,
         };
     }
 

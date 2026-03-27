@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication, useUpdateApplicationJobAdContent } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring } from '@/lib/hooks/useApplications';
+import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import type { ScoringCategory, ScoringRequirement } from '@/types';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid } from '@/components/scoring/ScoringShared';
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -19,15 +21,12 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'stages',  label: 'Stages' },
 ];
 
-// ── Scoring helpers ───────────────────────────────────────────────────────────
-
-const CATEGORY_STYLES: Record<ScoringCategory, { label: string; className: string }> = {
-  match:         { label: 'Match',   className: 'bg-green-100 text-green-800' },
-  partial_match: { label: 'Partial', className: 'bg-amber-100 text-amber-800' },
-  gap:           { label: 'Gap',     className: 'bg-red-100   text-red-800'   },
-};
-
 // ── Tab content ───────────────────────────────────────────────────────────────
+
+// Returns true if the content appears to be HTML (produced by the rich-text editor).
+function isHtmlContent(s: string) {
+  return s.trimStart().startsWith('<');
+}
 
 function JobAdContentSection({ appId, content }: { appId: string; content: string | null }) {
   const [editing, setEditing] = useState(false);
@@ -44,8 +43,10 @@ function JobAdContentSection({ appId, content }: { appId: string; content: strin
   }
 
   function save() {
+    // Tiptap outputs '<p></p>' for an empty doc — treat that as null.
     const trimmed = draft.trim();
-    saveContent(trimmed.length > 0 ? trimmed : null, {
+    const isEmpty = trimmed.length === 0 || trimmed === '<p></p>';
+    saveContent(isEmpty ? null : trimmed, {
       onSuccess: () => setEditing(false),
     });
   }
@@ -82,14 +83,16 @@ function JobAdContentSection({ appId, content }: { appId: string; content: strin
       </div>
       <div className="px-6 py-4">
         {editing ? (
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={20}
-            className="w-full text-sm text-gray-700 border border-gray-200 rounded-md p-3 font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          />
+          <RichTextEditor value={draft} onChange={setDraft} minHeight={400} />
         ) : content !== null ? (
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">{content}</p>
+          isHtmlContent(content) ? (
+            <div
+              className="prose prose-sm max-w-none text-gray-700"
+              dangerouslySetInnerHTML={{ __html: content }}
+            />
+          ) : (
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{content}</p>
+          )
         ) : (
           <div className="flex items-start gap-3 text-sm text-amber-700 bg-amber-50 rounded-md p-4">
             <span className="shrink-0 text-amber-500 mt-0.5">⚠</span>
@@ -159,34 +162,116 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ── AI sparkle icon ───────────────────────────────────────────────────────────
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M15.5 2a.5.5 0 0 1 .463.311l.82 2.047 2.047.82a.5.5 0 0 1 0 .925l-2.047.82-.82 2.047a.5.5 0 0 1-.925 0l-.82-2.047-2.047-.82a.5.5 0 0 1 0-.925l2.047-.82.82-2.047A.5.5 0 0 1 15.5 2ZM6 6a.5.5 0 0 1 .463.311l1.18 2.95 2.95 1.18a.5.5 0 0 1 0 .925l-2.95 1.18-1.18 2.95a.5.5 0 0 1-.925 0l-1.18-2.95-2.95-1.18a.5.5 0 0 1 0-.925l2.95-1.18 1.18-2.95A.5.5 0 0 1 6 6Z" />
+    </svg>
+  );
+}
+
+// ── Scoring tab ────────────────────────────────────────────────────────────────
+
 function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
+  const { data: settings } = useSettings();
+  const runScoring = useRunApplicationScoring(app?.id ?? '');
+  const cancelScoring = useCancelApplicationScoring(app?.id ?? '');
+
   if (!app) return null;
 
-  if (app.overallScore == null) {
+  const hasResume  = settings?.hasResume ?? false;
+  const isRunning  = app.isScoringPending || runScoring.isPending;
+  const hasScore   = app.overallScore != null;
+
+  // ── Pending spinner ────────────────────────────────────────────────────────
+  if (isRunning) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
-        <p className="text-gray-400 text-sm">No scoring data was available when this application was created.</p>
+      <div className="bg-white rounded-lg border border-gray-200 p-8 flex flex-col items-center gap-4">
+        <ScoringSpinner />
+        <p className="text-sm text-gray-400">Scoring in progress…</p>
+        {app.isScoringPending && !runScoring.isPending && (
+          <button
+            onClick={() => cancelScoring.mutate()}
+            disabled={cancelScoring.isPending}
+            className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2 disabled:opacity-50"
+          >
+            {cancelScoring.isPending ? 'Cancelling…' : 'Cancel'}
+          </button>
+        )}
       </div>
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Score + summary */}
-      <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 flex items-start gap-6">
-        <div className="shrink-0 text-center">
-          <span className={`text-4xl font-bold ${
-            app.overallScore >= 70 ? 'text-green-600' :
-            app.overallScore >= 40 ? 'text-amber-500' : 'text-red-500'
-          }`}>
-            {Math.round(app.overallScore)}
-          </span>
-          <span className="text-lg font-normal text-gray-400">/100</span>
-          {app.scoredAt && (
+  // ── Error banner (shown above results or above the "no score" box) ─────────
+  const errorBanner = app.lastScoringError
+    ? <ScoringErrorBanner error={app.lastScoringError} />
+    : null;
+
+  // ── No score yet ───────────────────────────────────────────────────────────
+  if (!hasScore) {
+    return (
+      <div className="space-y-3">
+        {errorBanner}
+        <div className="bg-white rounded-lg border border-gray-200 p-8 flex flex-col items-center gap-4 text-center">
+          <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
+            <SparkleIcon className="w-6 h-6 text-indigo-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-700">No scoring data yet</p>
             <p className="text-xs text-gray-400 mt-1">
-              Scored {new Date(app.scoredAt).toLocaleDateString()}
+              AI scoring compares your resume against this job ad and produces a match score,
+              requirement breakdown, and recommendation.
+            </p>
+          </div>
+          {!hasResume && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Upload a resume from the{' '}
+              <a href="/settings" className="underline hover:text-amber-800">Settings page</a>
+              {' '}to enable scoring.
             </p>
           )}
+          <button
+            onClick={() => runScoring.mutate()}
+            disabled={!hasResume || runScoring.isPending}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <SparkleIcon className="w-4 h-4" />
+            Score now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Score exists ───────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-4">
+      {errorBanner}
+
+      {/* Score + summary + re-score button */}
+      <div className="bg-white rounded-lg border border-gray-200 px-6 py-5 flex items-start gap-6">
+        <div className="shrink-0 flex flex-col items-center gap-2 pt-0.5">
+          <div className="text-center">
+            <span className={`text-4xl font-bold ${scoreColorClass(app.overallScore!)}`}>
+              {Math.round(app.overallScore!)}
+            </span>
+            <span className="text-lg font-normal text-gray-400">/100</span>
+            {app.scoredAt && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                {new Date(app.scoredAt).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => runScoring.mutate()}
+            disabled={!hasResume || runScoring.isPending}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <SparkleIcon className="w-3.5 h-3.5" />
+            Re-score
+          </button>
         </div>
         <div className="flex-1 space-y-3">
           {app.recommendation && (
@@ -204,38 +289,7 @@ function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] })
 
       {/* Requirements */}
       {app.requirements.length > 0 && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden text-sm">
-          {(['match', 'partial_match', 'gap'] as ScoringCategory[]).map((cat) => {
-            const items = app.requirements.filter((r: ScoringRequirement) => r.category === cat);
-            const style = CATEGORY_STYLES[cat];
-            return (
-              <div key={cat}>
-                <div className={`px-4 py-1.5 font-semibold text-[11px] uppercase tracking-wide border-b border-gray-100 ${style.className}`}>
-                  {style.label}
-                </div>
-                <div className="px-4 py-2 border-b border-gray-100 last:border-b-0">
-                  {items.length === 0 ? (
-                    <p className="text-gray-300 italic text-xs">N/A</p>
-                  ) : (
-                    <div className="grid text-xs" style={{ gridTemplateColumns: 'minmax(0, 30%) 1fr' }}>
-                      {items.map((req: ScoringRequirement, i: number) => (
-                        <div key={i} className="contents">
-                          <div className={`py-1 pr-3 text-gray-700 break-words ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-                            {req.name}
-                            {req.isOptional && <span className="ml-1 text-[10px] text-gray-400">(opt)</span>}
-                          </div>
-                          <div className={`py-1 text-gray-400 ${i > 0 ? 'border-t border-gray-100' : ''}`}>
-                            {req.notes ?? ''}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <ScoringRequirementsGrid requirements={app.requirements} />
       )}
     </div>
   );

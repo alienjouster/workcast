@@ -153,6 +153,8 @@ export interface Application {
   recommendation: string | null;
   requirements: ScoringRequirement[];
   jobAdContent: string | null;
+  isScoringPending: boolean;
+  lastScoringError: string | null;
 }
 
 export interface UpdateSettingsRequest {

@@ -1,13 +1,15 @@
 using System.Linq.Expressions;
-using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
+using Hangfire;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Core.Entities;
+using Workcast.Core.Interfaces;
 using Workcast.Infrastructure.Persistence;
+using Workcast.Jobs;
 
 namespace Workcast.Api.Controllers;
 
@@ -25,13 +27,21 @@ public sealed class ApplicationsController : ControllerBase
     private const int MinJobAdContentLength = 250;
 
     private readonly AppDbContext _db;
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IScraperEngine _scraperEngine;
+    private readonly ISettingsRepository _settingsRepository;
+    private readonly IBackgroundJobClient _backgroundJobClient;
 
     /// <summary>Initializes a new instance of <see cref="ApplicationsController"/>.</summary>
-    public ApplicationsController(AppDbContext db, IHttpClientFactory httpClientFactory)
+    public ApplicationsController(
+        AppDbContext db,
+        IScraperEngine scraperEngine,
+        ISettingsRepository settingsRepository,
+        IBackgroundJobClient backgroundJobClient)
     {
         _db = db;
-        _httpClientFactory = httpClientFactory;
+        _scraperEngine = scraperEngine;
+        _settingsRepository = settingsRepository;
+        _backgroundJobClient = backgroundJobClient;
     }
 
     /// <summary>
@@ -288,20 +298,72 @@ public sealed class ApplicationsController : ControllerBase
         return Ok(application.ToResponse());
     }
 
+    /// <summary>
+    /// Enqueues a scoring job for the given application and returns 202 Accepted immediately.
+    /// The result will be delivered via SSE (<c>applicationScoringCompleted</c> event) when done.
+    /// Returns 422 if no resume has been uploaded.
+    /// </summary>
+    [HttpPost("{id:guid}/scoring")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> RunScoringAsync(Guid id, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+        if (!settings.HasResume)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No resume uploaded",
+                Detail = "Upload a resume in Settings before running scoring.",
+            });
+        }
+
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.SetScoringPending();
+        await _db.SaveChangesAsync(ct);
+
+        _backgroundJobClient.Enqueue<ApplicationScoringJob>(j => j.ExecuteAsync(id, CancellationToken.None));
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Clears a stuck <c>isScoringPending</c> flag, allowing the user to re-trigger scoring.
+    /// Safe to call even if scoring is not currently pending.
+    /// </summary>
+    [HttpDelete("{id:guid}/scoring")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelScoringAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.ClearScoringPending();
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Fetches the job ad page and returns its readable text content.
-    /// Returns null if the fetch fails or the content is shorter than <see cref="MinJobAdContentLength"/>.
+    /// Renders the job ad page via Playwright and returns sanitized HTML that preserves
+    /// the visual structure (headings, bold, italic, lists, inline styles) while stripping
+    /// scripts, navigation, images, and dangerous attributes.
+    /// Returns null if rendering fails or the extracted text content is shorter than
+    /// <see cref="MinJobAdContentLength"/>.
     /// </summary>
     private async Task<string?> FetchJobAdContentAsync(string url, CancellationToken ct)
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("UrlValidation");
-            var html = await client.GetStringAsync(url, ct);
-            var text = ExtractTextFromHtml(html);
-            return text.Length >= MinJobAdContentLength ? text : null;
+            var html = await _scraperEngine.RenderPageAsync(url, ct: ct);
+            var sanitized = SanitizePageHtml(html);
+            // Measure meaningful text length by stripping tags from the sanitized output.
+            var textLength = Regex.Replace(sanitized, @"<[^>]+>", "").Trim().Length;
+            return textLength >= MinJobAdContentLength ? sanitized : null;
         }
         catch
         {
@@ -309,20 +371,68 @@ public sealed class ApplicationsController : ControllerBase
         }
     }
 
-    private static string ExtractTextFromHtml(string html)
+    /// <summary>
+    /// Sanitizes raw page HTML for storage and display in the rich-text Job Ad Detail panel.
+    /// Keeps structural and inline-styled markup; removes everything that is either dangerous
+    /// (scripts, event handlers) or irrelevant to the job description (nav, images, forms).
+    /// </summary>
+    private static string SanitizePageHtml(string html)
     {
-        // Remove script and style blocks entirely.
-        html = Regex.Replace(html, @"<(script|style)[^>]*>[\s\S]*?</(script|style)>", " ", RegexOptions.IgnoreCase);
-        // Replace block-level tags with newlines to preserve structure.
-        html = Regex.Replace(html, @"<(br|p|div|h[1-6]|li|tr|td|th)[^>]*\s*/?>", "\n", RegexOptions.IgnoreCase);
-        // Remove remaining tags.
-        html = Regex.Replace(html, @"<[^>]+>", "");
-        // Decode HTML entities.
-        html = System.Net.WebUtility.HtmlDecode(html);
-        // Normalise whitespace: collapse spaces/tabs but preserve newlines.
-        html = Regex.Replace(html, @"[ \t]+", " ");
-        html = Regex.Replace(html, @"\n{3,}", "\n\n");
-        return html.Trim();
+        // ── 1. Extract the most focused content region available ─────────────
+        // Prefer <main> or <article> over the full <body> to skip page chrome.
+        var content =
+            TryExtractElement(html, "main") ??
+            TryExtractElement(html, "article") ??
+            TryExtractElement(html, "body") ??
+            html;
+
+        // ── 2. Remove blocks that are never useful for job-description display ─
+        content = Regex.Replace(
+            content,
+            @"<(script|style|noscript|nav|header|footer|aside|form|iframe|svg|figure)[^>]*>[\s\S]*?</(script|style|noscript|nav|header|footer|aside|form|iframe|svg|figure)>",
+            "",
+            RegexOptions.IgnoreCase);
+
+        // Remove self-closing / void elements that add no readable value.
+        content = Regex.Replace(
+            content,
+            @"<(img|input|select|textarea|button|link|meta|canvas|video|audio|source|track|embed|object)[^>]*/?>",
+            "",
+            RegexOptions.IgnoreCase);
+
+        // ── 3. Strip dangerous attributes; keep only safe ones ────────────────
+        // Allow: style, href (filtered below), target, colspan, rowspan, align.
+        content = Regex.Replace(
+            content,
+            @"\s(?:class|id|on\w+|data-\w+|aria-\w+|role|tabindex|name|action|method|enctype|autocomplete)[^=]*=(?:""[^""]*""|'[^']*'|[^\s>]*)",
+            "",
+            RegexOptions.IgnoreCase);
+
+        // Remove javascript: hrefs.
+        content = Regex.Replace(
+            content,
+            @"href\s*=\s*(?:""javascript:[^""]*""|'javascript:[^']*')",
+            "",
+            RegexOptions.IgnoreCase);
+
+        // ── 4. Normalise whitespace ───────────────────────────────────────────
+        content = Regex.Replace(content, @"[ \t]{2,}", " ");
+        content = Regex.Replace(content, @"(\s*\n\s*){3,}", "\n\n");
+
+        return content.Trim();
+    }
+
+    /// <summary>
+    /// Extracts the inner content of the first occurrence of <paramref name="tag"/> in
+    /// <paramref name="html"/>, or null if the tag is not present.
+    /// </summary>
+    private static string? TryExtractElement(string html, string tag)
+    {
+        var match = Regex.Match(
+            html,
+            $@"<{tag}(?:\s[^>]*)?>(?<content>[\s\S]*?)</{tag}>",
+            RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups["content"].Value : null;
     }
 
     private static IQueryable<Application> ApplyPartialMatchFilter(

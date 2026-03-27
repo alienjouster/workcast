@@ -5,10 +5,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { UseJobAdsParams } from '@/lib/hooks/useJobAds';
 
 interface SseEvent {
-  type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged' | 'scoringCompleted';
+  type: 'boardStatusChanged' | 'runStarted' | 'runCompleted' | 'unreadCountChanged' | 'scoringCompleted' | 'applicationScoringCompleted';
   boardId?: string;
   runId?: string;
   adId?: string;
+  applicationId?: string;
   status?: string;
   adsNew?: number;
   unreadCount?: number;
@@ -80,6 +81,18 @@ export function useSSE() {
             predicate: (query) =>
               query.queryKey[0] === 'job-ads' &&
               !(query.queryKey[1] as UseJobAdsParams | undefined)?.trashed,
+          });
+          break;
+
+        case 'applicationScoringCompleted':
+          // Refresh the individual application so the scoring snapshot, pending flag,
+          // and any error message are all up to date.
+          qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
+          // Also refresh the applications list so overallScore column updates.
+          qc.invalidateQueries({
+            predicate: (query) =>
+              query.queryKey[0] === 'applications' &&
+              typeof query.queryKey[1] !== 'string',
           });
           break;
       }

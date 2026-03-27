@@ -98,6 +98,12 @@ public sealed class Application
     /// </summary>
     public string? JobAdContent { get; private set; }
 
+    /// <summary>True while an AI scoring job is in progress for this application.</summary>
+    public bool IsScoringPending { get; private set; }
+
+    /// <summary>Error message from the most recent failed scoring attempt, or null if scoring succeeded or was never run.</summary>
+    public string? LastScoringError { get; private set; }
+
     // ── Mutations ─────────────────────────────────────────────────────────────
 
     /// <summary>Moves this application to the trash bin.</summary>
@@ -114,4 +120,36 @@ public sealed class Application
 
     /// <summary>Updates the stored job ad page content. Pass null to clear it.</summary>
     public void UpdateJobAdContent(string? content) => JobAdContent = content;
+
+    /// <summary>Marks the application as having a scoring job in progress.</summary>
+    public void SetScoringPending()
+    {
+        IsScoringPending = true;
+        LastScoringError = null;
+    }
+
+    /// <summary>Clears the scoring-pending flag after a successful scoring run.</summary>
+    public void ClearScoringPending() => IsScoringPending = false;
+
+    /// <summary>Records a scoring failure and clears the pending flag.</summary>
+    public void SetScoringFailed(string error)
+    {
+        IsScoringPending = false;
+        LastScoringError = error;
+    }
+
+    /// <summary>Applies a fresh scoring result to this application's snapshot fields.</summary>
+    public void UpdateScoring(
+        double overallScore,
+        DateTimeOffset scoredAt,
+        string? summary,
+        string? recommendation,
+        List<ScoringRequirement> requirements)
+    {
+        OverallScore  = overallScore;
+        ScoredAt      = scoredAt;
+        Summary       = summary;
+        Recommendation = recommendation;
+        Requirements  = requirements;
+    }
 }

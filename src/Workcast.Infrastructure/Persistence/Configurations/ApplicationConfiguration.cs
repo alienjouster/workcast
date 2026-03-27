@@ -82,6 +82,15 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
             .HasColumnName("job_ad_content")
             .HasColumnType("text");
 
+        builder.Property(a => a.IsScoringPending)
+            .HasColumnName("is_scoring_pending")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(a => a.LastScoringError)
+            .HasColumnName("last_scoring_error")
+            .HasColumnType("text");
+
         builder.Property(a => a.Requirements)
             .HasColumnName("requirements")
             .HasColumnType("jsonb")
