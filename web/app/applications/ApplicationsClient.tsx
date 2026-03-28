@@ -146,7 +146,7 @@ export function ApplicationsClient() {
               description={hasActiveFilters(trashFilters) ? 'No trashed applications match your current filters.' : 'No applications have been trashed.'}
             />
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
               <ApplicationTrashTable applications={allItems} />
             </div>
           )}
@@ -169,7 +169,7 @@ export function ApplicationsClient() {
         />
       ) : (
         <>
-          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
             <ApplicationTable applications={allItems} />
           </div>
           {appsQuery.hasNextPage && (

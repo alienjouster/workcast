@@ -1,9 +1,10 @@
 'use client';
 
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { ApplicationStatus } from '@/types';
+import type { Application, ApplicationStatus, PagedResponse } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -161,6 +162,19 @@ export function useUpdateApplicationStatus(id: string) {
       api.applications.updateStatus(id, status, achievedAt),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+      queryClient.setQueriesData<InfiniteData<PagedResponse<Application>>>(
+        { queryKey: ['applications'], predicate: (q) => typeof q.queryKey[1] !== 'string' },
+        (old) => {
+          if (!old) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              items: page.items.map((item) => item.id === id ? updated : item),
+            })),
+          };
+        },
+      );
     },
   });
 }
