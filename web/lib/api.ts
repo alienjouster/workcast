@@ -10,6 +10,7 @@ import type {
   AppSettings,
   UpdateSettingsRequest,
   Application,
+  GeneratedResume,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -185,6 +186,19 @@ export const api = {
     },
     deleteResume: () =>
       apiFetch<AppSettings>('/api/settings/resume', { method: 'DELETE' }),
+    uploadResumeTemplate: async (file: File): Promise<AppSettings> => {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const contentBase64 = btoa(binary);
+      return apiFetch<AppSettings>('/api/settings/resume-template', {
+        method: 'PUT',
+        body: JSON.stringify({ fileName: file.name, contentBase64 }),
+      });
+    },
+    deleteResumeTemplate: () =>
+      apiFetch<AppSettings>('/api/settings/resume-template', { method: 'DELETE' }),
   },
   applications: {
     create: (jobAdId: string) =>
@@ -214,6 +228,15 @@ export const api = {
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'POST' }),
     cancelScoring: (id: string) =>
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'DELETE' }),
+    generateResume: (id: string) =>
+      apiFetch<GeneratedResume>(`/api/applications/${id}/resume/generate`, { method: 'POST' }),
+    getLatestResume: (id: string) =>
+      apiFetch<GeneratedResume>(`/api/applications/${id}/resume/latest`),
+    updateLatestResume: (id: string, htmlContent: string) =>
+      apiFetch<GeneratedResume>(`/api/applications/${id}/resume/latest`, {
+        method: 'PATCH',
+        body: JSON.stringify({ htmlContent }),
+      }),
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),

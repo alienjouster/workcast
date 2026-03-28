@@ -30,6 +30,21 @@ public sealed class AppSettings
     /// <summary>True when a resume file has been uploaded.</summary>
     public bool HasResume => ResumeContent is not null;
 
+    /// <summary>Original file name of the uploaded resume template.</summary>
+    public string? ResumeTemplateFileName { get; private set; }
+
+    /// <summary>HTML content of the resume template (defines visual structure and styling).</summary>
+    public string? ResumeTemplateContent { get; private set; }
+
+    /// <summary>UTC timestamp when the resume template was last uploaded.</summary>
+    public DateTimeOffset? ResumeTemplateUploadedAt { get; private set; }
+
+    /// <summary>True when a resume template has been uploaded.</summary>
+    public bool HasResumeTemplate => ResumeTemplateContent is not null;
+
+    /// <summary>Anthropic model identifier used for custom resume generation.</summary>
+    public string ResumeGenerationModel { get; private set; } = "claude-sonnet-4-6";
+
     // Required by EF Core.
     private AppSettings() { }
 
@@ -41,6 +56,9 @@ public sealed class AppSettings
 
     /// <summary>Updates the scoring model identifier.</summary>
     public void SetScoringModel(string model) => ScoringModel = model;
+
+    /// <summary>Updates the resume generation model identifier.</summary>
+    public void SetResumeGenerationModel(string model) => ResumeGenerationModel = model;
 
     /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
     public void SetResume(string fileName, byte[] content, string contentType)
@@ -58,5 +76,21 @@ public sealed class AppSettings
         ResumeContent = null;
         ResumeContentType = null;
         ResumeUploadedAt = null;
+    }
+
+    /// <summary>Stores a new resume template (HTML), replacing any previously uploaded template.</summary>
+    public void SetResumeTemplate(string fileName, string htmlContent)
+    {
+        ResumeTemplateFileName = fileName;
+        ResumeTemplateContent = htmlContent;
+        ResumeTemplateUploadedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Removes the stored resume template.</summary>
+    public void ClearResumeTemplate()
+    {
+        ResumeTemplateFileName = null;
+        ResumeTemplateContent = null;
+        ResumeTemplateUploadedAt = null;
     }
 }

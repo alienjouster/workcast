@@ -30,18 +30,21 @@ public sealed class ApplicationsController : ControllerBase
     private readonly IScraperEngine _scraperEngine;
     private readonly ISettingsRepository _settingsRepository;
     private readonly IBackgroundJobClient _backgroundJobClient;
+    private readonly IAiProvider _aiProvider;
 
     /// <summary>Initializes a new instance of <see cref="ApplicationsController"/>.</summary>
     public ApplicationsController(
         AppDbContext db,
         IScraperEngine scraperEngine,
         ISettingsRepository settingsRepository,
-        IBackgroundJobClient backgroundJobClient)
+        IBackgroundJobClient backgroundJobClient,
+        IAiProvider aiProvider)
     {
         _db = db;
         _scraperEngine = scraperEngine;
         _settingsRepository = settingsRepository;
         _backgroundJobClient = backgroundJobClient;
+        _aiProvider = aiProvider;
     }
 
     /// <summary>
@@ -346,6 +349,139 @@ public sealed class ApplicationsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Generates a tailored HTML resume for the given application using Claude AI.
+    /// Requires: a resume uploaded in Settings, an HTML template uploaded in Settings,
+    /// and scoring data present on the application.
+    /// The call is synchronous and may take up to 3 minutes.
+    /// </summary>
+    [HttpPost("{id:guid}/resume/generate")]
+    [ProducesResponseType(typeof(GeneratedResumeResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GenerateResumeAsync(Guid id, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+
+        if (!settings.HasResume)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No resume uploaded",
+                Detail = "Upload a resume (content) in Settings before generating a custom resume.",
+            });
+        }
+
+        if (!settings.HasResumeTemplate)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No resume template uploaded",
+                Detail = "Upload an HTML resume template in Settings before generating a custom resume.",
+            });
+        }
+
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        if (application.OverallScore is null)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No scoring data",
+                Detail = "Run scoring on this application before generating a custom resume.",
+            });
+        }
+
+        var requirementsJson = System.Text.Json.JsonSerializer.Serialize(application.Requirements);
+
+        var htmlContent = await _aiProvider.GenerateResumeAsync(
+            resumeContent:            settings.ResumeContent!,
+            resumeContentType:        settings.ResumeContentType!,
+            resumeFileName:           settings.ResumeFileName!,
+            resumeTemplateHtml:       settings.ResumeTemplateContent!,
+            jobAdContent:             application.JobAdContent ?? application.Description ?? string.Empty,
+            scoringSummary:           application.Summary ?? string.Empty,
+            scoringRecommendation:    application.Recommendation ?? string.Empty,
+            scoringRequirementsJson:  requirementsJson,
+            ct:                       ct);
+
+        var generated = GeneratedResume.Create(application.Id, htmlContent, settings.ResumeGenerationModel);
+        _db.GeneratedResumes.Add(generated);
+        await _db.SaveChangesAsync(ct);
+
+        var response = new GeneratedResumeResponse
+        {
+            Id            = generated.Id,
+            ApplicationId = generated.ApplicationId,
+            HtmlContent   = generated.HtmlContent,
+            ModelUsed     = generated.ModelUsed,
+            GeneratedAt   = generated.GeneratedAt,
+        };
+
+        return Created($"/api/applications/{id}/resume/latest", response);
+    }
+
+    /// <summary>
+    /// Updates the HTML content of the most recently generated resume (manual edit).
+    /// </summary>
+    [HttpPatch("{id:guid}/resume/latest")]
+    [ProducesResponseType(typeof(GeneratedResumeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateLatestResumeAsync(
+        Guid id,
+        [FromBody] UpdateGeneratedResumeRequest request,
+        CancellationToken ct)
+    {
+        var latest = await _db.GeneratedResumes
+            .Where(r => r.ApplicationId == id)
+            .OrderByDescending(r => r.GeneratedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (latest is null) return NotFound();
+
+        latest.UpdateHtmlContent(request.HtmlContent);
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new GeneratedResumeResponse
+        {
+            Id            = latest.Id,
+            ApplicationId = latest.ApplicationId,
+            HtmlContent   = latest.HtmlContent,
+            ModelUsed     = latest.ModelUsed,
+            GeneratedAt   = latest.GeneratedAt,
+        });
+    }
+
+    /// <summary>
+    /// Returns the most recently generated HTML resume for the given application,
+    /// or 404 if no resume has been generated yet.
+    /// </summary>
+    [HttpGet("{id:guid}/resume/latest")]
+    [ProducesResponseType(typeof(GeneratedResumeResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetLatestResumeAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var latest = await _db.GeneratedResumes
+            .Where(r => r.ApplicationId == id)
+            .OrderByDescending(r => r.GeneratedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (latest is null) return NotFound();
+
+        return Ok(new GeneratedResumeResponse
+        {
+            Id            = latest.Id,
+            ApplicationId = latest.ApplicationId,
+            HtmlContent   = latest.HtmlContent,
+            ModelUsed     = latest.ModelUsed,
+            GeneratedAt   = latest.GeneratedAt,
+        });
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -528,4 +664,11 @@ public record UpdateJobAdContentRequest
 {
     /// <summary>Gets the new content. Null clears the stored content.</summary>
     public string? Content { get; init; }
+}
+
+/// <summary>Request body for updating the HTML content of a generated resume.</summary>
+public record UpdateGeneratedResumeRequest
+{
+    /// <summary>Gets the updated HTML content.</summary>
+    public required string HtmlContent { get; init; }
 }

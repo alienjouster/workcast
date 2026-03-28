@@ -3,7 +3,14 @@
 import { useRef, useState } from 'react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { useSettings, useUpdateSettings, useUploadResume, useDeleteResume } from '@/lib/hooks/useSettings';
+import {
+  useSettings,
+  useUpdateSettings,
+  useUploadResume,
+  useDeleteResume,
+  useUploadResumeTemplate,
+  useDeleteResumeTemplate,
+} from '@/lib/hooks/useSettings';
 
 const MODEL_INFO: Record<string, string> = {
   'claude-haiku-4-5-20251001': 'Fastest & cheapest',
@@ -12,20 +19,27 @@ const MODEL_INFO: Record<string, string> = {
   'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
 };
 
-type EditingField = 'boardAnalyzer' | 'scoring' | null;
+type EditingField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | null;
 
 export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
   const { mutate: updateSettings, isPending } = useUpdateSettings();
   const { mutate: uploadResume, isPending: isUploading, error: uploadError } = useUploadResume();
   const { mutate: deleteResume, isPending: isDeleting } = useDeleteResume();
+  const { mutate: uploadTemplate, isPending: isUploadingTemplate, error: uploadTemplateError } = useUploadResumeTemplate();
+  const { mutate: deleteTemplate, isPending: isDeletingTemplate } = useDeleteResumeTemplate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
 
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
 
   function startEdit(field: EditingField) {
-    setDraft(field === 'boardAnalyzer' ? settings!.boardAnalyzerModel : settings!.scoringModel);
+    const value =
+      field === 'boardAnalyzer'    ? settings!.boardAnalyzerModel :
+      field === 'scoring'          ? settings!.scoringModel :
+                                     settings!.resumeGenerationModel;
+    setDraft(value);
     setEditingField(field);
   }
 
@@ -35,9 +49,10 @@ export function SettingsClient() {
   }
 
   function saveEdit() {
-    const boardAnalyzerModel = editingField === 'boardAnalyzer' ? draft : settings!.boardAnalyzerModel;
-    const scoringModel = editingField === 'scoring' ? draft : settings!.scoringModel;
-    updateSettings({ boardAnalyzerModel, scoringModel }, { onSuccess: () => setEditingField(null) });
+    const boardAnalyzerModel   = editingField === 'boardAnalyzer'    ? draft : settings!.boardAnalyzerModel;
+    const scoringModel         = editingField === 'scoring'          ? draft : settings!.scoringModel;
+    const resumeGenerationModel = editingField === 'resumeGeneration' ? draft : settings!.resumeGenerationModel;
+    updateSettings({ boardAnalyzerModel, scoringModel, resumeGenerationModel }, { onSuccess: () => setEditingField(null) });
   }
 
   function renderModelCell(field: EditingField, currentValue: string | undefined) {
@@ -98,7 +113,7 @@ export function SettingsClient() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
 
-      {/* Resume section */}
+      {/* Resume */}
       <Card>
         <CardHeader>
           <h2 className="font-semibold text-gray-900">Resume</h2>
@@ -106,33 +121,29 @@ export function SettingsClient() {
         <CardBody className="p-0">
           <table className="min-w-full text-sm">
             <tbody>
-              <tr className="border-t border-gray-100">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48 align-top pt-3">File</td>
+              {/* Content row */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Content</td>
                 <td className="px-4 py-2.5">
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
                   ) : settings?.hasResume ? (
-                    <div className="space-y-0.5">
-                      <p className="text-sm font-medium text-gray-900">{settings.resumeFileName}</p>
+                    <span className="inline-flex items-baseline gap-2">
+                      <span className="text-sm text-gray-900">{settings.resumeFileName}</span>
                       {settings.resumeUploadedAt && (
-                        <p className="text-xs text-gray-400">
-                          Uploaded {new Date(settings.resumeUploadedAt).toLocaleString()}
-                        </p>
+                        <span className="text-xs text-gray-400">
+                          uploaded {new Date(settings.resumeUploadedAt).toLocaleString()}
+                        </span>
                       )}
-                    </div>
+                    </span>
                   ) : (
-                    <div>
-                      <p className="text-sm text-gray-500 italic">No resume uploaded.</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        Structured formats are recommended — JSON with clearly labelled sections gives the best scoring accuracy.
-                      </p>
-                    </div>
+                    <span className="text-sm text-gray-400 italic">No file uploaded</span>
                   )}
                   {uploadError && (
                     <p className="text-xs text-red-600 mt-1">{(uploadError as Error).message}</p>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-right whitespace-nowrap align-top pt-3">
+                <td className="px-4 py-2.5 text-right whitespace-nowrap">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -145,22 +156,57 @@ export function SettingsClient() {
                     }}
                   />
                   <div className="flex items-center justify-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => fileInputRef.current?.click()}
-                      loading={isUploading}
-                    >
+                    <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()} loading={isUploading}>
                       {settings?.hasResume ? 'Replace' : 'Upload'}
                     </Button>
                     {settings?.hasResume && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => deleteResume()}
-                        loading={isDeleting}
-                        className="text-red-500 hover:text-red-700"
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => deleteResume()} loading={isDeleting} className="text-red-500 hover:text-red-700">
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+              {/* Template row */}
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Template</td>
+                <td className="px-4 py-2.5">
+                  {isLoading ? (
+                    <span className="text-gray-400">Loading…</span>
+                  ) : settings?.hasResumeTemplate ? (
+                    <span className="inline-flex items-baseline gap-2">
+                      <span className="text-sm text-gray-900">{settings.resumeTemplateFileName}</span>
+                      {settings.resumeTemplateUploadedAt && (
+                        <span className="text-xs text-gray-400">
+                          uploaded {new Date(settings.resumeTemplateUploadedAt).toLocaleString()}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400 italic">No file uploaded</span>
+                  )}
+                  {uploadTemplateError && (
+                    <p className="text-xs text-red-600 mt-1">{(uploadTemplateError as Error).message}</p>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                  <input
+                    ref={templateInputRef}
+                    type="file"
+                    accept=".html,.htm,text/html"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) uploadTemplate(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button size="sm" variant="secondary" onClick={() => templateInputRef.current?.click()} loading={isUploadingTemplate}>
+                      {settings?.hasResumeTemplate ? 'Replace' : 'Upload'}
+                    </Button>
+                    {settings?.hasResumeTemplate && (
+                      <Button size="sm" variant="ghost" onClick={() => deleteTemplate()} loading={isDeletingTemplate} className="text-red-500 hover:text-red-700">
                         Remove
                       </Button>
                     )}
@@ -187,6 +233,10 @@ export function SettingsClient() {
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Scoring model</td>
                 {renderModelCell('scoring', settings?.scoringModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Resume generation model</td>
+                {renderModelCell('resumeGeneration', settings?.resumeGenerationModel)}
               </tr>
             </tbody>
           </table>

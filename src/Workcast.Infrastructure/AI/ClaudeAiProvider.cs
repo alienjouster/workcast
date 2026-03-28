@@ -26,6 +26,7 @@ public sealed class ClaudeAiProvider : IAiProvider
     private const string AnthropicVersion = "2023-06-01";
     private const int MaxTokens = 1024;
     private const int ScoringMaxTokens = 4096;
+    private const int ResumeGenerationMaxTokens = 8192;
     private const int MaxRetries = 3;
 
     private static readonly TimeSpan[] RetryDelays =
@@ -218,6 +219,83 @@ public sealed class ClaudeAiProvider : IAiProvider
         return DeserializeAdScoringResult(input);
     }
 
+
+    /// <inheritdoc />
+    public async Task<string> GenerateResumeAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string resumeTemplateHtml,
+        string jobAdContent,
+        string scoringSummary,
+        string scoringRecommendation,
+        string scoringRequirementsJson,
+        CancellationToken ct = default)
+    {
+        var tool = BuildResumeGenerationTool();
+        var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+
+        var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+
+        var prompt = $"""
+            You are an expert resume writer. Your task is to generate an ATS-friendly, tailored HTML resume.
+
+            You have four inputs:
+
+            === RESUME ({resumeFileName}) ===
+            {resumeText}
+
+            === JOB AD ===
+            {jobAdContent}
+
+            === SCORING ANALYSIS ===
+            Summary: {scoringSummary}
+            Recommendation: {scoringRecommendation}
+            Requirements breakdown (JSON): {scoringRequirementsJson}
+
+            === HTML TEMPLATE ===
+            {resumeTemplateHtml}
+
+            INSTRUCTIONS:
+            1. Use the HTML TEMPLATE as the structural and visual foundation — preserve all HTML elements, CSS classes, and inline styles.
+            2. Replace the template's placeholder content with the candidate's real information from RESUME.
+            3. Tailor the "Professional summary" as per the JOB AD
+            4. Strictly keep all "work_experience" and all "roles" from the RESUME but select the best 3 to 6 "responsabilities" for each "roles", using the SCORING ANALYSIS
+            5. Strickly keep the "education_and_certifications" and "languages" section as per the JSON RESUME 
+            6. STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. Only use information present in RESUME.
+            7. The output must be a complete, valid HTML document that can be rendered directly in a browser.
+
+            Call the submit_resume tool with the generated HTML.
+            """;
+
+        var input = await CallWithRetryAsync(prompt, ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, ct)
+            .ConfigureAwait(false);
+
+        return input["html_content"]?.GetValue<string>()
+            ?? throw new InvalidOperationException("Claude did not return html_content in the submit_resume tool call.");
+    }
+
+    private static ClaudeTool BuildResumeGenerationTool()
+    {
+        return new ClaudeTool
+        {
+            Name = "submit_resume",
+            Description = "Submit the generated HTML resume after tailoring it to the job ad.",
+            InputSchema = new
+            {
+                type = "object",
+                required = new[] { "html_content" },
+                properties = new
+                {
+                    html_content = new
+                    {
+                        type = "string",
+                        description = "Complete, valid HTML document of the tailored resume, ready to render in a browser.",
+                    },
+                },
+            },
+        };
+    }
 
     private static AdScoringResult DeserializeAdScoringResult(JsonObject input)
     {

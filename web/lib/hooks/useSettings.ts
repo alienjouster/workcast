@@ -18,7 +18,7 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { boardAnalyzerModel: string; scoringModel: string }) =>
+    mutationFn: (data: { boardAnalyzerModel: string; scoringModel: string; resumeGenerationModel: string }) =>
       api.settings.update(data),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated);
@@ -42,6 +42,28 @@ export function useDeleteResume() {
 
   return useMutation({
     mutationFn: () => api.settings.deleteResume(),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(QUERY_KEY, updated);
+    },
+  });
+}
+
+export function useUploadResumeTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => api.settings.uploadResumeTemplate(file),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(QUERY_KEY, updated);
+    },
+  });
+}
+
+export function useDeleteResumeTemplate() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.settings.deleteResumeTemplate(),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated);
     },

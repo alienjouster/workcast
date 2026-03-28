@@ -121,10 +121,22 @@ export interface UpdateJobBoardRequest {
 export interface AppSettings {
   boardAnalyzerModel: string;
   scoringModel: string;
+  resumeGenerationModel: string;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
   resumeUploadedAt: string | null;
+  hasResumeTemplate: boolean;
+  resumeTemplateFileName: string | null;
+  resumeTemplateUploadedAt: string | null;
+}
+
+export interface GeneratedResume {
+  id: string;
+  applicationId: string;
+  htmlContent: string;
+  modelUsed: string;
+  generatedAt: string;
 }
 
 export type ScoringCategory = 'match' | 'partial_match' | 'gap';
@@ -173,6 +185,7 @@ export interface Application {
 export interface UpdateSettingsRequest {
   boardAnalyzerModel: string;
   scoringModel: string;
+  resumeGenerationModel: string;
 }
 
 export interface UpdateScraperConfigRequest {

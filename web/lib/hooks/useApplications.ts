@@ -103,3 +103,32 @@ export function useRunApplicationScoring(id: string) {
     },
   });
 }
+
+export function useLatestGeneratedResume(id: string) {
+  return useQuery({
+    queryKey: ['generated-resume', id],
+    queryFn: () => api.applications.getLatestResume(id),
+    staleTime: STALE_TIMES.LONG,
+    retry: false,
+  });
+}
+
+export function useGenerateResume(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.generateResume(id),
+    onSuccess: (generated) => {
+      queryClient.setQueryData(['generated-resume', id], generated);
+    },
+  });
+}
+
+export function useUpdateGeneratedResume(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (htmlContent: string) => api.applications.updateLatestResume(id, htmlContent),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['generated-resume', id], updated);
+    },
+  });
+}

@@ -1,19 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
-import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useLatestGeneratedResume, useGenerateResume, useUpdateGeneratedResume } from '@/lib/hooks/useApplications';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid } from '@/components/scoring/ScoringShared';
 
-// F4: lazy-load Tiptap editor (~200 KB) only when the user clicks Edit
-const RichTextEditor = dynamic(
-  () => import('@/components/ui/RichTextEditor').then(m => m.RichTextEditor),
-  { ssr: false }
-);
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
@@ -28,11 +22,6 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 // ── Tab content ───────────────────────────────────────────────────────────────
-
-// Returns true if the content appears to be HTML (produced by the rich-text editor).
-function isHtmlContent(s: string) {
-  return s.trimStart().startsWith('<');
-}
 
 function JobAdContentSection({ appId, content }: { appId: string; content: string | null }) {
   const [editing, setEditing] = useState(false);
@@ -49,12 +38,7 @@ function JobAdContentSection({ appId, content }: { appId: string; content: strin
   }
 
   function save() {
-    // Tiptap outputs '<p></p>' for an empty doc — treat that as null.
-    const trimmed = draft.trim();
-    const isEmpty = trimmed.length === 0 || trimmed === '<p></p>';
-    saveContent(isEmpty ? null : trimmed, {
-      onSuccess: () => setEditing(false),
-    });
+    saveContent(draft || null, { onSuccess: () => setEditing(false) });
   }
 
   return (
@@ -62,44 +46,28 @@ function JobAdContentSection({ appId, content }: { appId: string; content: strin
       <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Job Ad Detail</p>
         {!editing ? (
-          <button
-            onClick={startEdit}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
+          <button onClick={startEdit} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">
             Edit
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <button
-              onClick={save}
-              disabled={isPending}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
-            >
+            <button onClick={save} disabled={isPending} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50">
               {isPending ? 'Saving…' : 'Save'}
             </button>
-            <button
-              onClick={cancel}
-              disabled={isPending}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
-            >
+            <button onClick={cancel} disabled={isPending} className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50">
               Cancel
             </button>
           </div>
         )}
       </div>
-      <div className="px-6 py-4">
-        {editing ? (
-          <RichTextEditor value={draft} onChange={setDraft} minHeight={400} />
-        ) : content !== null ? (
-          isHtmlContent(content) ? (
-            <div
-              className="prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: content }}
-            />
-          ) : (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{content}</p>
-          )
-        ) : (
+      {content !== null || editing ? (
+        <ResumeIframe
+          htmlContent={content ?? ''}
+          editing={editing}
+          onDraftChange={setDraft}
+        />
+      ) : (
+        <div className="px-6 py-4">
           <div className="flex items-start gap-3 text-sm text-amber-700 bg-amber-50 rounded-md p-4">
             <span className="shrink-0 text-amber-500 mt-0.5">⚠</span>
             <div>
@@ -109,8 +77,8 @@ function JobAdContentSection({ appId, content }: { appId: string; content: strin
               </p>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -310,6 +278,193 @@ function DummyTab({ label }: { label: string }) {
   );
 }
 
+// ── Editable resume iframe ────────────────────────────────────────────────────
+
+function ResumeIframe({
+  htmlContent,
+  editing,
+  onDraftChange,
+}: {
+  htmlContent: string;
+  editing: boolean;
+  onDraftChange: (html: string) => void;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // When switching into edit mode: inject the content, enable designMode, and
+  // listen for input events on the iframe document (they don't bubble to the
+  // iframe element itself, so onInput on <iframe> would never fire).
+  useEffect(() => {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc) return;
+
+    if (editing) {
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+      doc.designMode = 'on';
+
+      const handleInput = () => onDraftChange(doc.documentElement.outerHTML);
+      doc.addEventListener('input', handleInput);
+      return () => doc.removeEventListener('input', handleInput);
+    } else {
+      doc.designMode = 'off';
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      srcDoc={editing ? undefined : htmlContent}
+      sandbox="allow-same-origin"
+      className="w-full border-0"
+      style={{ minHeight: '900px' }}
+      title="Generated resume"
+    />
+  );
+}
+
+// ── Custom Resume tab ──────────────────────────────────────────────────────────
+
+function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
+  const { data: settings } = useSettings();
+  const { data: latest, isLoading: isLoadingLatest } = useLatestGeneratedResume(app?.id ?? '');
+  const generate = useGenerateResume(app?.id ?? '');
+  const update = useUpdateGeneratedResume(app?.id ?? '');
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  if (!app) return null;
+
+  const hasResume    = settings?.hasResume ?? false;
+  const hasTemplate  = settings?.hasResumeTemplate ?? false;
+  const hasScoring   = app.overallScore != null;
+  const canGenerate  = hasResume && hasTemplate && hasScoring;
+  const isGenerating = generate.isPending;
+
+  const missingItems: string[] = [];
+  if (!hasResume)   missingItems.push('resume content (Settings)');
+  if (!hasTemplate) missingItems.push('resume template (Settings)');
+  if (!hasScoring)  missingItems.push('scoring data (Scoring tab)');
+
+  function startEdit() {
+    setDraft(latest?.htmlContent ?? '');
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft('');
+  }
+
+  function saveEdit() {
+    update.mutate(draft, { onSuccess: () => setEditing(false) });
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {latest && !isGenerating && !editing && (
+            <span className="text-xs text-gray-400">
+              Generated {new Date(latest.generatedAt).toLocaleString()} · {latest.modelUsed}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {!canGenerate && missingItems.length > 0 && !editing && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+              Requires: {missingItems.join(', ')}
+            </p>
+          )}
+          {editing ? (
+            <>
+              <button
+                onClick={saveEdit}
+                disabled={update.isPending}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
+              >
+                {update.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={update.isPending}
+                className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              {latest && !isGenerating && (
+                <button
+                  onClick={startEdit}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                onClick={() => generate.mutate()}
+                disabled={!canGenerate || isGenerating}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <SparkleIcon className="w-4 h-4" />
+                {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {generate.error && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-4 py-3">
+          {(generate.error as Error).message}
+        </div>
+      )}
+
+      {isGenerating && (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 flex flex-col items-center gap-4 text-center">
+          <ScoringSpinner />
+          <p className="text-sm text-gray-400">Generating your tailored resume…</p>
+          <p className="text-xs text-gray-300">This may take up to a minute.</p>
+        </div>
+      )}
+
+      {!isGenerating && isLoadingLatest && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 flex justify-center">
+          <ScoringSpinner />
+        </div>
+      )}
+
+      {!isGenerating && !isLoadingLatest && !latest && (
+        <div className="bg-white rounded-lg border border-dashed border-gray-200 p-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-3">
+            <SparkleIcon className="w-6 h-6 text-indigo-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-700">No resume generated yet</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto leading-relaxed text-center">
+            Combines your resume content, this job ad, and the scoring analysis to produce an ATS-friendly tailored version using your HTML template — maximising keyword alignment with the job requirements without inventing any skills or experience.
+          </p>
+        </div>
+      )}
+
+      {!isGenerating && latest && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <ResumeIframe
+            htmlContent={latest.htmlContent}
+            editing={editing}
+            onDraftChange={setDraft}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ApplicationDetailClient() {
@@ -367,7 +522,7 @@ export function ApplicationDetailClient() {
       {/* Tab content */}
       {activeTab === 'job-ad'  && <JobAdTab app={app} />}
       {activeTab === 'scoring' && <ScoringTab app={app} />}
-      {activeTab === 'resume'  && <DummyTab label="Custom Resume" />}
+      {activeTab === 'resume'  && <ResumeTab app={app} />}
       {activeTab === 'letter'  && <DummyTab label="Application Letter" />}
       {activeTab === 'stages'  && <DummyTab label="Stages" />}
     </div>

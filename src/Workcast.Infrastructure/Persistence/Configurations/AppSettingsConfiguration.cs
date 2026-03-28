@@ -40,6 +40,23 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .HasColumnName("resume_uploaded_at")
             .HasColumnType("timestamptz");
 
+        builder.Property(s => s.ResumeTemplateFileName)
+            .HasColumnName("resume_template_file_name")
+            .HasMaxLength(512);
+
+        builder.Property(s => s.ResumeTemplateContent)
+            .HasColumnName("resume_template_content")
+            .HasColumnType("text");
+
+        builder.Property(s => s.ResumeTemplateUploadedAt)
+            .HasColumnName("resume_template_uploaded_at")
+            .HasColumnType("timestamptz");
+
+        builder.Property(s => s.ResumeGenerationModel)
+            .HasColumnName("resume_generation_model")
+            .HasMaxLength(100)
+            .IsRequired();
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

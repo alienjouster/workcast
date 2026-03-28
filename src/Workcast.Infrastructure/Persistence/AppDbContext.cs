@@ -38,6 +38,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>User job application files.</summary>
     public DbSet<Application> Applications => Set<Application>();
 
+    /// <summary>Generated HTML resumes for applications.</summary>
+    public DbSet<GeneratedResume> GeneratedResumes => Set<GeneratedResume>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,5 +52,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AppSettingsConfiguration());
         modelBuilder.ApplyConfiguration(new AdScoringConfiguration());
         modelBuilder.ApplyConfiguration(new ApplicationConfiguration());
+        modelBuilder.ApplyConfiguration(new GeneratedResumeConfiguration());
     }
 }

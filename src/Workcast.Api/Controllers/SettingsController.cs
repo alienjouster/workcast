@@ -27,6 +27,7 @@ public sealed class SettingsController : ControllerBase
     ];
 
     private const long MaxResumeBytes = 5 * 1024 * 1024; // 5 MB
+    private const long MaxTemplateBytes = 2 * 1024 * 1024; // 2 MB
 
     private readonly ISettingsRepository _settingsRepository;
 
@@ -44,16 +45,10 @@ public sealed class SettingsController : ControllerBase
     public async Task<IActionResult> GetAsync(CancellationToken ct)
     {
         var settings = await _settingsRepository.GetAsync(ct);
-        return Ok(new SettingsResponse(
-            settings.BoardAnalyzerModel,
-            settings.ScoringModel,
-            AllowedModels,
-            settings.HasResume,
-            settings.ResumeFileName,
-            settings.ResumeUploadedAt));
+        return Ok(ToResponse(settings));
     }
 
-    /// <summary>Updates the AI models used for board analysis and/or scoring.</summary>
+    /// <summary>Updates the AI models used for board analysis, scoring, and/or resume generation.</summary>
     [HttpPatch]
     [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
@@ -79,18 +74,22 @@ public sealed class SettingsController : ControllerBase
             });
         }
 
+        if (!AllowedModels.Contains(request.ResumeGenerationModel))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid resume generation model",
+                Detail = $"'{request.ResumeGenerationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
+            });
+        }
+
         var settings = await _settingsRepository.GetAsync(ct);
         settings.SetBoardAnalyzerModel(request.BoardAnalyzerModel);
         settings.SetScoringModel(request.ScoringModel);
+        settings.SetResumeGenerationModel(request.ResumeGenerationModel);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(new SettingsResponse(
-            settings.BoardAnalyzerModel,
-            settings.ScoringModel,
-            AllowedModels,
-            settings.HasResume,
-            settings.ResumeFileName,
-            settings.ResumeUploadedAt));
+        return Ok(ToResponse(settings));
     }
 
     /// <summary>
@@ -141,13 +140,7 @@ public sealed class SettingsController : ControllerBase
         settings.SetResume(request.FileName, content, contentType);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(new SettingsResponse(
-            settings.BoardAnalyzerModel,
-            settings.ScoringModel,
-            AllowedModels,
-            settings.HasResume,
-            settings.ResumeFileName,
-            settings.ResumeUploadedAt));
+        return Ok(ToResponse(settings));
     }
 
     /// <summary>Removes the stored resume.</summary>
@@ -159,37 +152,113 @@ public sealed class SettingsController : ControllerBase
         settings.ClearResume();
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(new SettingsResponse(
-            settings.BoardAnalyzerModel,
-            settings.ScoringModel,
-            AllowedModels,
-            settings.HasResume,
-            settings.ResumeFileName,
-            settings.ResumeUploadedAt));
+        return Ok(ToResponse(settings));
     }
+
+    /// <summary>
+    /// Uploads or replaces the resume HTML template. Accepted format: HTML text (max 2 MB).
+    /// File content must be base64-encoded in the request body.
+    /// </summary>
+    [HttpPut("resume-template")]
+    [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UploadResumeTemplateAsync(
+        [FromBody] UploadResumeTemplateRequest request,
+        CancellationToken ct)
+    {
+        byte[] contentBytes;
+        try
+        {
+            contentBytes = Convert.FromBase64String(request.ContentBase64);
+        }
+        catch (FormatException)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid base64",
+                Detail = "ContentBase64 is not valid base64.",
+            });
+        }
+
+        if (contentBytes.Length > MaxTemplateBytes)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "File too large",
+                Detail = $"Template must be 2 MB or smaller. Received {contentBytes.Length / 1024} KB.",
+            });
+        }
+
+        var htmlContent = System.Text.Encoding.UTF8.GetString(contentBytes);
+
+        var settings = await _settingsRepository.GetAsync(ct);
+        settings.SetResumeTemplate(request.FileName, htmlContent);
+        await _settingsRepository.SaveAsync(ct);
+
+        return Ok(ToResponse(settings));
+    }
+
+    /// <summary>Removes the stored resume template.</summary>
+    [HttpDelete("resume-template")]
+    [ProducesResponseType(typeof(SettingsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> DeleteResumeTemplateAsync(CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+        settings.ClearResumeTemplate();
+        await _settingsRepository.SaveAsync(ct);
+
+        return Ok(ToResponse(settings));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static SettingsResponse ToResponse(Core.Entities.AppSettings s) => new(
+        s.BoardAnalyzerModel,
+        s.ScoringModel,
+        s.ResumeGenerationModel,
+        AllowedModels,
+        s.HasResume,
+        s.ResumeFileName,
+        s.ResumeUploadedAt,
+        s.HasResumeTemplate,
+        s.ResumeTemplateFileName,
+        s.ResumeTemplateUploadedAt);
 
     // ── Inline DTOs (settings has no shared domain model) ────────────────────
 
     /// <param name="BoardAnalyzerModel">Active Anthropic model for board analysis.</param>
     /// <param name="ScoringModel">Active Anthropic model for job ad scoring.</param>
+    /// <param name="ResumeGenerationModel">Active Anthropic model for custom resume generation.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
     /// <param name="ResumeUploadedAt">UTC timestamp of the last resume upload, or null.</param>
+    /// <param name="HasResumeTemplate">True when an HTML resume template has been uploaded.</param>
+    /// <param name="ResumeTemplateFileName">Original file name of the uploaded template, or null.</param>
+    /// <param name="ResumeTemplateUploadedAt">UTC timestamp of the last template upload, or null.</param>
     public sealed record SettingsResponse(
         string BoardAnalyzerModel,
         string ScoringModel,
+        string ResumeGenerationModel,
         IEnumerable<string> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
-        DateTimeOffset? ResumeUploadedAt);
+        DateTimeOffset? ResumeUploadedAt,
+        bool HasResumeTemplate,
+        string? ResumeTemplateFileName,
+        DateTimeOffset? ResumeTemplateUploadedAt);
 
     /// <param name="BoardAnalyzerModel">Model identifier for board analysis.</param>
     /// <param name="ScoringModel">Model identifier for job ad scoring.</param>
-    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel);
+    /// <param name="ResumeGenerationModel">Model identifier for custom resume generation.</param>
+    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel, string ResumeGenerationModel);
 
     /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
     /// <param name="ContentBase64">Base64-encoded file bytes.</param>
     /// <param name="ContentType">MIME type (application/pdf, text/plain, application/json).</param>
     public sealed record UploadResumeRequest(string FileName, string ContentBase64, string ContentType);
+
+    /// <param name="FileName">Original file name (e.g. resume-template.html).</param>
+    /// <param name="ContentBase64">Base64-encoded HTML file bytes.</param>
+    public sealed record UploadResumeTemplateRequest(string FileName, string ContentBase64);
 }
