@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Workcast.Core.Entities;
+using Workcast.Core.Enums;
+using Workcast.Core.Models;
 
 namespace Workcast.Infrastructure.Persistence.Configurations;
 
@@ -59,6 +61,11 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
             .HasColumnName("posted_at")
             .HasColumnType("timestamptz");
 
+        builder.Property(a => a.ScrapedAt)
+            .HasColumnName("scraped_at")
+            .HasColumnType("timestamptz")
+            .IsRequired();
+
         builder.Property(a => a.ExternalId)
             .HasColumnName("external_id")
             .HasMaxLength(512);
@@ -98,6 +105,20 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
             .HasConversion(
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<ScoringRequirement>>(v, (JsonSerializerOptions?)null) ?? new List<ScoringRequirement>());
+
+        builder.Property(a => a.Status)
+            .HasColumnName("status")
+            .HasDefaultValue(ApplicationStatus.ToApply)
+            .IsRequired()
+            .HasConversion<string>();
+
+        builder.Property(a => a.StatusHistory)
+            .HasColumnName("status_history")
+            .HasColumnType("jsonb")
+            .IsRequired()
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                v => JsonSerializer.Deserialize<List<StatusHistoryEntry>>(v, (JsonSerializerOptions?)null) ?? new List<StatusHistoryEntry>());
 
         builder.HasIndex(a => a.CreatedAt)
             .IsDescending()

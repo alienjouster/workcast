@@ -248,6 +248,7 @@ public static class MappingExtensions
             SalaryRaw = app.SalaryRaw,
             Description = app.Description,
             PostedAt = app.PostedAt,
+            ScrapedAt = app.ScrapedAt,
             ExternalId = app.ExternalId,
             OverallScore = app.OverallScore,
             ScoredAt = app.ScoredAt,
@@ -266,6 +267,10 @@ public static class MappingExtensions
             JobAdContent     = app.JobAdContent,
             IsScoringPending = app.IsScoringPending,
             LastScoringError = app.LastScoringError,
+            Status           = app.Status.ToString(),
+            StatusHistory    = app.StatusHistory
+                .Select(e => new StatusHistoryEntryResponse { Status = e.Status.ToString(), AchievedAt = e.AchievedAt })
+                .ToList(),
         };
     }
 

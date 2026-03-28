@@ -7,18 +7,38 @@ import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScor
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid } from '@/components/scoring/ScoringShared';
+import { ApplicationStatusTimeline } from '@/components/applications/ApplicationStatusTimeline';
+import type { ApplicationStatus } from '@/types';
+
+const STATUS_BADGE: Record<ApplicationStatus, { label: string; cls: string }> = {
+  ToApply:        { label: 'Preparing application', cls: 'bg-gray-100 text-gray-600'     },
+  Applied:        { label: 'Applied',               cls: 'bg-blue-100 text-blue-700'     },
+  Interviewing:   { label: 'Interviewing',          cls: 'bg-indigo-100 text-indigo-700' },
+  ClosedNoAnswer: { label: 'Closed — No Answer',    cls: 'bg-amber-100 text-amber-700'   },
+  ClosedRejected: { label: 'Closed — Rejected',     cls: 'bg-red-100 text-red-700'       },
+  ClosedHired:    { label: 'Closed — Hired',        cls: 'bg-green-100 text-green-700'   },
+};
+
+function StatusBadge({ status }: { status: ApplicationStatus }) {
+  const b = STATUS_BADGE[status];
+  if (!b) return null;
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${b.cls}`}>
+      {b.label}
+    </span>
+  );
+}
 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter' | 'stages';
+type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'job-ad',  label: 'Job Ad' },
   { id: 'scoring', label: 'Scoring' },
   { id: 'resume',  label: 'Custom Resume' },
   { id: 'letter',  label: 'Application Letter' },
-  { id: 'stages',  label: 'Stages' },
 ];
 
 // ── Tab content ───────────────────────────────────────────────────────────────
@@ -489,9 +509,12 @@ export function ApplicationDetailClient() {
         <Link href="/applications" className="text-sm text-indigo-500 hover:text-indigo-700 hover:underline">
           ← Applications
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-2">
-          {app.title ?? '(no title)'}
-        </h1>
+        <div className="flex items-center gap-3 mt-2">
+          <h1 className="text-2xl font-bold text-gray-900">
+            {app.title ?? '(no title)'}
+          </h1>
+          <StatusBadge status={app.status} />
+        </div>
         {app.company && (
           <p className="text-sm text-gray-500 mt-0.5">{app.company}</p>
         )}
@@ -500,6 +523,11 @@ export function ApplicationDetailClient() {
             In trash
           </span>
         )}
+      </div>
+
+      {/* Status timeline — always visible */}
+      <div className="mb-6">
+        <ApplicationStatusTimeline app={app} />
       </div>
 
       {/* Tab bar */}
@@ -524,7 +552,6 @@ export function ApplicationDetailClient() {
       {activeTab === 'scoring' && <ScoringTab app={app} />}
       {activeTab === 'resume'  && <ResumeTab app={app} />}
       {activeTab === 'letter'  && <DummyTab label="Application Letter" />}
-      {activeTab === 'stages'  && <DummyTab label="Stages" />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Hangfire;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Core.Entities;
+using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
@@ -282,6 +284,91 @@ public sealed class ApplicationsController : ControllerBase
         _db.Applications.Remove(application);
         await _db.SaveChangesAsync(ct);
         return NoContent();
+    }
+
+    /// <summary>
+    /// Updates the workflow status of an application and records the transition date.
+    /// If <c>achievedAt</c> is omitted, the current UTC time is used for new history entries;
+    /// existing entries keep their original date unless <c>achievedAt</c> is explicitly provided.
+    /// </summary>
+    [HttpPatch("{id:guid}/status")]
+    [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateStatusAsync(
+        Guid id,
+        [FromBody] UpdateApplicationStatusRequest request,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.UpdateStatus(request.Status, request.AchievedAt);
+        await _db.SaveChangesAsync(ct);
+        return Ok(application.ToResponse());
+    }
+
+    /// <summary>
+    /// Overwrites the recorded date for a specific status in the application's history.
+    /// Returns 404 if the application is not found; 422 if the given status has not been reached yet.
+    /// </summary>
+    [HttpPatch("{id:guid}/status/date")]
+    [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UpdateStatusDateAsync(
+        Guid id,
+        [FromBody] UpdateStatusDateRequest request,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        if (!application.StatusHistory.Any(e => e.Status == request.Status))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "Status not reached",
+                Detail = $"The status '{request.Status}' has not been recorded for this application.",
+            });
+        }
+
+        application.UpdateStatusDate(request.Status, request.AchievedAt);
+        await _db.SaveChangesAsync(ct);
+        return Ok(application.ToResponse());
+    }
+
+    /// <summary>Sets or clears the recorded posting date of the job ad for an application.</summary>
+    [HttpPatch("{id:guid}/posted-at")]
+    [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdatePostedAtAsync(
+        Guid id,
+        [FromBody] UpdatePostedAtRequest request,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.UpdatePostedAt(request.PostedAt);
+        await _db.SaveChangesAsync(ct);
+        return Ok(application.ToResponse());
+    }
+
+    /// <summary>Updates the recorded scrape date for an application.</summary>
+    [HttpPatch("{id:guid}/scraped-at")]
+    [ProducesResponseType(typeof(ApplicationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateScrapedAtAsync(
+        Guid id,
+        [FromBody] UpdateScrapedAtRequest request,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.UpdateScrapedAt(request.ScrapedAt);
+        await _db.SaveChangesAsync(ct);
+        return Ok(application.ToResponse());
     }
 
     /// <summary>Updates the stored job ad page content for an application.</summary>
@@ -671,4 +758,43 @@ public record UpdateGeneratedResumeRequest
 {
     /// <summary>Gets the updated HTML content.</summary>
     public required string HtmlContent { get; init; }
+}
+
+/// <summary>Request body for updating the job ad posting date.</summary>
+public record UpdatePostedAtRequest
+{
+    /// <summary>Gets the new posting date, or null to clear it.</summary>
+    public DateTimeOffset? PostedAt { get; init; }
+}
+
+/// <summary>Request body for updating the recorded scrape date of an application.</summary>
+public record UpdateScrapedAtRequest
+{
+    /// <summary>Gets the new scrape date.</summary>
+    public required DateTimeOffset ScrapedAt { get; init; }
+}
+
+/// <summary>Request body for transitioning an application to a new workflow status.</summary>
+public record UpdateApplicationStatusRequest
+{
+    /// <summary>Gets the new status to transition to.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public required ApplicationStatus Status { get; init; }
+
+    /// <summary>
+    /// Gets the optional timestamp to record for this status transition.
+    /// When null, the current UTC time is used for new history entries; existing entries keep their date.
+    /// </summary>
+    public DateTimeOffset? AchievedAt { get; init; }
+}
+
+/// <summary>Request body for overwriting the recorded date of an already-reached status.</summary>
+public record UpdateStatusDateRequest
+{
+    /// <summary>Gets the status whose recorded date should be updated.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public required ApplicationStatus Status { get; init; }
+
+    /// <summary>Gets the new UTC timestamp to record for this status.</summary>
+    public required DateTimeOffset AchievedAt { get; init; }
 }

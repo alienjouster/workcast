@@ -1,3 +1,6 @@
+using Workcast.Core.Enums;
+using Workcast.Core.Models;
+
 namespace Workcast.Core.Entities;
 
 /// <summary>
@@ -14,10 +17,11 @@ public sealed class Application
     /// </summary>
     public static Application CreateFromJobAd(JobAd ad, AdScoring? scoring)
     {
+        var now = DateTimeOffset.UtcNow;
         return new Application
         {
             JobAdId = ad.Id,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = now,
             Url = ad.Url,
             Title = ad.Title,
             Company = ad.Company,
@@ -25,12 +29,15 @@ public sealed class Application
             SalaryRaw = ad.SalaryRaw,
             Description = ad.Description,
             PostedAt = ad.PostedAt,
+            ScrapedAt = ad.ScrapedAt,
             ExternalId = ad.ExternalId,
             OverallScore = scoring?.OverallScore,
             ScoredAt = scoring?.ScoredAt,
             Summary = scoring?.Summary,
             Recommendation = scoring?.Recommendation,
             Requirements = scoring?.Requirements ?? [],
+            Status = ApplicationStatus.ToApply,
+            StatusHistory = [new StatusHistoryEntry { Status = ApplicationStatus.ToApply, AchievedAt = now }],
         };
     }
 
@@ -72,6 +79,9 @@ public sealed class Application
     /// <summary>Date the ad was originally posted, if available.</summary>
     public DateTimeOffset? PostedAt { get; private set; }
 
+    /// <summary>UTC timestamp when the source job ad was scraped by Workcast.</summary>
+    public DateTimeOffset ScrapedAt { get; private set; }
+
     /// <summary>Board-specific external identifier for reference.</summary>
     public string? ExternalId { get; private set; }
 
@@ -104,7 +114,26 @@ public sealed class Application
     /// <summary>Error message from the most recent failed scoring attempt, or null if scoring succeeded or was never run.</summary>
     public string? LastScoringError { get; private set; }
 
+    // ── Status tracking ───────────────────────────────────────────────────────
+
+    /// <summary>Current workflow stage of the application.</summary>
+    public ApplicationStatus Status { get; private set; } = ApplicationStatus.ToApply;
+
+    /// <summary>
+    /// Ordered log of each status the application has reached and when.
+    /// The current status is always present; moving backward does not remove prior entries.
+    /// Stored as a JSONB array.
+    /// </summary>
+    public List<StatusHistoryEntry> StatusHistory { get; private set; } =
+        [new StatusHistoryEntry { Status = ApplicationStatus.ToApply, AchievedAt = DateTimeOffset.UtcNow }];
+
     // ── Mutations ─────────────────────────────────────────────────────────────
+
+    /// <summary>Sets or clears the date the job ad was originally posted.</summary>
+    public void UpdatePostedAt(DateTimeOffset? postedAt) => PostedAt = postedAt;
+
+    /// <summary>Updates the recorded scrape date for this application.</summary>
+    public void UpdateScrapedAt(DateTimeOffset scrapedAt) => ScrapedAt = scrapedAt;
 
     /// <summary>Moves this application to the trash bin.</summary>
     public void Trash() => IsTrashed = true;
@@ -151,5 +180,71 @@ public sealed class Application
         Summary       = summary;
         Recommendation = recommendation;
         Requirements  = requirements;
+    }
+
+    /// <summary>
+    /// Transitions the application to <paramref name="newStatus"/>.
+    /// <para>
+    /// History entries for statuses that come <em>after</em> the new status are discarded —
+    /// going backward clears future steps and their dates.
+    /// The three Closed statuses are treated as mutually exclusive alternatives: switching
+    /// between them replaces the previous Closed entry.
+    /// </para>
+    /// If <paramref name="achievedAt"/> is provided it is used as the history timestamp;
+    /// otherwise the current UTC time is used for new entries, and existing entries keep
+    /// their original date unless explicitly overridden.
+    /// </summary>
+    public void UpdateStatus(ApplicationStatus newStatus, DateTimeOffset? achievedAt = null)
+    {
+        // Build the trimmed history:
+        // • Closed statuses are mutually exclusive — remove all other Closed entries.
+        // • Non-Closed statuses use the enum integer order — remove everything after the new position.
+        List<StatusHistoryEntry> trimmed = IsClosed(newStatus)
+            ? StatusHistory.Where(e => !IsClosed(e.Status)).ToList()
+            : StatusHistory.Where(e => (int)e.Status <= (int)newStatus).ToList();
+
+        var existing = trimmed.FindIndex(e => e.Status == newStatus);
+        if (existing >= 0)
+        {
+            // Only overwrite the date when the caller provides an explicit value.
+            if (achievedAt.HasValue)
+                trimmed = trimmed
+                    .Select((e, i) => i == existing
+                        ? new StatusHistoryEntry { Status = e.Status, AchievedAt = achievedAt.Value }
+                        : e)
+                    .ToList();
+        }
+        else
+        {
+            trimmed.Add(new StatusHistoryEntry
+            {
+                Status = newStatus,
+                AchievedAt = achievedAt ?? DateTimeOffset.UtcNow,
+            });
+        }
+
+        StatusHistory = trimmed;
+        Status = newStatus;
+    }
+
+    private static bool IsClosed(ApplicationStatus status) =>
+        status is ApplicationStatus.ClosedNoAnswer
+               or ApplicationStatus.ClosedRejected
+               or ApplicationStatus.ClosedHired;
+
+    /// <summary>
+    /// Updates only the recorded date for a status that is already in the history.
+    /// Does nothing if the status has not been reached yet.
+    /// </summary>
+    public void UpdateStatusDate(ApplicationStatus status, DateTimeOffset achievedAt)
+    {
+        var existing = StatusHistory.FindIndex(e => e.Status == status);
+        if (existing < 0) return;
+
+        StatusHistory = StatusHistory
+            .Select((e, i) => i == existing
+                ? new StatusHistoryEntry { Status = e.Status, AchievedAt = achievedAt }
+                : e)
+            .ToList();
     }
 }

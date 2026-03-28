@@ -3,6 +3,7 @@
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
+import type { ApplicationStatus } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -129,6 +130,48 @@ export function useUpdateGeneratedResume(id: string) {
     mutationFn: (htmlContent: string) => api.applications.updateLatestResume(id, htmlContent),
     onSuccess: (updated) => {
       queryClient.setQueryData(['generated-resume', id], updated);
+    },
+  });
+}
+
+export function useUpdateApplicationPostedAt(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (postedAt: string | null) => api.applications.updatePostedAt(id, postedAt),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}
+
+export function useUpdateApplicationScrapedAt(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (scrapedAt: string) => api.applications.updateScrapedAt(id, scrapedAt),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}
+
+export function useUpdateApplicationStatus(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ status, achievedAt }: { status: ApplicationStatus; achievedAt?: string }) =>
+      api.applications.updateStatus(id, status, achievedAt),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}
+
+export function useUpdateApplicationStatusDate(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ status, achievedAt }: { status: ApplicationStatus; achievedAt: string }) =>
+      api.applications.updateStatusDate(id, status, achievedAt),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['applications', id], updated);
     },
   });
 }

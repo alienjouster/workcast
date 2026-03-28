@@ -42,6 +42,9 @@ public record ApplicationResponse
     /// <summary>Gets the date the ad was originally posted.</summary>
     public DateTimeOffset? PostedAt { get; init; }
 
+    /// <summary>Gets the UTC timestamp when the source job ad was scraped by Workcast.</summary>
+    public required DateTimeOffset ScrapedAt { get; init; }
+
     /// <summary>Gets the board-specific external identifier.</summary>
     public string? ExternalId { get; init; }
 
@@ -73,4 +76,22 @@ public record ApplicationResponse
 
     /// <summary>Gets the error message from the most recent failed scoring attempt, or null.</summary>
     public string? LastScoringError { get; init; }
+
+    // ── Status tracking ──────────────────────────────────────────────────────
+
+    /// <summary>Gets the current workflow stage of the application as a string (e.g. "ToApply").</summary>
+    public required string Status { get; init; }
+
+    /// <summary>Gets the ordered history of statuses the application has reached, with dates.</summary>
+    public required IList<StatusHistoryEntryResponse> StatusHistory { get; init; }
+}
+
+/// <summary>A single entry in an application's status history.</summary>
+public record StatusHistoryEntryResponse
+{
+    /// <summary>Gets the status as a string (e.g. "Applied").</summary>
+    public required string Status { get; init; }
+
+    /// <summary>Gets the UTC timestamp when this status was reached.</summary>
+    public required DateTimeOffset AchievedAt { get; init; }
 }

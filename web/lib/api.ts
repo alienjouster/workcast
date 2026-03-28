@@ -10,6 +10,7 @@ import type {
   AppSettings,
   UpdateSettingsRequest,
   Application,
+  ApplicationStatus,
   GeneratedResume,
 } from '@/types';
 
@@ -240,5 +241,25 @@ export const api = {
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),
+    updatePostedAt: (id: string, postedAt: string | null) =>
+      apiFetch<Application>(`/api/applications/${id}/posted-at`, {
+        method: 'PATCH',
+        body: JSON.stringify({ postedAt }),
+      }),
+    updateScrapedAt: (id: string, scrapedAt: string) =>
+      apiFetch<Application>(`/api/applications/${id}/scraped-at`, {
+        method: 'PATCH',
+        body: JSON.stringify({ scrapedAt }),
+      }),
+    updateStatus: (id: string, status: ApplicationStatus, achievedAt?: string) =>
+      apiFetch<Application>(`/api/applications/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, achievedAt: achievedAt ?? null }),
+      }),
+    updateStatusDate: (id: string, status: ApplicationStatus, achievedAt: string) =>
+      apiFetch<Application>(`/api/applications/${id}/status/date`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, achievedAt }),
+      }),
   },
 };

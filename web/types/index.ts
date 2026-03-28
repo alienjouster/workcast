@@ -139,6 +139,19 @@ export interface GeneratedResume {
   generatedAt: string;
 }
 
+export type ApplicationStatus =
+  | 'ToApply'
+  | 'Applied'
+  | 'Interviewing'
+  | 'ClosedNoAnswer'
+  | 'ClosedRejected'
+  | 'ClosedHired';
+
+export interface StatusHistoryEntry {
+  status: ApplicationStatus;
+  achievedAt: string;
+}
+
 export type ScoringCategory = 'match' | 'partial_match' | 'gap';
 
 export interface ScoringRequirement {
@@ -171,6 +184,7 @@ export interface Application {
   salaryRaw: string | null;
   description: string | null;
   postedAt: string | null;
+  scrapedAt: string;
   externalId: string | null;
   overallScore: number | null;
   scoredAt: string | null;
@@ -180,6 +194,8 @@ export interface Application {
   jobAdContent: string | null;
   isScoringPending: boolean;
   lastScoringError: string | null;
+  status: ApplicationStatus;
+  statusHistory: StatusHistoryEntry[];
 }
 
 export interface UpdateSettingsRequest {
