@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { isActiveRunStatus } from '@/types';
 import { useJobBoards } from '@/lib/hooks/useJobBoards';
 import { useAllScrapeRuns } from '@/lib/hooks/useScrapeRuns';
 import { AddBoardForm } from '@/components/boards/AddBoardForm';
@@ -27,7 +28,7 @@ function timeAgo(iso: string) {
 }
 
 function runDuration(run: { startedAt: string; finishedAt: string | null }) {
-  if (!run.finishedAt) return 'Running…';
+  if (!run.finishedAt) return '—';
   const ms = new Date(run.finishedAt).getTime() - new Date(run.startedAt).getTime();
   return `${(ms / 1000).toFixed(0)}s`;
 }
@@ -216,13 +217,13 @@ export function BoardsClient() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {run.status === 'running' ? (
+                        {isActiveRunStatus(run.status) ? (
                           <span className="inline-flex items-center gap-1.5">
                             <svg className="animate-spin h-3.5 w-3.5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                             </svg>
-                            Running…
+                            {run.status === 'processing' ? 'Running…' : `${run.status.charAt(0).toUpperCase() + run.status.slice(1)}…`}
                           </span>
                         ) : runDuration(run)}
                       </td>

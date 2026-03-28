@@ -81,9 +81,18 @@ public sealed class ScrapeRunConfiguration : IEntityTypeConfiguration<ScrapeRun>
                 v => v.Aggregate(0, (hash, e) => HashCode.Combine(hash, e.GetHashCode())),
                 v => v.ToList()));
 
+        builder.Property(r => r.HangfireJobId)
+            .HasColumnName("hangfire_job_id")
+            .HasMaxLength(100)
+            .IsRequired(false);
+
         // Run history per board: JobBoardId + StartedAt DESC (TECHSPEC section 3.6)
         builder.HasIndex(r => new { r.JobBoardId, r.StartedAt })
             .IsDescending(false, true)
             .HasDatabaseName("ix_scrape_runs_job_board_id_started_at_desc");
+
+        // State-filter lookup: find the ScrapeRun for a given Hangfire job ID.
+        builder.HasIndex(r => r.HangfireJobId)
+            .HasDatabaseName("ix_scrape_runs_hangfire_job_id");
     }
 }

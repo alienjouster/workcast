@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using AngleSharp.Html.Parser;
 using Hangfire;
+using Hangfire.Server;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Workcast.Core.Entities;
@@ -64,23 +65,31 @@ public sealed class ScrapeJobRunner
 
     /// <summary>
     /// Executes the full scrape run pipeline for the specified job board.
-    /// Creates a <see cref="ScrapeRun"/> record, processes all listing pages with
+    /// Loads the <see cref="ScrapeRun"/> record created at enqueue time by
+    /// <see cref="ScrapeRunStateFilter"/>, processes all listing pages with
     /// pagination, extracts and persists new job ads from job card elements, then runs
     /// stale detection.
     /// </summary>
     /// <param name="jobBoardId">The ID of the job board to scrape.</param>
     /// <param name="triggerSource">Whether this run was triggered by the scheduler or manually.</param>
+    /// <param name="performContext">
+    /// Injected by Hangfire at execution time (pass <c>null!</c> in enqueue expressions).
+    /// Used to look up the <see cref="ScrapeRun"/> by Hangfire job ID.
+    /// </param>
     /// <param name="ct">Cancellation token passed by Hangfire.</param>
     [Queue("default")]
     [AutomaticRetry(Attempts = 1)]
     public async Task ExecuteAsync(
         Guid jobBoardId,
         TriggerSource triggerSource = TriggerSource.Scheduler,
+        PerformContext? performContext = null,
         CancellationToken ct = default)
     {
+        var hangfireJobId = performContext?.BackgroundJob?.Id;
+
         _logger.LogInformation(
-            "Starting scrape run for board {BoardId} (trigger: {Trigger})",
-            jobBoardId, triggerSource);
+            "Starting scrape run for board {BoardId} (trigger: {Trigger}, jobId: {JobId})",
+            jobBoardId, triggerSource, hangfireJobId);
 
         var board = await _dbContext.JobBoards
             .FirstOrDefaultAsync(b => b.Id == jobBoardId, ct)
@@ -106,16 +115,34 @@ public sealed class ScrapeJobRunner
             return;
         }
 
-        var run = ScrapeRun.Create(jobBoardId, triggerSource);
-        _dbContext.ScrapeRuns.Add(run);
-        await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
-
-        await _broadcaster.PublishAsync(new WorkcastEvent
+        // Load the run created by ScrapeRunStateFilter when the job was enqueued.
+        ScrapeRun? run = null;
+        if (hangfireJobId is not null)
         {
-            Type    = WorkcastEvent.RunStarted,
-            BoardId = jobBoardId,
-            RunId   = run.Id,
-        }).ConfigureAwait(false);
+            run = await _dbContext.ScrapeRuns
+                .FirstOrDefaultAsync(r => r.HangfireJobId == hangfireJobId, ct)
+                .ConfigureAwait(false);
+        }
+
+        if (run is null)
+        {
+            // Fallback: filter may have failed to create the run (e.g. transient DB error).
+            // Create it now directly in Processing state so the run still appears in the UI.
+            _logger.LogWarning(
+                "ScrapeRun not found for Hangfire job {JobId} — creating fallback run for board {BoardId}",
+                hangfireJobId, jobBoardId);
+            run = ScrapeRun.Create(jobBoardId, triggerSource, hangfireJobId ?? string.Empty);
+            run.Start();
+            _dbContext.ScrapeRuns.Add(run);
+            await _dbContext.SaveChangesAsync(ct).ConfigureAwait(false);
+
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type    = WorkcastEvent.RunStarted,
+                BoardId = jobBoardId,
+                RunId   = run.Id,
+            }).ConfigureAwait(false);
+        }
 
         var config = board.ScraperConfig;
         var seenNormalizedUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

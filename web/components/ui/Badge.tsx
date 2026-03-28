@@ -1,14 +1,20 @@
 import type { BoardStatus, RunStatus } from '@/types';
 
 const STATUS_CLASSES: Record<string, string> = {
+  // Board statuses
   pending: 'bg-yellow-100 text-yellow-800',
   active: 'bg-green-100 text-green-800',
   paused: 'bg-gray-100 text-gray-700',
   error: 'bg-red-100 text-red-800',
-  running: 'bg-blue-100 text-blue-800',
+  // Run statuses — Hangfire-synced
+  enqueued: 'bg-slate-100 text-slate-700',
+  scheduled: 'bg-purple-100 text-purple-800',
+  awaiting: 'bg-purple-100 text-purple-800',
+  processing: 'bg-blue-100 text-blue-800',
   completed: 'bg-green-100 text-green-800',
   failed: 'bg-red-100 text-red-800',
   partial: 'bg-yellow-100 text-yellow-800',
+  deleted: 'bg-gray-100 text-gray-500',
 };
 
 interface BadgeProps {

@@ -1,5 +1,18 @@
 export type BoardStatus = 'pending' | 'active' | 'paused' | 'error';
-export type RunStatus = 'running' | 'completed' | 'failed' | 'partial';
+export type RunStatus =
+  | 'enqueued'
+  | 'scheduled'
+  | 'awaiting'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'partial'
+  | 'deleted';
+
+/** Returns true for statuses that represent an in-flight (not yet terminal) run. */
+export function isActiveRunStatus(status: RunStatus | string): boolean {
+  return status === 'enqueued' || status === 'scheduled' || status === 'awaiting' || status === 'processing';
+}
 export type TriggeredBy = 'scheduler' | 'manual';
 
 export interface FieldSelectorMap {

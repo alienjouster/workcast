@@ -14,6 +14,8 @@
   <ItemGroup>
     <!-- Hangfire.Core provides AutomaticRetry and job activation infrastructure. -->
     <PackageReference Include="Hangfire.Core" Version="1.8.14" />
+    <!-- Override transitive Newtonsoft.Json from Hangfire.Core to resolve NU1903 (CVE in 11.0.1) -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <!--
       AngleSharp: CSS selector-based HTML parsing used to extract job ad links from listing
       pages and to locate next-page button hrefs. No BCL mechanism exists for CSS selector

@@ -11,23 +11,34 @@ public class ScrapeRun
     private ScrapeRun() { }
 
     /// <summary>
-    /// Creates a new <see cref="ScrapeRun"/> in the <see cref="RunStatus.Running"/> state.
+    /// Creates a new <see cref="ScrapeRun"/> in the <see cref="RunStatus.Enqueued"/> state.
+    /// The run is persisted immediately at enqueue time so it appears in the UI before
+    /// a Hangfire worker picks it up. Status is advanced to <see cref="RunStatus.Processing"/>
+    /// by <see cref="ScrapeRunStateFilter"/> when Hangfire transitions to ProcessingState.
     /// </summary>
     /// <param name="jobBoardId">The board being scraped.</param>
     /// <param name="triggeredBy">What initiated this run.</param>
-    public static ScrapeRun Create(Guid jobBoardId, TriggerSource triggeredBy)
+    /// <param name="hangfireJobId">The Hangfire job ID used to correlate state-filter events with this run.</param>
+    public static ScrapeRun Create(Guid jobBoardId, TriggerSource triggeredBy, string hangfireJobId)
     {
         return new ScrapeRun
         {
             JobBoardId = jobBoardId,
             TriggeredBy = triggeredBy,
             StartedAt = DateTimeOffset.UtcNow,
-            Status = RunStatus.Running,
+            Status = RunStatus.Enqueued,
+            HangfireJobId = hangfireJobId,
         };
     }
 
     /// <summary>UUID primary key.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>
+    /// Hangfire job ID (string) used to correlate <see cref="ScrapeRunStateFilter"/> state
+    /// transitions with this run. Set once at enqueue time and never changes, even across retries.
+    /// </summary>
+    public string HangfireJobId { get; private set; } = string.Empty;
 
     /// <summary>Foreign key to the owning <see cref="JobBoard"/>.</summary>
     public Guid JobBoardId { get; private set; }
@@ -100,6 +111,36 @@ public class ScrapeRun
         PagesScraped = pagesScraped;
         AdsFound = adsFound;
         AdsNew = adsNew;
+    }
+
+    /// <summary>
+    /// Transitions the run to <see cref="RunStatus.Processing"/> when a Hangfire worker picks it up.
+    /// Called by <see cref="ScrapeRunStateFilter"/> on Hangfire's ProcessingState.
+    /// </summary>
+    public void Start()
+    {
+        Status = RunStatus.Processing;
+    }
+
+    /// <summary>
+    /// Sets the run status to an intermediate Hangfire-driven state without changing timestamps.
+    /// Used by <see cref="ScrapeRunStateFilter"/> for <see cref="RunStatus.Scheduled"/>,
+    /// <see cref="RunStatus.Awaiting"/>, and <see cref="RunStatus.Enqueued"/> (retry cycles).
+    /// </summary>
+    public void SetStatus(RunStatus status)
+    {
+        Status = status;
+    }
+
+    /// <summary>
+    /// Marks the run as <see cref="RunStatus.Deleted"/> when the job is removed from
+    /// the Hangfire dashboard. Sets <see cref="FinishedAt"/> so the run is no longer
+    /// considered active.
+    /// </summary>
+    public void Delete()
+    {
+        Status = RunStatus.Deleted;
+        FinishedAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>

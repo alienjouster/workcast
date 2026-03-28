@@ -7,7 +7,9 @@ namespace Workcast.Core.Events;
 public sealed record WorkcastEvent
 {
     public const string BoardStatusChanged            = "boardStatusChanged";
+    public const string RunEnqueued                   = "runEnqueued";
     public const string RunStarted                    = "runStarted";
+    public const string RunStatusChanged              = "runStatusChanged";
     public const string RunCompleted                  = "runCompleted";
     public const string UnreadCountChanged            = "unreadCountChanged";
     public const string ScoringCompleted              = "scoringCompleted";

@@ -24,6 +24,8 @@ public static class DependencyInjection
         services.AddTransient<AdScoringJob>();
         services.AddTransient<AdCleanupJob>();
         services.AddTransient<ApplicationScoringJob>();
+        // Singleton: holds IServiceScopeFactory + IEventBroadcaster, creates a scope per event.
+        services.AddSingleton<ScrapeRunStateFilter>();
         return services;
     }
 }

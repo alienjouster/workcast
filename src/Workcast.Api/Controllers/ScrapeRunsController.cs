@@ -42,6 +42,7 @@ public sealed class ScrapeRunsController : ControllerBase
         limit = Math.Clamp(limit, 1, 200);
 
         var runs = await _db.ScrapeRuns
+            .Include(r => r.JobBoard)
             .OrderByDescending(r => r.StartedAt)
             .Take(limit)
             .Select(r => new

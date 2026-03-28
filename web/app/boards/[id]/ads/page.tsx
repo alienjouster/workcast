@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { isActiveRunStatus } from '@/types';
 import { useJobAds, useMarkAllRead } from '@/lib/hooks/useJobAds';
 import { useScrapeRuns } from '@/lib/hooks/useScrapeRuns';
 import { AdTable } from '@/components/ads/AdTable';
@@ -26,12 +27,12 @@ export default function BoardAdsPage() {
   const hadRunningRunRef = useRef(false);
   useEffect(() => {
     if (runs === undefined) return;
-    const hasRunning = runs.some((r) => r.status === 'running');
-    if (hadRunningRunRef.current && !hasRunning) {
+    const hasActive = runs.some((r) => isActiveRunStatus(r.status));
+    if (hadRunningRunRef.current && !hasActive) {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
       qc.invalidateQueries({ queryKey: ['status'] });
     }
-    hadRunningRunRef.current = hasRunning;
+    hadRunningRunRef.current = hasActive;
   }, [runs, qc]);
 
   const allAds = data?.pages.flatMap((p) => p.items) ?? [];

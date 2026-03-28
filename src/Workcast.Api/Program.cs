@@ -45,6 +45,9 @@ app.UseHangfireDashboard("/hangfire", new DashboardOptions
     Authorization = Array.Empty<IDashboardAuthorizationFilter>(),
 });
 
+// Register the global Hangfire state filter that syncs ScrapeRun status with Hangfire.
+GlobalJobFilters.Filters.Add(app.Services.GetRequiredService<ScrapeRunStateFilter>());
+
 // Register recurring system jobs
 var scheduler = app.Services.GetRequiredService<Workcast.Infrastructure.Scheduling.HangfireJobScheduler>();
 scheduler.AddOrUpdateRecurring<StaleRunCleanupJob>(

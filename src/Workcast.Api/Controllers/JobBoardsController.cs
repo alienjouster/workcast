@@ -92,7 +92,11 @@ public sealed class JobBoardsController : ControllerBase
             {
                 Board = b,
                 AdCount = b.JobAds.Count,
-                HasActiveRun = b.ScrapeRuns.Any(r => r.Status == RunStatus.Running),
+                HasActiveRun = b.ScrapeRuns.Any(r =>
+                    r.Status == RunStatus.Enqueued ||
+                    r.Status == RunStatus.Scheduled ||
+                    r.Status == RunStatus.Awaiting  ||
+                    r.Status == RunStatus.Processing),
             })
             .OrderByDescending(x => x.Board.CreatedAt)
             .ToListAsync(ct);
@@ -120,7 +124,11 @@ public sealed class JobBoardsController : ControllerBase
             {
                 Board = b,
                 AdCount = b.JobAds.Count,
-                HasActiveRun = b.ScrapeRuns.Any(r => r.Status == RunStatus.Running),
+                HasActiveRun = b.ScrapeRuns.Any(r =>
+                    r.Status == RunStatus.Enqueued ||
+                    r.Status == RunStatus.Scheduled ||
+                    r.Status == RunStatus.Awaiting  ||
+                    r.Status == RunStatus.Processing),
             })
             .FirstOrDefaultAsync(ct);
 
@@ -208,7 +216,7 @@ public sealed class JobBoardsController : ControllerBase
                     {
                         _scheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
                             jobId,
-                            j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, CancellationToken.None),
+                            j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, null!, CancellationToken.None),
                             board.ScheduleCron);
                     }
                     break;
@@ -227,7 +235,7 @@ public sealed class JobBoardsController : ControllerBase
             // Covers Active and Error states (error boards may recover via re-analysis).
             _scheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
                 jobId,
-                j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, CancellationToken.None),
+                j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, null!, CancellationToken.None),
                 board.ScheduleCron);
         }
 
@@ -290,7 +298,7 @@ public sealed class JobBoardsController : ControllerBase
                 detail: $"Job board '{id}' was not found.");
         }
 
-        _scheduler.Enqueue<ScrapeJobRunner>(j => j.ExecuteAsync(id, TriggerSource.Manual, CancellationToken.None));
+        _scheduler.Enqueue<ScrapeJobRunner>(j => j.ExecuteAsync(id, TriggerSource.Manual, null!, CancellationToken.None));
 
         _logger.LogInformation("Manual scrape refresh enqueued for board {BoardId}.", id);
 

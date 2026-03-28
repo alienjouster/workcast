@@ -40,14 +40,14 @@ public sealed class StaleRunCleanupJob
         var cutoff = DateTimeOffset.UtcNow - StaleThreshold;
 
         var staleRuns = await _dbContext.ScrapeRuns
-            .Where(r => r.Status == RunStatus.Running && r.StartedAt < cutoff)
+            .Where(r => r.Status == RunStatus.Processing && r.StartedAt < cutoff)
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
         if (staleRuns.Count == 0) return;
 
         _logger.LogWarning(
-            "Found {Count} stale scrape run(s) still marked Running after {Minutes} min — marking as Failed",
+            "Found {Count} stale scrape run(s) still marked Processing after {Minutes} min — marking as Failed",
             staleRuns.Count, (int)StaleThreshold.TotalMinutes);
 
         foreach (var run in staleRuns)

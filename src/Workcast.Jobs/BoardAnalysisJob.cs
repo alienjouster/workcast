@@ -90,13 +90,13 @@ public sealed class BoardAnalysisJob
             // change (PATCH endpoint) will update rather than duplicate the job.
             _jobScheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
                 $"scrape-{board.Id}",
-                x => x.ExecuteAsync(board.Id, TriggerSource.Scheduler, CancellationToken.None),
+                x => x.ExecuteAsync(board.Id, TriggerSource.Scheduler, null!, CancellationToken.None),
                 board.ScheduleCron);
 
             // Trigger an immediate first scrape so the board is populated without
             // waiting for the first scheduled window.
             _jobScheduler.Enqueue<ScrapeJobRunner>(
-                x => x.ExecuteAsync(board.Id, TriggerSource.Scheduler, CancellationToken.None));
+                x => x.ExecuteAsync(board.Id, TriggerSource.Scheduler, null!, CancellationToken.None));
 
             _logger.LogInformation(
                 "Recurring scrape job registered and immediate first run enqueued for board {BoardId}",

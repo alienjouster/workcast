@@ -6,7 +6,9 @@ import type { UseJobAdsParams } from '@/lib/hooks/useJobAds';
 
 type SseEvent =
   | { type: 'boardStatusChanged'; boardId: string }
-  | { type: 'runStarted'; boardId: string }
+  | { type: 'runEnqueued'; boardId: string; runId: string }
+  | { type: 'runStarted'; boardId: string; runId: string }
+  | { type: 'runStatusChanged'; boardId: string; runId: string; status: string }
   | { type: 'runCompleted'; boardId: string; runId: string }
   | { type: 'unreadCountChanged'; unreadCount: number }
   | { type: 'scoringCompleted'; adId: string }
@@ -39,9 +41,27 @@ export function useSSE() {
           qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
           break;
 
+        case 'runEnqueued':
+          // A new run record has been created — refresh runs list and board (hasActiveRun).
+          qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
+          qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['job-boards'] });
+          break;
+
         case 'runStarted':
           qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
           qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
+          qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['job-boards'] });
+          break;
+
+        case 'runStatusChanged':
+          // Intermediate Hangfire state change (scheduled, awaiting, enqueued retry, deleted).
+          // Only refresh runs — job-ads and board metadata are not affected.
+          qc.invalidateQueries({ queryKey: ['scrape-runs', event.boardId] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
+          qc.invalidateQueries({ queryKey: ['scrape-runs', 'detail', event.runId] });
           qc.invalidateQueries({ queryKey: ['job-boards', event.boardId] });
           qc.invalidateQueries({ queryKey: ['job-boards'] });
           break;
