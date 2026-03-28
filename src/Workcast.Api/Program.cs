@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.Dashboard;
 using Microsoft.EntityFrameworkCore;
+using Workcast.Core.Enums;
 using Workcast.Infrastructure;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
@@ -59,6 +60,24 @@ scheduler.AddOrUpdateRecurring<AdCleanupJob>(
     "ad-cleanup",
     x => x.ExecuteAsync(CancellationToken.None),
     "0 2 * * *"); // daily at 02:00 UTC
+
+// Re-register all existing board recurring jobs to update the stored Hangfire method signature.
+// Required after adding PerformContext to ScrapeJobRunner.ExecuteAsync — boards whose recurring
+// jobs were last registered with the old 3-parameter signature would fail at invocation time
+// because Hangfire resolves the method by name + parameter types at execution time.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var boards = await db.JobBoards
+        .Where(b => b.ScraperConfig != null && b.Status != BoardStatus.Paused)
+        .ToListAsync();
+
+    foreach (var board in boards)
+        scheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
+            $"scrape-{board.Id}",
+            j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, null, CancellationToken.None),
+            board.ScheduleCron);
+}
 
 app.UseExceptionHandler();
 app.MapControllers();
