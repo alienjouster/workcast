@@ -520,6 +520,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   const [optimizationLevel, setOptimizationLevel] = useState<ResumeOptimizationLevel>('None');
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [versionsExpanded, setVersionsExpanded] = useState(false);
 
   if (!app) return null;
 
@@ -695,6 +696,22 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               >
                 Print
               </button>
+              {sortedVersions.length > 0 && (
+                <button
+                  onClick={() => setVersionsExpanded(v => !v)}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${versionsExpanded ? 'rotate-180' : ''}`}
+                  >
+                    <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                  </svg>
+                  {sortedVersions.length} version{sortedVersions.length !== 1 ? 's' : ''}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -734,61 +751,6 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
 
       {!isGenerating && sortedVersions.length > 0 && selectedVersion && (
         <div className="flex gap-3 items-start">
-          {/* Version list sidebar */}
-          <div className="w-44 flex-shrink-0">
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden divide-y divide-gray-100">
-              {sortedVersions.map((v) => {
-                const isSelected = v.id === selectedVersion.id;
-                return (
-                  <div
-                    key={v.id}
-                    onClick={() => { if (!editing) setSelectedVersionId(v.id); }}
-                    className={`group relative flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer transition-colors ${
-                      isSelected
-                        ? 'bg-indigo-50'
-                        : 'hover:bg-gray-50'
-                    } ${editing ? 'cursor-default opacity-60' : ''}`}
-                  >
-                    <div className="flex items-center justify-between gap-1">
-                      <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
-                        v{v.versionNumber}
-                      </span>
-                      {!editing && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
-                          title="Delete this version"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                            <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-400 leading-tight">
-                      {new Date(v.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <div className="mt-0.5 flex flex-wrap gap-1">
-                      {v.optimizationLevel && (
-                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${OPTIMIZATION_BADGE[v.optimizationLevel] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {v.optimizationLevel}
-                        </span>
-                      )}
-                      {v.isManualEdit && (
-                        <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
-                          Edited
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-gray-300 truncate leading-tight mt-0.5" title={v.modelUsed}>
-                      {v.modelUsed}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Resume preview */}
           <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-200 overflow-hidden">
             <ResumeIframe
@@ -797,6 +759,65 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               onDraftChange={setDraft}
             />
           </div>
+
+          {/* Version list sidebar */}
+          {versionsExpanded && (
+            <div className="w-44 flex-shrink-0 relative" style={{ maxHeight: '900px' }}>
+              <div className="bg-white rounded-lg border border-gray-200 overflow-y-auto divide-y divide-gray-100" style={{ maxHeight: '900px' }}>
+                {sortedVersions.map((v) => {
+                    const isSelected = v.id === selectedVersion.id;
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => { if (!editing) setSelectedVersionId(v.id); }}
+                        className={`group relative flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-50'
+                            : 'hover:bg-gray-50'
+                        } ${editing ? 'cursor-default opacity-60' : ''}`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
+                            v{v.versionNumber}
+                          </span>
+                          {!editing && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
+                              title="Delete this version"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                                <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-tight">
+                          {new Date(v.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                        <div className="mt-0.5 flex flex-wrap gap-1">
+                          {v.optimizationLevel && (
+                            <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${OPTIMIZATION_BADGE[v.optimizationLevel] ?? 'bg-gray-100 text-gray-500'}`}>
+                              {v.optimizationLevel}
+                            </span>
+                          )}
+                          {v.isManualEdit && (
+                            <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                              Edited
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-300 truncate leading-tight mt-0.5" title={v.modelUsed}>
+                          {v.modelUsed}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              {/* Bottom fade — only visible when the list overflows */}
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 rounded-b-lg bg-gradient-to-t from-white to-transparent" />
+            </div>
+          )}
         </div>
       )}
 
