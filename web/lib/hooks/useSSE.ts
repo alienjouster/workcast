@@ -13,7 +13,8 @@ type SseEvent =
   | { type: 'unreadCountChanged'; unreadCount: number }
   | { type: 'scoringCompleted'; adId: string }
   | { type: 'applicationScoringCompleted'; applicationId: string }
-  | { type: 'applicationResumeGenerationCompleted'; applicationId: string };
+  | { type: 'applicationResumeGenerationCompleted'; applicationId: string }
+  | { type: 'applicationLetterGenerationCompleted'; applicationId: string };
 
 export function useSSE() {
   const qc = useQueryClient();
@@ -28,6 +29,12 @@ export function useSSE() {
       qc.invalidateQueries({ queryKey: ['scrape-runs'] });
       qc.invalidateQueries({ queryKey: ['scrape-runs-all'] });
       qc.invalidateQueries({ queryKey: ['status'] });
+      // Also resync application data — scoring/resume/letter completion events are
+      // published by Hangfire jobs and can be lost if the SSE connection was down
+      // while the job finished. Invalidating here ensures the UI catches up on reconnect.
+      qc.invalidateQueries({ queryKey: ['applications'] });
+      qc.invalidateQueries({ queryKey: ['generated-resume'] });
+      qc.invalidateQueries({ queryKey: ['generated-letter'] });
     };
 
     es.onmessage = (e: MessageEvent) => {
@@ -119,6 +126,11 @@ export function useSSE() {
           qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
           // Refresh the generated resume so the new HTML appears immediately.
           qc.invalidateQueries({ queryKey: ['generated-resume', event.applicationId] });
+          break;
+
+        case 'applicationLetterGenerationCompleted':
+          qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
+          qc.invalidateQueries({ queryKey: ['generated-letter', event.applicationId] });
           break;
       }
     };

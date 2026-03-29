@@ -83,10 +83,20 @@ public sealed class SettingsController : ControllerBase
             });
         }
 
+        if (!AllowedModels.Contains(request.LetterGenerationModel))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid letter generation model",
+                Detail = $"'{request.LetterGenerationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
+            });
+        }
+
         var settings = await _settingsRepository.GetAsync(ct);
         settings.SetBoardAnalyzerModel(request.BoardAnalyzerModel);
         settings.SetScoringModel(request.ScoringModel);
         settings.SetResumeGenerationModel(request.ResumeGenerationModel);
+        settings.SetLetterGenerationModel(request.LetterGenerationModel);
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(ToResponse(settings));
@@ -216,6 +226,7 @@ public sealed class SettingsController : ControllerBase
         s.BoardAnalyzerModel,
         s.ScoringModel,
         s.ResumeGenerationModel,
+        s.LetterGenerationModel,
         AllowedModels,
         s.HasResume,
         s.ResumeFileName,
@@ -229,6 +240,7 @@ public sealed class SettingsController : ControllerBase
     /// <param name="BoardAnalyzerModel">Active Anthropic model for board analysis.</param>
     /// <param name="ScoringModel">Active Anthropic model for job ad scoring.</param>
     /// <param name="ResumeGenerationModel">Active Anthropic model for custom resume generation.</param>
+    /// <param name="LetterGenerationModel">Active Anthropic model for application letter generation.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
@@ -240,6 +252,7 @@ public sealed class SettingsController : ControllerBase
         string BoardAnalyzerModel,
         string ScoringModel,
         string ResumeGenerationModel,
+        string LetterGenerationModel,
         IEnumerable<string> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
@@ -251,7 +264,8 @@ public sealed class SettingsController : ControllerBase
     /// <param name="BoardAnalyzerModel">Model identifier for board analysis.</param>
     /// <param name="ScoringModel">Model identifier for job ad scoring.</param>
     /// <param name="ResumeGenerationModel">Model identifier for custom resume generation.</param>
-    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel, string ResumeGenerationModel);
+    /// <param name="LetterGenerationModel">Model identifier for application letter generation.</param>
+    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel, string ResumeGenerationModel, string LetterGenerationModel);
 
     /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
     /// <param name="ContentBase64">Base64-encoded file bytes.</param>

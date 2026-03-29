@@ -122,6 +122,7 @@ export interface AppSettings {
   boardAnalyzerModel: string;
   scoringModel: string;
   resumeGenerationModel: string;
+  letterGenerationModel: string;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
@@ -134,6 +135,14 @@ export interface AppSettings {
 export type ResumeOptimizationLevel = 'None' | 'Light' | 'Medium' | 'Heavy';
 
 export interface GeneratedResume {
+  id: string;
+  applicationId: string;
+  htmlContent: string;
+  modelUsed: string;
+  generatedAt: string;
+}
+
+export interface GeneratedLetter {
   id: string;
   applicationId: string;
   htmlContent: string;
@@ -198,6 +207,8 @@ export interface Application {
   lastScoringError: string | null;
   isResumeGenerationPending: boolean;
   lastResumeGenerationError: string | null;
+  isLetterGenerationPending: boolean;
+  lastLetterGenerationError: string | null;
   status: ApplicationStatus;
   statusHistory: StatusHistoryEntry[];
 }
@@ -206,6 +217,7 @@ export interface UpdateSettingsRequest {
   boardAnalyzerModel: string;
   scoringModel: string;
   resumeGenerationModel: string;
+  letterGenerationModel: string;
 }
 
 export interface UpdateScraperConfigRequest {

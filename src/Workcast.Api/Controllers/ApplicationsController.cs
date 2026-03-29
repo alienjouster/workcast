@@ -551,6 +551,108 @@ public sealed class ApplicationsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Enqueues a Hangfire background job to generate an HTML application letter for the given application.
+    /// Requires: a resume uploaded in Settings and scoring data present on the application.
+    /// Returns 202 Accepted immediately; the UI is updated via SSE when the job completes.
+    /// </summary>
+    [HttpPost("{id:guid}/letter/generate")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GenerateLetterAsync(Guid id, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+
+        if (!settings.HasResume)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No resume uploaded",
+                Detail = "Upload a resume (content) in Settings before generating an application letter.",
+            });
+        }
+
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        if (application.OverallScore is null)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No scoring data",
+                Detail = "Run scoring on this application before generating an application letter.",
+            });
+        }
+
+        application.SetLetterGenerationPending();
+        await _db.SaveChangesAsync(ct);
+
+        _backgroundJobClient.Enqueue<ApplicationLetterGenerationJob>(j => j.ExecuteAsync(id, CancellationToken.None));
+
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Updates the HTML content of the most recently generated application letter (manual edit).
+    /// </summary>
+    [HttpPatch("{id:guid}/letter/latest")]
+    [ProducesResponseType(typeof(GeneratedLetterResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateLatestLetterAsync(
+        Guid id,
+        [FromBody] UpdateGeneratedLetterRequest request,
+        CancellationToken ct)
+    {
+        var latest = await _db.GeneratedLetters
+            .Where(l => l.ApplicationId == id)
+            .OrderByDescending(l => l.GeneratedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (latest is null) return NotFound();
+
+        latest.UpdateHtmlContent(request.HtmlContent);
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(new GeneratedLetterResponse
+        {
+            Id            = latest.Id,
+            ApplicationId = latest.ApplicationId,
+            HtmlContent   = latest.HtmlContent,
+            ModelUsed     = latest.ModelUsed,
+            GeneratedAt   = latest.GeneratedAt,
+        });
+    }
+
+    /// <summary>
+    /// Returns the most recently generated HTML application letter for the given application,
+    /// or 404 if no letter has been generated yet.
+    /// </summary>
+    [HttpGet("{id:guid}/letter/latest")]
+    [ProducesResponseType(typeof(GeneratedLetterResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetLatestLetterAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var latest = await _db.GeneratedLetters
+            .Where(l => l.ApplicationId == id)
+            .OrderByDescending(l => l.GeneratedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (latest is null) return NotFound();
+
+        return Ok(new GeneratedLetterResponse
+        {
+            Id            = latest.Id,
+            ApplicationId = latest.ApplicationId,
+            HtmlContent   = latest.HtmlContent,
+            ModelUsed     = latest.ModelUsed,
+            GeneratedAt   = latest.GeneratedAt,
+        });
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -737,6 +839,13 @@ public record UpdateJobAdContentRequest
 
 /// <summary>Request body for updating the HTML content of a generated resume.</summary>
 public record UpdateGeneratedResumeRequest
+{
+    /// <summary>Gets the updated HTML content.</summary>
+    public required string HtmlContent { get; init; }
+}
+
+/// <summary>Request body for updating the HTML content of a generated application letter.</summary>
+public record UpdateGeneratedLetterRequest
 {
     /// <summary>Gets the updated HTML content.</summary>
     public required string HtmlContent { get; init; }

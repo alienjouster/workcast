@@ -57,6 +57,11 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(s => s.LetterGenerationModel)
+            .HasColumnName("letter_generation_model")
+            .HasMaxLength(100)
+            .IsRequired();
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

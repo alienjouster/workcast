@@ -120,6 +120,12 @@ public sealed class Application
     /// <summary>Error message from the most recent failed resume generation attempt, or null if it succeeded or was never run.</summary>
     public string? LastResumeGenerationError { get; private set; }
 
+    /// <summary>True while a letter generation job is in progress for this application.</summary>
+    public bool IsLetterGenerationPending { get; private set; }
+
+    /// <summary>Error message from the most recent failed letter generation attempt, or null if it succeeded or was never run.</summary>
+    public string? LastLetterGenerationError { get; private set; }
+
     // ── Status tracking ───────────────────────────────────────────────────────
 
     /// <summary>Current workflow stage of the application.</summary>
@@ -188,6 +194,23 @@ public sealed class Application
     {
         IsResumeGenerationPending = false;
         LastResumeGenerationError = error;
+    }
+
+    /// <summary>Marks the application as having a letter generation job in progress.</summary>
+    public void SetLetterGenerationPending()
+    {
+        IsLetterGenerationPending = true;
+        LastLetterGenerationError = null;
+    }
+
+    /// <summary>Clears the letter-generation-pending flag after a successful run.</summary>
+    public void ClearLetterGenerationPending() => IsLetterGenerationPending = false;
+
+    /// <summary>Records a letter generation failure and clears the pending flag.</summary>
+    public void SetLetterGenerationFailed(string error)
+    {
+        IsLetterGenerationPending = false;
+        LastLetterGenerationError = error;
     }
 
     /// <summary>Applies a fresh scoring result to this application's snapshot fields.</summary>

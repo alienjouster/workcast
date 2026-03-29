@@ -141,6 +141,38 @@ export function useUpdateGeneratedResume(id: string) {
   });
 }
 
+export function useLatestGeneratedLetter(id: string) {
+  return useQuery({
+    queryKey: ['generated-letter', id],
+    queryFn: () => api.applications.getLatestLetter(id),
+    staleTime: STALE_TIMES.LONG,
+    retry: false,
+  });
+}
+
+export function useGenerateLetter(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.generateLetter(id),
+    onSuccess: () => {
+      queryClient.setQueryData<import('@/types').Application>(
+        ['applications', id],
+        (old) => old ? { ...old, isLetterGenerationPending: true } : old,
+      );
+    },
+  });
+}
+
+export function useUpdateGeneratedLetter(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (htmlContent: string) => api.applications.updateLatestLetter(id, htmlContent),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['generated-letter', id], updated);
+    },
+  });
+}
+
 export function useUpdateApplicationPostedAt(id: string) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -18,7 +18,7 @@ export function useUpdateSettings() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: { boardAnalyzerModel: string; scoringModel: string; resumeGenerationModel: string }) =>
+    mutationFn: (data: { boardAnalyzerModel: string; scoringModel: string; resumeGenerationModel: string; letterGenerationModel: string }) =>
       api.settings.update(data),
     onSuccess: (updated) => {
       queryClient.setQueryData(QUERY_KEY, updated);

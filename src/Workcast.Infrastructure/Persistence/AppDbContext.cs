@@ -41,6 +41,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>Generated HTML resumes for applications.</summary>
     public DbSet<GeneratedResume> GeneratedResumes => Set<GeneratedResume>();
 
+    /// <summary>Generated HTML application letters for applications.</summary>
+    public DbSet<GeneratedLetter> GeneratedLetters => Set<GeneratedLetter>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -53,5 +56,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new AdScoringConfiguration());
         modelBuilder.ApplyConfiguration(new ApplicationConfiguration());
         modelBuilder.ApplyConfiguration(new GeneratedResumeConfiguration());
+        modelBuilder.ApplyConfiguration(new GeneratedLetterConfiguration());
     }
 }

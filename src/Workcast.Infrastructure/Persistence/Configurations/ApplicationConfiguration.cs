@@ -106,6 +106,15 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<ScoringRequirement>>(v, (JsonSerializerOptions?)null) ?? new List<ScoringRequirement>());
 
+        builder.Property(a => a.IsLetterGenerationPending)
+            .HasColumnName("is_letter_generation_pending")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(a => a.LastLetterGenerationError)
+            .HasColumnName("last_letter_generation_error")
+            .HasColumnType("text");
+
         builder.Property(a => a.Status)
             .HasColumnName("status")
             .HasDefaultValue(ApplicationStatus.ToApply)

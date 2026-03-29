@@ -45,6 +45,9 @@ public sealed class AppSettings
     /// <summary>Anthropic model identifier used for custom resume generation.</summary>
     public string ResumeGenerationModel { get; private set; } = "claude-sonnet-4-6";
 
+    /// <summary>Anthropic model identifier used for application letter generation.</summary>
+    public string LetterGenerationModel { get; private set; } = "claude-sonnet-4-6";
+
     // Required by EF Core.
     private AppSettings() { }
 
@@ -59,6 +62,9 @@ public sealed class AppSettings
 
     /// <summary>Updates the resume generation model identifier.</summary>
     public void SetResumeGenerationModel(string model) => ResumeGenerationModel = model;
+
+    /// <summary>Updates the letter generation model identifier.</summary>
+    public void SetLetterGenerationModel(string model) => LetterGenerationModel = model;
 
     /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
     public void SetResume(string fileName, byte[] content, string contentType)

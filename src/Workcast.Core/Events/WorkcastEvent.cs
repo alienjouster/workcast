@@ -15,6 +15,7 @@ public sealed record WorkcastEvent
     public const string ScoringCompleted              = "scoringCompleted";
     public const string ApplicationScoringCompleted         = "applicationScoringCompleted";
     public const string ApplicationResumeGenerationCompleted = "applicationResumeGenerationCompleted";
+    public const string ApplicationLetterGenerationCompleted  = "applicationLetterGenerationCompleted";
 
     public required string Type          { get; init; }
     public Guid?   BoardId               { get; init; }

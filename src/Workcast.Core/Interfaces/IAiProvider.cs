@@ -73,4 +73,31 @@ public interface IAiProvider
         string scoringRequirementsJson,
         ResumeOptimizationLevel optimizationLevel = ResumeOptimizationLevel.None,
         CancellationToken ct = default);
+
+    /// <summary>
+    /// Generates a professional application letter (~half a page) in HTML format,
+    /// tailored to the job ad and highlighting matched requirements from the scoring analysis.
+    /// </summary>
+    /// <param name="resumeContent">Raw bytes of the resume file.</param>
+    /// <param name="resumeContentType">MIME type: "text/plain" or "application/json".</param>
+    /// <param name="resumeFileName">Original file name (context label).</param>
+    /// <param name="jobAdContent">Plain-text or HTML content of the job advertisement.</param>
+    /// <param name="jobTitle">Job title for personalising the opening line.</param>
+    /// <param name="company">Company name, or null if unknown.</param>
+    /// <param name="scoringSummary">AI scoring summary of the resume vs job ad match.</param>
+    /// <param name="scoringRecommendation">AI scoring recommendation sentence.</param>
+    /// <param name="scoringRequirementsJson">JSON array of scored requirements (name, category, score, notes).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A complete HTML document (~half a page) ready to render in a browser.</returns>
+    Task<string> GenerateLetterAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobAdContent,
+        string? jobTitle,
+        string? company,
+        string scoringSummary,
+        string scoringRecommendation,
+        string scoringRequirementsJson,
+        CancellationToken ct = default);
 }

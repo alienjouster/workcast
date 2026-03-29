@@ -19,7 +19,7 @@ const MODEL_INFO: Record<string, string> = {
   'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
 };
 
-type EditingField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | null;
+type EditingField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration' | null;
 
 export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
@@ -38,7 +38,8 @@ export function SettingsClient() {
     const value =
       field === 'boardAnalyzer'    ? settings!.boardAnalyzerModel :
       field === 'scoring'          ? settings!.scoringModel :
-                                     settings!.resumeGenerationModel;
+      field === 'resumeGeneration' ? settings!.resumeGenerationModel :
+                                     settings!.letterGenerationModel;
     setDraft(value);
     setEditingField(field);
   }
@@ -49,10 +50,11 @@ export function SettingsClient() {
   }
 
   function saveEdit() {
-    const boardAnalyzerModel   = editingField === 'boardAnalyzer'    ? draft : settings!.boardAnalyzerModel;
-    const scoringModel         = editingField === 'scoring'          ? draft : settings!.scoringModel;
+    const boardAnalyzerModel    = editingField === 'boardAnalyzer'    ? draft : settings!.boardAnalyzerModel;
+    const scoringModel          = editingField === 'scoring'          ? draft : settings!.scoringModel;
     const resumeGenerationModel = editingField === 'resumeGeneration' ? draft : settings!.resumeGenerationModel;
-    updateSettings({ boardAnalyzerModel, scoringModel, resumeGenerationModel }, { onSuccess: () => setEditingField(null) });
+    const letterGenerationModel = editingField === 'letterGeneration' ? draft : settings!.letterGenerationModel;
+    updateSettings({ boardAnalyzerModel, scoringModel, resumeGenerationModel, letterGenerationModel }, { onSuccess: () => setEditingField(null) });
   }
 
   function renderModelCell(field: EditingField, currentValue: string | undefined) {
@@ -237,6 +239,10 @@ export function SettingsClient() {
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Resume generation model</td>
                 {renderModelCell('resumeGeneration', settings?.resumeGenerationModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Letter generation model</td>
+                {renderModelCell('letterGeneration', settings?.letterGenerationModel)}
               </tr>
             </tbody>
           </table>

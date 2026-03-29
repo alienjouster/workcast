@@ -269,6 +269,8 @@ public static class MappingExtensions
             LastScoringError             = app.LastScoringError,
             IsResumeGenerationPending    = app.IsResumeGenerationPending,
             LastResumeGenerationError    = app.LastResumeGenerationError,
+            IsLetterGenerationPending    = app.IsLetterGenerationPending,
+            LastLetterGenerationError    = app.LastLetterGenerationError,
             Status           = app.Status.ToString(),
             StatusHistory    = app.StatusHistory
                 .Select(e => new StatusHistoryEntryResponse { Status = e.Status.ToString(), AchievedAt = e.AchievedAt })

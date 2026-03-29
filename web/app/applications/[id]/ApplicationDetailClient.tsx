@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useLatestGeneratedResume, useGenerateResume, useUpdateGeneratedResume } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useLatestGeneratedResume, useGenerateResume, useUpdateGeneratedResume, useLatestGeneratedLetter, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
 import type { ResumeOptimizationLevel } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -271,11 +271,176 @@ function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] })
   );
 }
 
-function DummyTab({ label }: { label: string }) {
+// ── Application Letter tab ────────────────────────────────────────────────────
+
+function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
+  const { data: settings } = useSettings();
+  const { data: latest, isLoading: isLoadingLatest } = useLatestGeneratedLetter(app?.id ?? '');
+  const generate = useGenerateLetter(app?.id ?? '');
+  const update = useUpdateGeneratedLetter(app?.id ?? '');
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  if (!app) return null;
+
+  const hasResume   = settings?.hasResume ?? false;
+  const hasScoring  = app.overallScore != null;
+  const canGenerate = hasResume && hasScoring;
+  const isGenerating = app.isLetterGenerationPending || generate.isPending;
+
+  const missingItems: string[] = [];
+  if (!hasResume)  missingItems.push('resume content (Settings)');
+  if (!hasScoring) missingItems.push('scoring data (Scoring tab)');
+
+  function startEdit() {
+    setDraft(latest?.htmlContent ?? '');
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setDraft('');
+  }
+
+  function saveEdit() {
+    update.mutate(draft, { onSuccess: () => setEditing(false) });
+  }
+
   return (
-    <div className="bg-white rounded-lg border border-dashed border-gray-300 p-12 text-center">
-      <p className="text-gray-400 text-sm font-medium">{label}</p>
-      <p className="text-gray-300 text-xs mt-1">Coming soon</p>
+    <div className="space-y-4">
+      {/* Generate bar */}
+      {!editing && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {!canGenerate && missingItems.length > 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                  Requires: {missingItems.join(', ')}
+                </p>
+              )}
+            </div>
+            <button
+              onClick={() => generate.mutate()}
+              disabled={!canGenerate || isGenerating}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <SparkleIcon className="w-4 h-4" />
+              {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex items-center justify-between">
+        <div>
+          {latest && !isGenerating && !editing && (
+            <span className="text-xs text-gray-400">
+              Generated {new Date(latest.generatedAt).toLocaleString()} · {latest.modelUsed}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {editing && (
+            <>
+              <button
+                onClick={saveEdit}
+                disabled={update.isPending}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50"
+              >
+                {update.isPending ? 'Saving…' : 'Save'}
+              </button>
+              <button
+                onClick={cancelEdit}
+                disabled={update.isPending}
+                className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </>
+          )}
+          {!editing && latest && !isGenerating && (
+            <>
+              <button
+                onClick={startEdit}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  const blob = new Blob([latest.htmlContent], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'application-letter.html';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  const win = window.open('', '_blank');
+                  if (!win) return;
+                  win.document.write(latest.htmlContent);
+                  win.document.close();
+                  win.focus();
+                  win.print();
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Print
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {app.lastLetterGenerationError && !isGenerating && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-4 py-3">
+          {app.lastLetterGenerationError}
+        </div>
+      )}
+
+      {isGenerating && (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 flex flex-col items-center gap-4 text-center">
+          <ScoringSpinner />
+          <p className="text-sm text-gray-400">Generating your application letter…</p>
+          <p className="text-xs text-gray-300">This usually takes under a minute.</p>
+        </div>
+      )}
+
+      {!isGenerating && isLoadingLatest && (
+        <div className="bg-white rounded-lg border border-gray-200 p-8 flex justify-center">
+          <ScoringSpinner />
+        </div>
+      )}
+
+      {!isGenerating && !isLoadingLatest && !latest && (
+        <div className="bg-white rounded-lg border border-dashed border-gray-200 p-12 text-center">
+          <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-3">
+            <SparkleIcon className="w-6 h-6 text-indigo-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-700">No letter generated yet</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto leading-relaxed text-center">
+            Generates a concise, professional cover letter (~half a page) tailored to this job ad,
+            highlighting your strongest matching qualifications from the scoring analysis.
+          </p>
+        </div>
+      )}
+
+      {!isGenerating && latest && (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <ResumeIframe
+            htmlContent={latest.htmlContent}
+            editing={editing}
+            onDraftChange={setDraft}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -616,7 +781,7 @@ export function ApplicationDetailClient() {
       {activeTab === 'job-ad'  && <JobAdTab app={app} />}
       {activeTab === 'scoring' && <ScoringTab app={app} />}
       {activeTab === 'resume'  && <ResumeTab app={app} />}
-      {activeTab === 'letter'  && <DummyTab label="Application Letter" />}
+      {activeTab === 'letter'  && <LetterTab app={app} />}
     </div>
   );
 }

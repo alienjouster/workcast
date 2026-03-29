@@ -27,6 +27,7 @@ public sealed class ClaudeAiProvider : IAiProvider
     private const int MaxTokens = 1024;
     private const int ScoringMaxTokens = 4096;
     private const int ResumeGenerationMaxTokens = 8192;
+    private const int LetterGenerationMaxTokens = 2048;
     private const int MaxRetries = 3;
 
     private static readonly TimeSpan[] RetryDelays =
@@ -69,9 +70,8 @@ public sealed class ClaudeAiProvider : IAiProvider
         CancellationToken ct = default)
     {
         var tool = BuildBoardAnalysisTool();
+        const string system = "You are analyzing a job board website to generate a scraping configuration.";
         var prompt = $"""
-            You are analyzing a job board website to generate a scraping configuration.
-
             URL: {url}
 
             Examine the HTML below and call the save_board_config tool with a complete configuration
@@ -136,7 +136,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             """;
 
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
-        var input = await CallWithRetryAsync(prompt, MaxTokens, timeoutSeconds: 30, tool, "save_board_config", settings.BoardAnalyzerModel, ct).ConfigureAwait(false);
+        var input = await CallWithRetryAsync(prompt, MaxTokens, timeoutSeconds: 30, tool, "save_board_config", settings.BoardAnalyzerModel, system, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
     }
 
@@ -150,10 +150,9 @@ public sealed class ClaudeAiProvider : IAiProvider
     {
         var tool = BuildScoringTool();
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+        const string scoringSystem = "You are an expert ATS (Applicant Tracking System) evaluator. Your role is to analyze a job advertisement and a candidate's resume, then produce a structured evaluation.";
 
         var promptSuffix = $"""
-            You are an expert ATS (Applicant Tracking System) evaluator. Your role is to analyze a job advertisement and a candidate's resume, then produce a structured evaluation.
-
             You will receive two inputs:
             - A JOB AD (job description of the open position)
             - A RESUME
@@ -213,7 +212,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             userContent = $"{promptSuffix}\n\nRESUME: {resumeText} \n\n JOB AD: {jobPageText}";
         }
 
-        var input = await CallWithRetryAsync(userContent, ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, ct)
+        var input = await CallWithRetryAsync(userContent, ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, scoringSystem, ct)
             .ConfigureAwait(false);
 
         return DeserializeAdScoringResult(input);
@@ -239,9 +238,8 @@ public sealed class ClaudeAiProvider : IAiProvider
         var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
         var rule6 = BuildOptimizationInstruction(optimizationLevel);
 
+        const string resumeSystem = "You are an expert resume writer. Your task is to generate an ATS-friendly, tailored HTML resume.";
         var prompt = $"""
-            You are an expert resume writer. Your task is to generate an ATS-friendly, tailored HTML resume.
-
             You have four inputs:
 
             === RESUME ({resumeFileName}) ===
@@ -270,11 +268,89 @@ public sealed class ClaudeAiProvider : IAiProvider
             Call the submit_resume tool with the generated HTML.
             """;
 
-        var input = await CallWithRetryAsync(prompt, ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, ct)
+        var input = await CallWithRetryAsync(prompt, ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, resumeSystem, ct)
             .ConfigureAwait(false);
 
         return input["html_content"]?.GetValue<string>()
             ?? throw new InvalidOperationException("Claude did not return html_content in the submit_resume tool call.");
+    }
+
+    /// <inheritdoc />
+    public async Task<string> GenerateLetterAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobAdContent,
+        string? jobTitle,
+        string? company,
+        string scoringSummary,
+        string scoringRecommendation,
+        string scoringRequirementsJson,
+        CancellationToken ct = default)
+    {
+        var tool = BuildLetterGenerationTool();
+        var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+
+        var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+        var addressee = company is not null ? $"the hiring team at {company}" : "the hiring team";
+        var positionRef = jobTitle is not null ? $"the {jobTitle} position" : "the position";
+
+        const string letterSystem = "You are an expert cover letter writer. Your task is to write a concise, professional application letter in the language of the JOB AD.";
+        var prompt = $"""
+            You have three inputs:
+
+            === RESUME ({resumeFileName}) ===
+            {resumeText}
+
+            === JOB AD ===
+            {jobAdContent}
+
+            === SCORING ANALYSIS ===
+            Summary: {scoringSummary}
+            Recommendation: {scoringRecommendation}
+            Requirements breakdown (JSON): {scoringRequirementsJson}
+
+            INSTRUCTIONS:
+            1. Write a professional application letter addressed to {addressee} for {positionRef}, in the same language as the JOB AD.
+            2. The letter must be approximately half a page — roughly 250 to 350 words. Never exceed 500 words.
+            3. Structure: strong opening paragraph (why applying), one body paragraph highlighting 2–3 key matched requirements from the SCORING ANALYSIS (category "match"), one closing paragraph with a call to action.
+            4. For each matched requirement you mention, wrap the specific skill or achievement text to highlight it. Do not just copy-paste information available in the RESUME, but rewrite skills or achievement as full sentences. Rephrase KPIs or numerical achievements (e.g: replace "99% XZY achieved" by something like "high performance" or "sucessful results").
+            5. Use only information present in the RESUME — do not invent skills or experiences. 
+            6. Tone: natural, confident, professional, and concise. The letter should not feel natural and not like it is AI-Generated. Absolutely no "—" character. Write in first person as if you are me, a real person — not a copywriter or marketer. Use a conversational but professional tone. Imagine I'm speaking confidently to the hiring manager over coffee. Vary sentence length. Mix short punchy sentences with longer ones. Avoid clichés like "passionate," "team player," "highly motivated," "valuable asset," "I am confident that," "I am excited to apply," or "dynamic environment." Do not use bullet points or lists. Write in flowing paragraphs. Do not over-explain or over-sell. Be direct and let the accomplishments speak for themselves. Include one small, natural aside or personality detail that makes it feel like a real person wrote this.
+            7. Output a complete HTML document with no inline styling (clean sans-serif font, no bold/italid/underlined, comfortable line-height, max-width ~700px, standard letter margins). No header/footer chrome — just the letter body.
+            8. Do not include a date, postal address block, or signature image — plain text sign-off only.
+        
+
+            Call the submit_letter tool with the generated HTML.
+            """;
+
+        var input = await CallWithRetryAsync(prompt, LetterGenerationMaxTokens, timeoutSeconds: 60, tool, "submit_letter", settings.LetterGenerationModel, letterSystem, ct)
+            .ConfigureAwait(false);
+
+        return input["html_content"]?.GetValue<string>()
+            ?? throw new InvalidOperationException("Claude did not return html_content in the submit_letter tool call.");
+    }
+
+    private static ClaudeTool BuildLetterGenerationTool()
+    {
+        return new ClaudeTool
+        {
+            Name = "submit_letter",
+            Description = "Submit the generated HTML application letter.",
+            InputSchema = new
+            {
+                type = "object",
+                required = new[] { "html_content" },
+                properties = new
+                {
+                    html_content = new
+                    {
+                        type = "string",
+                        description = "Complete, valid HTML document of the application letter (~250–350 words), ready to render in a browser.",
+                    },
+                },
+            },
+        };
     }
 
     private static ClaudeTool BuildResumeGenerationTool()
@@ -382,6 +458,7 @@ public sealed class ClaudeAiProvider : IAiProvider
         ClaudeTool tool,
         string toolName,
         string model,
+        string system,
         CancellationToken ct)
     {
         Exception? lastException = null;
@@ -404,6 +481,7 @@ public sealed class ClaudeAiProvider : IAiProvider
                     Model = model,
                     MaxTokens = maxTokens,
                     Temperature = 0,
+                    System = system,
                     Tools = new[] { tool },
                     ToolChoice = new ClaudeToolChoice { Type = "tool", Name = toolName },
                     Messages = new[]

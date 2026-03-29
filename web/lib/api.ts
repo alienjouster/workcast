@@ -12,6 +12,7 @@ import type {
   Application,
   ApplicationStatus,
   GeneratedResume,
+  GeneratedLetter,
   ResumeOptimizationLevel,
 } from '@/types';
 
@@ -239,6 +240,15 @@ export const api = {
       apiFetch<GeneratedResume>(`/api/applications/${id}/resume/latest`),
     updateLatestResume: (id: string, htmlContent: string) =>
       apiFetch<GeneratedResume>(`/api/applications/${id}/resume/latest`, {
+        method: 'PATCH',
+        body: JSON.stringify({ htmlContent }),
+      }),
+    generateLetter: (id: string) =>
+      apiFetch<void>(`/api/applications/${id}/letter/generate`, { method: 'POST' }),
+    getLatestLetter: (id: string) =>
+      apiFetch<GeneratedLetter>(`/api/applications/${id}/letter/latest`),
+    updateLatestLetter: (id: string, htmlContent: string) =>
+      apiFetch<GeneratedLetter>(`/api/applications/${id}/letter/latest`, {
         method: 'PATCH',
         body: JSON.stringify({ htmlContent }),
       }),
