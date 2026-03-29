@@ -127,6 +127,16 @@ export function SettingsClient() {
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Content</td>
                 <td className="px-4 py-2.5">
+                  <p className="text-xs text-gray-400 mb-1.5">
+                    JSON format works best. The AI uses this as the source of truth for all resume and cover letter generation. Freely editable — add, remove, or reword any section but try to keep the structure and naming that is matching the Resume HTML template. {' '}
+                    <a
+                      href="/master-resume-sample.json"
+                      download="master-resume-sample.json"
+                      className="text-indigo-500 hover:underline"
+                    >
+                      Download sample
+                    </a>
+                  </p>
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
                   ) : settings?.hasResume ? (
@@ -173,6 +183,16 @@ export function SettingsClient() {
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Template</td>
                 <td className="px-4 py-2.5">
+                  <p className="text-xs text-gray-400 mb-1.5">
+                    HTML format. Best results when sections mirror the JSON structure — the AI fills in the tags from your resume content.{' '}
+                    <a
+                      href="/resume-template-sample.html"
+                      download="resume-template-sample.html"
+                      className="text-indigo-500 hover:underline"
+                    >
+                      Download sample
+                    </a>
+                  </p>
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
                   ) : settings?.hasResumeTemplate ? (

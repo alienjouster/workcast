@@ -1,0 +1,109 @@
+{
+  "personal_info": {
+    "full_name": "John Doe",
+    "titles": [
+      { "main": "software", "value": "Software Engineer" },
+      { "variant": "senior_engineering", "value": "Senior Software Engineer" },
+      { "variant": "lead", "value": "Engineering Lead" },
+      { "variant": "manager", "value": "Engineering Manager" }
+    ],
+    "email": "john.doe@example.com",
+    "phone": "+1 555 123 4567",
+    "linkedin": "https://www.linkedin.com/in/johndoe/",
+    "location": "123 Main Street, Springfield, IL 62701, USA",
+    "summary": "Experienced software engineer with 10+ years of experience designing and delivering scalable web applications and cloud-based services. Strong background in full-stack development, distributed systems, and agile delivery. Proven ability to lead cross-functional teams, mentor junior engineers, and collaborate closely with product and business stakeholders to ship high-quality software."
+  },
+
+  "key_skills": [
+    "Full-Stack Development",
+    "Cloud Architecture (AWS)",
+    "Microservices",
+    "CI/CD & DevOps",
+    "Agile / Scrum",
+    "Team Leadership",
+    "System Design",
+    "API Design",
+    "PostgreSQL",
+    "TypeScript / React"
+  ],
+
+  "work_experience": [
+    {
+      "company": "Acme Corp",
+      "location": "Chicago, IL",
+      "roles": [
+        {
+          "title": "Engineering Manager",
+          "start_date": "2022-03",
+          "end_date": "Present",
+          "role_description": "Lead a team of 15 engineers across backend, frontend, and platform domains. Responsible for roadmap delivery, team growth, and cross-functional alignment with product and business stakeholders.",
+          "responsibilities": [
+            { "description": "Managed and grew a team of 15 engineers, conducting regular 1:1s, performance reviews, and career development planning." },
+            { "description": "Drove architectural modernization from a monolithic Rails app to event-driven microservices on AWS, reducing deployment lead time by 60%." },
+            { "description": "Partnered with product management to define quarterly roadmaps and OKRs, consistently achieving 85%+ delivery rate." },
+            { "description": "Established engineering standards including code review guidelines, testing requirements, and on-call practices." },
+            { "description": "Led hiring process end-to-end for 8 engineer roles over 2 years, improving offer acceptance rate through structured interview loops." }
+          ]
+        },
+        {
+          "title": "Senior Software Engineer",
+          "start_date": "2020-01",
+          "end_date": "2022-03",
+          "role_description": "Individual contributor focused on building and scaling the core platform API and data pipeline infrastructure.",
+          "responsibilities": [
+            { "description": "Designed and implemented a high-throughput data ingestion pipeline processing 2M events/day using AWS Kinesis and Lambda." },
+            { "description": "Led migration of the primary relational database from MySQL to PostgreSQL, with zero downtime." },
+            { "description": "Built internal developer tooling that reduced local environment setup time from 2 hours to under 15 minutes." },
+            { "description": "Mentored 3 junior engineers and conducted technical onboarding for new hires." }
+          ]
+        }
+      ]
+    },
+    {
+      "company": "BrightTech Solutions",
+      "location": "Remote",
+      "roles": [
+        {
+          "title": "Software Engineer",
+          "start_date": "2017-06",
+          "end_date": "2019-12",
+          "role_description": "Full-stack engineer on a B2B SaaS analytics platform serving mid-market customers.",
+          "responsibilities": [
+            { "description": "Developed new product features across the React frontend and Node.js/Express backend, shipping bi-weekly." },
+            { "description": "Implemented OAuth2 SSO integration with Okta, enabling enterprise customer adoption." },
+            { "description": "Improved API response times by 40% through query optimization and Redis caching." },
+            { "description": "Participated in on-call rotation and reduced mean time to resolution by documenting runbooks." }
+          ]
+        }
+      ]
+    },
+    {
+      "company": "StartupXYZ",
+      "location": "Austin, TX",
+      "roles": [
+        {
+          "title": "Junior Software Engineer",
+          "start_date": "2015-08",
+          "end_date": "2017-05",
+          "role_description": "Early-stage startup building a consumer mobile app for personal finance management.",
+          "responsibilities": [
+            { "description": "Built and maintained REST APIs in Python/Django consumed by iOS and Android clients." },
+            { "description": "Implemented automated unit and integration test suites, raising coverage from 20% to 75%." },
+            { "description": "Collaborated directly with the founding team to define and iterate on product features." }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "education_and_certifications": [
+    { "description": "AWS Certified Solutions Architect – Associate", "year": "2021" },
+    { "description": "Certified Scrum Master (CSM), Scrum Alliance", "year": "2019" },
+    { "description": "B.Sc. Computer Science, University of Illinois at Urbana-Champaign", "year": "2015" }
+  ],
+
+  "languages": [
+    { "language": "English", "level": "Native" },
+    { "language": "Spanish", "level": "Intermediate (B1)" }
+  ]
+}

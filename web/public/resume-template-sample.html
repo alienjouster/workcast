@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><FULL NAME> – <JOB TITLE></title>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@400;600&family=Source+Sans+3:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue-deep:   #0d2b4e;
+      --blue-mid:    #1a4b7c;
+      --blue-accent: #2e7ec1;
+      --blue-light:  #d6e8f7;
+      --blue-pale:   #f0f6fc;
+      --text-main:   #1c2c3e;
+      --text-muted:  #5a7a99;
+      --divider:     #c2d9ef;
+      --white:       #ffffff;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+      font-weight: 400;
+      font-size: 10.5pt;
+      line-height: 1.6;
+      color: var(--text-main);
+      background: var(--white);
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 48px 52px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────── */
+    header {
+      border-top: 4px solid var(--blue-accent);
+      padding-top: 24px;
+      margin-bottom: 28px;
+    }
+
+    header h1 {
+      font-family: 'Lora', serif;
+      font-size: 28pt;
+      font-weight: 600;
+      color: var(--blue-deep);
+      letter-spacing: -0.3px;
+      margin-bottom: 2px;
+    }
+
+    header .title {
+      font-size: 12pt;
+      font-weight: 600;
+      color: var(--blue-accent);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 14px;
+    }
+
+    .contact-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 22px;
+      font-size: 9.5pt;
+      color: var(--text-muted);
+    }
+
+    .contact-row a {
+      color: var(--blue-mid);
+      text-decoration: none;
+    }
+
+    /* ── SECTION ─────────────────────────────────────────── */
+    section { margin-bottom: 26px; }
+
+    .section-title {
+      font-family: 'Source Sans 3', sans-serif;
+      font-size: 8pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--blue-accent);
+      border-bottom: 1.5px solid var(--divider);
+      padding-bottom: 5px;
+      margin-bottom: 14px;
+    }
+
+    /* ── SUMMARY ─────────────────────────────────────────── */
+    .summary {
+      background: var(--blue-pale);
+      border-left: 3px solid var(--blue-accent);
+      padding: 12px 16px;
+      font-size: 10pt;
+      color: var(--text-main);
+      line-height: 1.65;
+      border-radius: 0 4px 4px 0;
+    }
+
+    /* ── SKILLS ──────────────────────────────────────────── */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 32px;
+    }
+
+    .skills-grid li {
+      font-size: 9.5pt;
+      color: var(--text-main);
+      list-style: none;
+      padding-left: 14px;
+      position: relative;
+      line-height: 1.6;
+    }
+
+    .skills-grid li::before {
+      content: "▸";
+      position: absolute;
+      left: 0;
+      color: var(--blue-accent);
+      font-size: 8pt;
+      top: 2px;
+    }
+
+    /* ── EXPERIENCE ──────────────────────────────────────── */
+    .company-block { margin-bottom: 20px; }
+
+    .company-name {
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: var(--blue-deep);
+      margin-bottom: 0;
+    }
+
+    .company-meta {
+      font-size: 9pt;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+
+    .role-block {
+      padding-left: 14px;
+      border-left: 2px solid var(--blue-light);
+      margin-bottom: 14px;
+    }
+
+    .role-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+
+    .role-title {
+      font-weight: 700;
+      font-size: 10.5pt;
+      color: var(--blue-mid);
+    }
+
+    .role-dates {
+      font-size: 9pt;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .role-description {
+      font-size: 9.5pt;
+      color: #4a6880;
+      font-style: italic;
+      margin-bottom: 6px;
+      line-height: 1.5;
+    }
+
+    .role-block ul {
+      padding-left: 16px;
+      margin: 0;
+    }
+
+    .role-block ul li {
+      font-size: 9.5pt;
+      color: var(--text-main);
+      margin-bottom: 3px;
+      line-height: 1.5;
+    }
+
+    /* ── EDUCATION & CERTS ───────────────────────────────── */
+    .cert-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 32px;
+    }
+
+    .cert-item {
+      font-size: 9.5pt;
+      color: var(--text-main);
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+
+    .cert-year {
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: var(--blue-accent);
+      white-space: nowrap;
+      flex-shrink: 0;
+      min-width: 36px;
+    }
+
+    /* ── LANGUAGES ───────────────────────────────────────── */
+    .lang-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 24px;
+    }
+
+    .lang-item {
+      font-size: 9.5pt;
+      color: var(--text-main);
+    }
+
+    .lang-item .lang-name {
+      font-weight: 700;
+      color: var(--blue-mid);
+    }
+
+    /* ── PRINT ───────────────────────────────────────────── */
+    @media print {
+      body { padding: 28px 36px; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════════
+       HEADER
+       Tags: <FULL NAME>, <JOB TITLE>, <LOCATION>, <EMAIL>,
+             <PHONE>, <LINKEDIN URL>, <LINKEDIN LABEL> strictly matching the JSON resume. Preferably use the main "title" unless a "variant" fits the JOB AD better.
+  ════════════════════════════════════════════════════════ -->
+  <header>
+    <h1><FULL NAME></h1>
+    <div class="title"><JOB TITLE></div>
+    <div class="contact-row">
+      <span><LOCATION></span>
+      <a href="mailto:<EMAIL>"><EMAIL></a>
+      <a href="tel:<PHONE>"><PHONE FORMATTED></a>
+      <a href="<LINKEDIN URL>" target="_blank"><LINKEDIN LABEL></a>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════
+       PROFESSIONAL SUMMARY
+       Tags: <SUMMARY>
+             Tailor this to the specific job ad: highlight the
+             most relevant experience, skills, and motivations.
+  ════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-title">Professional Summary</div>
+    <div class="summary">
+      <SUMMARY>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       KEY SKILLS
+       ~10 skills in 2 columns (5 per column).
+       Tags: <SKILL 1> … <SKILL 10>
+             Pick skills most relevant to the job ad.
+  ════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-title">Key Skills</div>
+    <ul class="skills-grid">
+      <li><SKILL 1></li>
+      <li><SKILL 6></li>
+      <li><SKILL 2></li>
+      <li><SKILL 7></li>
+      <li><SKILL 3></li>
+      <li><SKILL 8></li>
+      <li><SKILL 4></li>
+      <li><SKILL 9></li>
+      <li><SKILL 5></li>
+      <li><SKILL 10></li>
+    </ul>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       PROFESSIONAL EXPERIENCE
+       Repeat <COMPANY BLOCK> as needed.
+       Tags per company: <COMPANY NAME>, <COMPANY LOCATION>
+       Tags per role:    <ROLE TITLE>, <START DATE>, <END DATE>,
+                         <ROLE DESCRIPTION>, <RESPONSIBILITY N>  strictly keep all "work_experience" and "roles" from the JSON resume but only pick the 3-5 most relevant "responsibilities"
+  ════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-title">Professional Experience</div>
+
+    <!-- ── COMPANY BLOCK (repeat as needed) ── -->
+    <div class="company-block">
+      <div class="company-name"><COMPANY NAME></div>
+      <div class="company-meta"><COMPANY LOCATION></div>
+
+      <!-- ROLE (repeat within company as needed) -->
+      <div class="role-block">
+        <div class="role-header">
+          <span class="role-title"><ROLE TITLE></span>
+          <span class="role-dates"><START DATE> – <END DATE></span>
+        </div>
+        <div class="role-description"><ROLE DESCRIPTION></div>
+        <ul>
+          <li><RESPONSIBILITY 1></li>
+          <li><RESPONSIBILITY 2></li>
+          <li><RESPONSIBILITY 3></li>
+          <li><RESPONSIBILITY 4></li>
+          <li><RESPONSIBILITY 5></li>
+          <!-- Add or remove <li> items as needed,  matching the 3-5 JOB AD responsibilities  -->
+        </ul>
+      </div>
+
+      <!-- ROLE (second role at same company, if applicable) -->
+      <div class="role-block">
+        <div class="role-header">
+          <span class="role-title"><ROLE TITLE></span>
+          <span class="role-dates"><START DATE> – <END DATE></span>
+        </div>
+        <div class="role-description"><ROLE DESCRIPTION></div>
+        <ul>
+          <li><RESPONSIBILITY 1></li>
+          <li><RESPONSIBILITY 2></li>
+          <li><RESPONSIBILITY 3></li>
+          <!-- Add or remove <li> items as needed,  matching the 3-5 JOB AD responsibilities  -->
+        </ul>
+      </div>
+    </div>
+    <!-- ── END COMPANY BLOCK ── -->
+
+    <!-- ── COMPANY BLOCK 2 (copy/paste pattern above) ── -->
+    <div class="company-block">
+      <div class="company-name"><COMPANY NAME></div>
+      <div class="company-meta"><COMPANY LOCATION></div>
+
+      <div class="role-block">
+        <div class="role-header">
+          <span class="role-title"><ROLE TITLE></span>
+          <span class="role-dates"><START DATE> – <END DATE></span>
+        </div>
+        <div class="role-description"><ROLE DESCRIPTION></div>
+        <ul>
+          <li><RESPONSIBILITY 1></li>
+          <li><RESPONSIBILITY 2></li>
+          <li><RESPONSIBILITY 3></li>
+          <li><RESPONSIBILITY 4></li>
+          <!-- Add or remove <li> items as needed,  matching the 3-5 JOB AD responsibilities  -->
+        </ul>
+      </div>
+    </div>
+    <!-- ── END COMPANY BLOCK 2 ── -->
+
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       EDUCATION & CERTIFICATIONS
+       Tags: <CERT YEAR N>, <CERT DESCRIPTION N>
+             strictly keep all eduction and certification items from the JSON RESUME file.
+  ════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-title">Education &amp; Certifications</div>
+    <div class="cert-grid">
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 1></span><span><CERT DESCRIPTION 1></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 2></span><span><CERT DESCRIPTION 2></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 3></span><span><CERT DESCRIPTION 3></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 4></span><span><CERT DESCRIPTION 4></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 5></span><span><CERT DESCRIPTION 5></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 6></span><span><CERT DESCRIPTION 6></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 7></span><span><CERT DESCRIPTION 7></span></div>
+      <div class="cert-item"><span class="cert-year"><CERT YEAR 8></span><span><CERT DESCRIPTION 8></span></div>
+      <!-- Add or remove rows as needed -->
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════
+       LANGUAGES
+       Tags: <LANGUAGE N>, <LANGUAGE LEVEL N>
+        strictly keep all languages from the JSON RESUME file
+  ════════════════════════════════════════════════════════ -->
+  <section>
+    <div class="section-title">Languages</div>
+    <div class="lang-row">
+      <div class="lang-item"><span class="lang-name"><LANGUAGE 1></span> — <LANGUAGE LEVEL 1></div>
+      <div class="lang-item"><span class="lang-name"><LANGUAGE 2></span> — <LANGUAGE LEVEL 2></div>
+      <div class="lang-item"><span class="lang-name"><LANGUAGE 3></span> — <LANGUAGE LEVEL 3></div>
+      <div class="lang-item"><span class="lang-name"><LANGUAGE 4></span> — <LANGUAGE LEVEL 4></div>
+    </div>
+  </section>
+
+</body>
+</html>
