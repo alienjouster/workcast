@@ -34,6 +34,7 @@ export function useSSE() {
       // while the job finished. Invalidating here ensures the UI catches up on reconnect.
       qc.invalidateQueries({ queryKey: ['applications'] });
       qc.invalidateQueries({ queryKey: ['generated-resume'] });
+      qc.invalidateQueries({ queryKey: ['resume-versions'] });
       qc.invalidateQueries({ queryKey: ['generated-letter'] });
     };
 
@@ -124,8 +125,9 @@ export function useSSE() {
         case 'applicationResumeGenerationCompleted':
           // Refresh the application so isResumeGenerationPending clears and any error shows.
           qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
-          // Refresh the generated resume so the new HTML appears immediately.
+          // Refresh the generated resume (latest) and the versions list.
           qc.invalidateQueries({ queryKey: ['generated-resume', event.applicationId] });
+          qc.invalidateQueries({ queryKey: ['resume-versions', event.applicationId] });
           break;
 
         case 'applicationLetterGenerationCompleted':

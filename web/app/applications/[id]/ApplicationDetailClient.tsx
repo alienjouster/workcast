@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useLatestGeneratedResume, useGenerateResume, useUpdateGeneratedResume, useLatestGeneratedLetter, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useResumeVersions, useDeleteResumeVersion, useGenerateResume, useUpdateGeneratedResume, useLatestGeneratedLetter, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
 import type { ResumeOptimizationLevel } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -501,25 +501,44 @@ const OPTIMIZATION_OPTIONS: { value: ResumeOptimizationLevel; label: string; des
   { value: 'Heavy',  label: 'Heavy',  description: 'Gap-filling — similar skills may be added to cover partial gaps.' },
 ];
 
+const OPTIMIZATION_BADGE: Record<string, string> = {
+  None:   'bg-gray-100 text-gray-600',
+  Light:  'bg-blue-50 text-blue-600',
+  Medium: 'bg-amber-50 text-amber-600',
+  Heavy:  'bg-orange-50 text-orange-600',
+};
+
 function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
   const { data: settings } = useSettings();
-  const { data: latest, isLoading: isLoadingLatest } = useLatestGeneratedResume(app?.id ?? '');
+  const { data: versions = [], isLoading: isLoadingVersions } = useResumeVersions(app?.id ?? '');
   const generate = useGenerateResume(app?.id ?? '');
   const update = useUpdateGeneratedResume(app?.id ?? '');
+  const deleteVersion = useDeleteResumeVersion(app?.id ?? '');
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [optimizationLevel, setOptimizationLevel] = useState<ResumeOptimizationLevel>('None');
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   if (!app) return null;
 
-  const highlightsVisible = !(latest?.htmlContent.includes('<!--mark-->') ?? false);
+  // Sorted descending by version number (latest first)
+  const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+
+  // The currently viewed version: explicit selection or the latest one
+  const selectedVersion = selectedVersionId
+    ? (sortedVersions.find(v => v.id === selectedVersionId) ?? sortedVersions[0] ?? null)
+    : (sortedVersions[0] ?? null);
+
+  const highlightsVisible = !(selectedVersion?.htmlContent.includes('<!--mark-->') ?? false);
 
   function toggleHighlights() {
-    if (!latest) return;
+    if (!selectedVersion) return;
     const newHtml = highlightsVisible
-      ? latest.htmlContent.replace(/<mark>/g, '<!--mark-->').replace(/<\/mark>/g, '<!--/mark-->')
-      : latest.htmlContent.replace(/<!--mark-->/g, '<mark>').replace(/<!--\/mark-->/g, '</mark>');
-    update.mutate(newHtml);
+      ? selectedVersion.htmlContent.replace(/<mark>/g, '<!--mark-->').replace(/<\/mark>/g, '<!--/mark-->')
+      : selectedVersion.htmlContent.replace(/<!--mark-->/g, '<mark>').replace(/<!--\/mark-->/g, '</mark>');
+    update.mutate(newHtml, { onSuccess: () => setSelectedVersionId(null) });
   }
 
   const hasResume    = settings?.hasResume ?? false;
@@ -534,7 +553,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   if (!hasScoring)  missingItems.push('scoring data (Scoring tab)');
 
   function startEdit() {
-    setDraft(latest?.htmlContent ?? '');
+    setDraft(selectedVersion?.htmlContent ?? '');
     setEditing(true);
   }
 
@@ -544,8 +563,21 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   }
 
   function saveEdit() {
-    update.mutate(draft, { onSuccess: () => setEditing(false) });
+    if (draft === selectedVersion?.htmlContent) {
+      setEditing(false);
+      setDraft('');
+      return;
+    }
+    update.mutate(draft, {
+      onSuccess: () => {
+        setEditing(false);
+        setDraft('');
+        setSelectedVersionId(null); // auto-select the newly created version
+      },
+    });
   }
+
+  const confirmDeleteVersion = sortedVersions.find(v => v.id === confirmDeleteId);
 
   return (
     <div className="space-y-4">
@@ -577,7 +609,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                 role="switch"
                 aria-checked={highlightsVisible}
                 onClick={toggleHighlights}
-                disabled={update.isPending}
+                disabled={update.isPending || !selectedVersion}
                 className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${highlightsVisible ? 'bg-indigo-600' : 'bg-gray-200'}`}
               >
                 <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${highlightsVisible ? 'translate-x-4' : 'translate-x-0'}`} />
@@ -590,12 +622,12 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                 </p>
               )}
               <button
-                onClick={() => generate.mutate(optimizationLevel)}
+                onClick={() => { generate.mutate(optimizationLevel); setSelectedVersionId(null); }}
                 disabled={!canGenerate || isGenerating}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <SparkleIcon className="w-4 h-4" />
-                {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+                {isGenerating ? 'Generating…' : sortedVersions.length > 0 ? 'Re-generate' : 'Generate'}
               </button>
             </div>
           </div>
@@ -605,9 +637,9 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {latest && !isGenerating && !editing && (
+          {selectedVersion && !isGenerating && !editing && (
             <span className="text-xs text-gray-400">
-              Generated {new Date(latest.generatedAt).toLocaleString()} · {latest.modelUsed}
+              {selectedVersion.isManualEdit ? 'Edited' : 'Generated'} {new Date(selectedVersion.generatedAt).toLocaleString()} · {selectedVersion.modelUsed}
             </span>
           )}
         </div>
@@ -630,7 +662,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               </button>
             </>
           )}
-          {!editing && latest && !isGenerating && (
+          {!editing && selectedVersion && !isGenerating && (
             <>
               <button
                 onClick={startEdit}
@@ -640,7 +672,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               </button>
               <button
                 onClick={() => {
-                  const blob = new Blob([latest.htmlContent], { type: 'text/html' });
+                  const blob = new Blob([selectedVersion.htmlContent], { type: 'text/html' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
@@ -656,7 +688,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                 onClick={() => {
                   const win = window.open('', '_blank');
                   if (!win) return;
-                  win.document.write(latest.htmlContent);
+                  win.document.write(selectedVersion.htmlContent);
                   win.document.close();
                   win.focus();
                   win.print();
@@ -684,13 +716,13 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
         </div>
       )}
 
-      {!isGenerating && isLoadingLatest && (
+      {!isGenerating && isLoadingVersions && (
         <div className="bg-white rounded-lg border border-gray-200 p-8 flex justify-center">
           <ScoringSpinner />
         </div>
       )}
 
-      {!isGenerating && !isLoadingLatest && !latest && (
+      {!isGenerating && !isLoadingVersions && sortedVersions.length === 0 && (
         <div className="bg-white rounded-lg border border-dashed border-gray-200 p-12 text-center">
           <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-3">
             <SparkleIcon className="w-6 h-6 text-indigo-400" />
@@ -702,13 +734,108 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
         </div>
       )}
 
-      {!isGenerating && latest && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <ResumeIframe
-            htmlContent={latest.htmlContent}
-            editing={editing}
-            onDraftChange={setDraft}
-          />
+      {!isGenerating && sortedVersions.length > 0 && selectedVersion && (
+        <div className="flex gap-3 items-start">
+          {/* Version list sidebar */}
+          <div className="w-44 flex-shrink-0">
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden divide-y divide-gray-100">
+              {sortedVersions.map((v) => {
+                const isSelected = v.id === selectedVersion.id;
+                return (
+                  <div
+                    key={v.id}
+                    onClick={() => { if (!editing) setSelectedVersionId(v.id); }}
+                    className={`group relative flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer transition-colors ${
+                      isSelected
+                        ? 'bg-indigo-50'
+                        : 'hover:bg-gray-50'
+                    } ${editing ? 'cursor-default opacity-60' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
+                        v{v.versionNumber}
+                      </span>
+                      {!editing && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
+                          title="Delete this version"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                            <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-400 leading-tight">
+                      {new Date(v.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {v.optimizationLevel && (
+                        <span className={`inline-block text-[10px] px-1.5 py-0.5 rounded ${OPTIMIZATION_BADGE[v.optimizationLevel] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {v.optimizationLevel}
+                        </span>
+                      )}
+                      {v.isManualEdit && (
+                        <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                          Edited
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-gray-300 truncate leading-tight mt-0.5" title={v.modelUsed}>
+                      {v.modelUsed}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Resume preview */}
+          <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <ResumeIframe
+              htmlContent={selectedVersion.htmlContent}
+              editing={editing}
+              onDraftChange={setDraft}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDeleteId && confirmDeleteVersion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete v{confirmDeleteVersion.versionNumber}?</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              This will permanently delete version {confirmDeleteVersion.versionNumber}
+              {confirmDeleteVersion.isManualEdit ? ' (manual edit)' : confirmDeleteVersion.optimizationLevel ? ` (${confirmDeleteVersion.optimizationLevel})` : ''}.
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={deleteVersion.isPending}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 border border-gray-200 rounded-md disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteVersion.mutate(confirmDeleteId, {
+                    onSuccess: () => {
+                      setConfirmDeleteId(null);
+                      setSelectedVersionId(null);
+                    },
+                  });
+                }}
+                disabled={deleteVersion.isPending}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+              >
+                {deleteVersion.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

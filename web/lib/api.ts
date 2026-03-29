@@ -243,6 +243,10 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ htmlContent }),
       }),
+    listResumeVersions: (id: string) =>
+      apiFetch<GeneratedResume[]>(`/api/applications/${id}/resume/versions`),
+    deleteResumeVersion: (id: string, versionId: string) =>
+      apiFetch<void>(`/api/applications/${id}/resume/versions/${versionId}`, { method: 'DELETE' }),
     generateLetter: (id: string) =>
       apiFetch<void>(`/api/applications/${id}/letter/generate`, { method: 'POST' }),
     getLatestLetter: (id: string) =>

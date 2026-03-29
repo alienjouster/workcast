@@ -137,9 +137,12 @@ export type ResumeOptimizationLevel = 'None' | 'Light' | 'Medium' | 'Heavy';
 export interface GeneratedResume {
   id: string;
   applicationId: string;
+  versionNumber: number;
   htmlContent: string;
   modelUsed: string;
   generatedAt: string;
+  optimizationLevel: ResumeOptimizationLevel | null;
+  isManualEdit: boolean;
 }
 
 export interface GeneratedLetter {

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Workcast.Core.Entities;
+using Workcast.Core.Models;
 
 namespace Workcast.Infrastructure.Persistence.Configurations;
 
@@ -21,6 +23,11 @@ internal sealed class GeneratedResumeConfiguration : IEntityTypeConfiguration<Ge
             .HasColumnType("uuid")
             .IsRequired();
 
+        builder.Property(r => r.VersionNumber)
+            .HasColumnName("version_number")
+            .HasColumnType("integer")
+            .IsRequired();
+
         builder.Property(r => r.HtmlContent)
             .HasColumnName("html_content")
             .HasColumnType("text")
@@ -36,6 +43,20 @@ internal sealed class GeneratedResumeConfiguration : IEntityTypeConfiguration<Ge
             .HasColumnType("timestamptz")
             .IsRequired();
 
+        builder.Property(r => r.OptimizationLevel)
+            .HasColumnName("optimization_level")
+            .HasMaxLength(20)
+            .HasConversion(new ValueConverter<ResumeOptimizationLevel?, string?>(
+                v => v.HasValue ? v.Value.ToString() : null,
+                v => v != null ? Enum.Parse<ResumeOptimizationLevel>(v) : null))
+            .IsRequired(false);
+
+        builder.Property(r => r.IsManualEdit)
+            .HasColumnName("is_manual_edit")
+            .HasColumnType("boolean")
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.HasOne(r => r.Application)
             .WithMany()
             .HasForeignKey(r => r.ApplicationId)
@@ -43,6 +64,10 @@ internal sealed class GeneratedResumeConfiguration : IEntityTypeConfiguration<Ge
 
         builder.HasIndex(r => r.ApplicationId)
             .HasDatabaseName("ix_generated_resumes_application_id");
+
+        builder.HasIndex(r => new { r.ApplicationId, r.VersionNumber })
+            .HasDatabaseName("ix_generated_resumes_application_id_version_number")
+            .IsUnique();
 
         builder.HasIndex(r => new { r.ApplicationId, r.GeneratedAt })
             .HasDatabaseName("ix_generated_resumes_application_id_generated_at_desc")

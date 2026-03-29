@@ -91,16 +91,19 @@ public sealed class ApplicationResumeGenerationJob
                 ct:                      ct)
             .ConfigureAwait(false);
 
-            var existing = await _dbContext.GeneratedResumes
-                .Where(r => r.ApplicationId == applicationId)
-                .OrderByDescending(r => r.GeneratedAt)
-                .FirstOrDefaultAsync(CancellationToken.None)
-                .ConfigureAwait(false);
+            var nextVersionNumber = 1 + (
+                await _dbContext.GeneratedResumes
+                    .Where(r => r.ApplicationId == applicationId)
+                    .MaxAsync(r => (int?)r.VersionNumber, CancellationToken.None)
+                    .ConfigureAwait(false) ?? 0);
 
-            if (existing is not null)
-                _dbContext.GeneratedResumes.Remove(existing);
-
-            _dbContext.GeneratedResumes.Add(GeneratedResume.Create(applicationId, htmlContent, settings.ResumeGenerationModel));
+            _dbContext.GeneratedResumes.Add(GeneratedResume.Create(
+                applicationId,
+                htmlContent,
+                settings.ResumeGenerationModel,
+                nextVersionNumber,
+                optimizationLevel,
+                isManualEdit: false));
             application.ClearResumeGenerationPending();
 
             _logger.LogInformation("Resume generation completed for application {ApplicationId}", applicationId);

@@ -492,7 +492,9 @@ public sealed class ApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Updates the HTML content of the most recently generated resume (manual edit).
+    /// Saves a manual edit of the resume as a new version.
+    /// The new version inherits the model name from the highest existing version.
+    /// OptimizationLevel is inherited from the prior version and IsManualEdit is true for all versions created here.
     /// </summary>
     [HttpPatch("{id:guid}/resume/latest")]
     [ProducesResponseType(typeof(GeneratedResumeResponse), StatusCodes.Status200OK)]
@@ -502,24 +504,28 @@ public sealed class ApplicationsController : ControllerBase
         [FromBody] UpdateGeneratedResumeRequest request,
         CancellationToken ct)
     {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
         var latest = await _db.GeneratedResumes
             .Where(r => r.ApplicationId == id)
-            .OrderByDescending(r => r.GeneratedAt)
+            .OrderByDescending(r => r.VersionNumber)
             .FirstOrDefaultAsync(ct);
 
         if (latest is null) return NotFound();
 
-        latest.UpdateHtmlContent(request.HtmlContent);
+        var newVersion = GeneratedResume.Create(
+            id,
+            request.HtmlContent,
+            latest.ModelUsed,
+            latest.VersionNumber + 1,
+            optimizationLevel: latest.OptimizationLevel,
+            isManualEdit: true);
+
+        _db.GeneratedResumes.Add(newVersion);
         await _db.SaveChangesAsync(ct);
 
-        return Ok(new GeneratedResumeResponse
-        {
-            Id            = latest.Id,
-            ApplicationId = latest.ApplicationId,
-            HtmlContent   = latest.HtmlContent,
-            ModelUsed     = latest.ModelUsed,
-            GeneratedAt   = latest.GeneratedAt,
-        });
+        return Ok(MapResumeToResponse(newVersion));
     }
 
     /// <summary>
@@ -536,19 +542,51 @@ public sealed class ApplicationsController : ControllerBase
 
         var latest = await _db.GeneratedResumes
             .Where(r => r.ApplicationId == id)
-            .OrderByDescending(r => r.GeneratedAt)
+            .OrderByDescending(r => r.VersionNumber)
             .FirstOrDefaultAsync(ct);
 
         if (latest is null) return NotFound();
 
-        return Ok(new GeneratedResumeResponse
-        {
-            Id            = latest.Id,
-            ApplicationId = latest.ApplicationId,
-            HtmlContent   = latest.HtmlContent,
-            ModelUsed     = latest.ModelUsed,
-            GeneratedAt   = latest.GeneratedAt,
-        });
+        return Ok(MapResumeToResponse(latest));
+    }
+
+    /// <summary>
+    /// Returns all versions of the generated resume for the given application,
+    /// ordered by version number descending (latest first).
+    /// </summary>
+    [HttpGet("{id:guid}/resume/versions")]
+    [ProducesResponseType(typeof(IList<GeneratedResumeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ListResumeVersionsAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var versions = await _db.GeneratedResumes
+            .Where(r => r.ApplicationId == id)
+            .OrderByDescending(r => r.VersionNumber)
+            .ToListAsync(ct);
+
+        return Ok(versions.Select(MapResumeToResponse).ToList());
+    }
+
+    /// <summary>
+    /// Permanently deletes a specific resume version. This cannot be undone.
+    /// Returns 404 if the version does not belong to the given application.
+    /// </summary>
+    [HttpDelete("{id:guid}/resume/versions/{versionId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteResumeVersionAsync(Guid id, Guid versionId, CancellationToken ct)
+    {
+        var version = await _db.GeneratedResumes
+            .FirstOrDefaultAsync(r => r.Id == versionId && r.ApplicationId == id, ct);
+
+        if (version is null) return NotFound();
+
+        _db.GeneratedResumes.Remove(version);
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     /// <summary>
@@ -654,6 +692,19 @@ public sealed class ApplicationsController : ControllerBase
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static GeneratedResumeResponse MapResumeToResponse(GeneratedResume r) =>
+        new()
+        {
+            Id                = r.Id,
+            ApplicationId     = r.ApplicationId,
+            VersionNumber     = r.VersionNumber,
+            HtmlContent       = r.HtmlContent,
+            ModelUsed         = r.ModelUsed,
+            GeneratedAt       = r.GeneratedAt,
+            OptimizationLevel = r.OptimizationLevel?.ToString(),
+            IsManualEdit      = r.IsManualEdit,
+        };
 
     /// <summary>
     /// Renders the job ad page via Playwright and returns sanitized HTML that preserves

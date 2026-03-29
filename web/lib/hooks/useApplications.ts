@@ -135,8 +135,29 @@ export function useUpdateGeneratedResume(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (htmlContent: string) => api.applications.updateLatestResume(id, htmlContent),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(['generated-resume', id], updated);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resume-versions', id] });
+      queryClient.invalidateQueries({ queryKey: ['generated-resume', id] });
+    },
+  });
+}
+
+export function useResumeVersions(id: string) {
+  return useQuery({
+    queryKey: ['resume-versions', id],
+    queryFn: () => api.applications.listResumeVersions(id),
+    staleTime: STALE_TIMES.LONG,
+    enabled: !!id,
+  });
+}
+
+export function useDeleteResumeVersion(applicationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (versionId: string) => api.applications.deleteResumeVersion(applicationId, versionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['resume-versions', applicationId] });
+      queryClient.invalidateQueries({ queryKey: ['generated-resume', applicationId] });
     },
   });
 }
