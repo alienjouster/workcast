@@ -582,57 +582,55 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   return (
     <div className="space-y-4">
       {/* Optimization level selector */}
-      {!editing && (
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <p className="text-xs font-medium text-gray-500 mb-3">Optimization level</p>
-          <div className="grid grid-cols-4 gap-2">
-            {OPTIMIZATION_OPTIONS.map(({ value, label, description }) => (
-              <button
-                key={value}
-                onClick={() => setOptimizationLevel(value)}
-                disabled={isGenerating}
-                className={`flex flex-col items-start gap-1 rounded-md border px-3 py-2.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  optimizationLevel === value
-                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
-                }`}
-              >
-                <span className="text-xs font-semibold">{label}</span>
-                <span className="text-[11px] leading-tight text-gray-400">{description}</span>
-              </button>
-            ))}
+      <div className={`bg-white rounded-lg border border-gray-200 p-4 ${editing ? 'opacity-50 pointer-events-none select-none' : ''}`}>
+        <p className="text-xs font-medium text-gray-500 mb-3">Optimization level</p>
+        <div className="grid grid-cols-4 gap-2">
+          {OPTIMIZATION_OPTIONS.map(({ value, label, description }) => (
+            <button
+              key={value}
+              onClick={() => setOptimizationLevel(value)}
+              disabled={isGenerating || editing}
+              className={`flex flex-col items-start gap-1 rounded-md border px-3 py-2.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                optimizationLevel === value
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600'
+              }`}
+            >
+              <span className="text-xs font-semibold">{label}</span>
+              <span className="text-[11px] leading-tight text-gray-400">{description}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">Highlight optimization</span>
+            <button
+              role="switch"
+              aria-checked={highlightsVisible}
+              onClick={toggleHighlights}
+              disabled={update.isPending || !selectedVersion || editing}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${highlightsVisible ? 'bg-indigo-600' : 'bg-gray-200'}`}
+            >
+              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${highlightsVisible ? 'translate-x-4' : 'translate-x-0'}`} />
+            </button>
           </div>
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">Highlight optimization</span>
-              <button
-                role="switch"
-                aria-checked={highlightsVisible}
-                onClick={toggleHighlights}
-                disabled={update.isPending || !selectedVersion}
-                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${highlightsVisible ? 'bg-indigo-600' : 'bg-gray-200'}`}
-              >
-                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${highlightsVisible ? 'translate-x-4' : 'translate-x-0'}`} />
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              {!canGenerate && missingItems.length > 0 && (
-                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
-                  Requires: {missingItems.join(', ')}
-                </p>
-              )}
-              <button
-                onClick={() => { generate.mutate(optimizationLevel); setSelectedVersionId(null); }}
-                disabled={!canGenerate || isGenerating}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <SparkleIcon className="w-4 h-4" />
-                {isGenerating ? 'Generating…' : sortedVersions.length > 0 ? 'Re-generate' : 'Generate'}
-              </button>
-            </div>
+          <div className="flex items-center gap-3">
+            {!canGenerate && missingItems.length > 0 && (
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                Requires: {missingItems.join(', ')}
+              </p>
+            )}
+            <button
+              onClick={() => { generate.mutate(optimizationLevel); setSelectedVersionId(null); }}
+              disabled={!canGenerate || isGenerating || editing}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <SparkleIcon className="w-4 h-4" />
+              {isGenerating ? 'Generating…' : sortedVersions.length > 0 ? 'Re-generate' : 'Generate'}
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Toolbar */}
       <div className="flex items-center justify-between">
