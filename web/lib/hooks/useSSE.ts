@@ -12,7 +12,8 @@ type SseEvent =
   | { type: 'runCompleted'; boardId: string; runId: string }
   | { type: 'unreadCountChanged'; unreadCount: number }
   | { type: 'scoringCompleted'; adId: string }
-  | { type: 'applicationScoringCompleted'; applicationId: string };
+  | { type: 'applicationScoringCompleted'; applicationId: string }
+  | { type: 'applicationResumeGenerationCompleted'; applicationId: string };
 
 export function useSSE() {
   const qc = useQueryClient();
@@ -111,6 +112,13 @@ export function useSSE() {
               query.queryKey[0] === 'applications' &&
               typeof query.queryKey[1] !== 'string',
           });
+          break;
+
+        case 'applicationResumeGenerationCompleted':
+          // Refresh the application so isResumeGenerationPending clears and any error shows.
+          qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
+          // Refresh the generated resume so the new HTML appears immediately.
+          qc.invalidateQueries({ queryKey: ['generated-resume', event.applicationId] });
           break;
       }
     };

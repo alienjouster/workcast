@@ -77,6 +77,12 @@ public record ApplicationResponse
     /// <summary>Gets the error message from the most recent failed scoring attempt, or null.</summary>
     public string? LastScoringError { get; init; }
 
+    /// <summary>Gets a value indicating whether a resume generation job is currently in progress.</summary>
+    public required bool IsResumeGenerationPending { get; init; }
+
+    /// <summary>Gets the error message from the most recent failed resume generation attempt, or null.</summary>
+    public string? LastResumeGenerationError { get; init; }
+
     // ── Status tracking ──────────────────────────────────────────────────────
 
     /// <summary>Gets the current workflow stage of the application as a string (e.g. "ToApply").</summary>

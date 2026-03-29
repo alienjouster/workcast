@@ -131,6 +131,8 @@ export interface AppSettings {
   resumeTemplateUploadedAt: string | null;
 }
 
+export type ResumeOptimizationLevel = 'None' | 'Light' | 'Medium' | 'Heavy';
+
 export interface GeneratedResume {
   id: string;
   applicationId: string;
@@ -194,6 +196,8 @@ export interface Application {
   jobAdContent: string | null;
   isScoringPending: boolean;
   lastScoringError: string | null;
+  isResumeGenerationPending: boolean;
+  lastResumeGenerationError: string | null;
   status: ApplicationStatus;
   statusHistory: StatusHistoryEntry[];
 }

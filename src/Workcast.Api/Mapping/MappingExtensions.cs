@@ -265,8 +265,10 @@ public static class MappingExtensions
                 })
                 .ToList(),
             JobAdContent     = app.JobAdContent,
-            IsScoringPending = app.IsScoringPending,
-            LastScoringError = app.LastScoringError,
+            IsScoringPending             = app.IsScoringPending,
+            LastScoringError             = app.LastScoringError,
+            IsResumeGenerationPending    = app.IsResumeGenerationPending,
+            LastResumeGenerationError    = app.LastResumeGenerationError,
             Status           = app.Status.ToString(),
             StatusHistory    = app.StatusHistory
                 .Select(e => new StatusHistoryEntryResponse { Status = e.Status.ToString(), AchievedAt = e.AchievedAt })

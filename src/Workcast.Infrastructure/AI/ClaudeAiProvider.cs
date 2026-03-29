@@ -230,12 +230,14 @@ public sealed class ClaudeAiProvider : IAiProvider
         string scoringSummary,
         string scoringRecommendation,
         string scoringRequirementsJson,
+        ResumeOptimizationLevel optimizationLevel = ResumeOptimizationLevel.None,
         CancellationToken ct = default)
     {
         var tool = BuildResumeGenerationTool();
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
 
         var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+        var rule6 = BuildOptimizationInstruction(optimizationLevel);
 
         var prompt = $"""
             You are an expert resume writer. Your task is to generate an ATS-friendly, tailored HTML resume.
@@ -261,8 +263,8 @@ public sealed class ClaudeAiProvider : IAiProvider
             2. Replace the template's placeholder content with the candidate's real information from RESUME.
             3. Tailor the "Professional summary" as per the JOB AD
             4. Strictly keep all "work_experience" and all "roles" from the RESUME but select the best 3 to 6 "responsabilities" for each "roles", using the SCORING ANALYSIS
-            5. Strickly keep the "education_and_certifications" and "languages" section as per the JSON RESUME 
-            6. STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. Only use information present in RESUME.
+            5. Strickly keep the "education_and_certifications" and "languages" section as per the JSON RESUME
+            6. {rule6}
             7. The output must be a complete, valid HTML document that can be rendered directly in a browser.
 
             Call the submit_resume tool with the generated HTML.
@@ -296,6 +298,14 @@ public sealed class ClaudeAiProvider : IAiProvider
             },
         };
     }
+
+    private static string BuildOptimizationInstruction(ResumeOptimizationLevel level) => level switch
+    {
+        ResumeOptimizationLevel.Light  => "STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. However, based on the SCORING ANALYSIS, replace words from the RESUME with synonyms to better match the JOB AD. Highlight the rewording using <mark> in the tailored html resume you are creating.",
+        ResumeOptimizationLevel.Medium => "Never invent or fabricate skills, experiences, titles, companies, dates, or qualifications. However, based on the SCORING ANALYSIS, reword them to better match the JOB AD. Highlight the rewording using <mark> in the tailored html resume you are creating.",
+        ResumeOptimizationLevel.Heavy  => "Cover each gap from the SCORING ANALYSIS by inventing skills and experiences (even if they are not in the RESUME). Highlight any of these additions using <mark> in the tailored html resume you are creating.",
+        _                              => "STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. Only use information present in RESUME.",
+    };
 
     private static AdScoringResult DeserializeAdScoringResult(JsonObject input)
     {

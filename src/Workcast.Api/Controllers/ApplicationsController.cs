@@ -5,11 +5,13 @@ using System.Text.RegularExpressions;
 using Hangfire;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Workcast.Api.DTOs.Requests;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
 using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
+using Workcast.Core.Models;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
 
@@ -437,16 +439,16 @@ public sealed class ApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Generates a tailored HTML resume for the given application using Claude AI.
+    /// Enqueues a Hangfire background job to generate a tailored HTML resume for the given application.
     /// Requires: a resume uploaded in Settings, an HTML template uploaded in Settings,
     /// and scoring data present on the application.
-    /// The call is synchronous and may take up to 3 minutes.
+    /// Returns 202 Accepted immediately; the UI is updated via SSE when the job completes.
     /// </summary>
     [HttpPost("{id:guid}/resume/generate")]
-    [ProducesResponseType(typeof(GeneratedResumeResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> GenerateResumeAsync(Guid id, CancellationToken ct)
+    public async Task<IActionResult> GenerateResumeAsync(Guid id, [FromBody] GenerateResumeRequest? request, CancellationToken ct)
     {
         var settings = await _settingsRepository.GetAsync(ct);
 
@@ -480,33 +482,13 @@ public sealed class ApplicationsController : ControllerBase
             });
         }
 
-        var requirementsJson = System.Text.Json.JsonSerializer.Serialize(application.Requirements);
-
-        var htmlContent = await _aiProvider.GenerateResumeAsync(
-            resumeContent:            settings.ResumeContent!,
-            resumeContentType:        settings.ResumeContentType!,
-            resumeFileName:           settings.ResumeFileName!,
-            resumeTemplateHtml:       settings.ResumeTemplateContent!,
-            jobAdContent:             application.JobAdContent ?? application.Description ?? string.Empty,
-            scoringSummary:           application.Summary ?? string.Empty,
-            scoringRecommendation:    application.Recommendation ?? string.Empty,
-            scoringRequirementsJson:  requirementsJson,
-            ct:                       ct);
-
-        var generated = GeneratedResume.Create(application.Id, htmlContent, settings.ResumeGenerationModel);
-        _db.GeneratedResumes.Add(generated);
+        application.SetResumeGenerationPending();
         await _db.SaveChangesAsync(ct);
 
-        var response = new GeneratedResumeResponse
-        {
-            Id            = generated.Id,
-            ApplicationId = generated.ApplicationId,
-            HtmlContent   = generated.HtmlContent,
-            ModelUsed     = generated.ModelUsed,
-            GeneratedAt   = generated.GeneratedAt,
-        };
+        var level = request?.OptimizationLevel ?? ResumeOptimizationLevel.None;
+        _backgroundJobClient.Enqueue<ApplicationResumeGenerationJob>(j => j.ExecuteAsync(id, level, CancellationToken.None));
 
-        return Created($"/api/applications/{id}/resume/latest", response);
+        return Accepted();
     }
 
     /// <summary>

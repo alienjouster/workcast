@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tansta
 import type { InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { Application, ApplicationStatus, PagedResponse } from '@/types';
+import type { Application, ApplicationStatus, PagedResponse, ResumeOptimizationLevel } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -118,9 +118,15 @@ export function useLatestGeneratedResume(id: string) {
 export function useGenerateResume(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.applications.generateResume(id),
-    onSuccess: (generated) => {
-      queryClient.setQueryData(['generated-resume', id], generated);
+    mutationFn: (optimizationLevel: ResumeOptimizationLevel = 'None') =>
+      api.applications.generateResume(id, optimizationLevel),
+    onSuccess: () => {
+      // Optimistically mark pending so the UI shows the spinner immediately,
+      // without waiting for the SSE event.
+      queryClient.setQueryData<import('@/types').Application>(
+        ['applications', id],
+        (old) => old ? { ...old, isResumeGenerationPending: true } : old,
+      );
     },
   });
 }

@@ -49,7 +49,7 @@ public interface IAiProvider
     /// Generates an ATS-friendly tailored HTML resume by combining the candidate's resume,
     /// an HTML template (defines visual structure), the job ad, and the scoring analysis.
     /// The output is a complete HTML document using the template's structure with
-    /// content tailored to the job ad. No skills or experiences are invented.
+    /// content tailored to the job ad.
     /// </summary>
     /// <param name="resumeContent">Raw bytes of the resume file.</param>
     /// <param name="resumeContentType">MIME type: "text/plain" or "application/json".</param>
@@ -59,6 +59,7 @@ public interface IAiProvider
     /// <param name="scoringSummary">AI scoring summary of the resume vs job ad match.</param>
     /// <param name="scoringRecommendation">AI scoring recommendation sentence.</param>
     /// <param name="scoringRequirementsJson">JSON array of scored requirements (name, category, score, notes).</param>
+    /// <param name="optimizationLevel">Controls how aggressively content may be adapted to match the job ad.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A complete HTML document ready to render in a browser.</returns>
     Task<string> GenerateResumeAsync(
@@ -70,5 +71,6 @@ public interface IAiProvider
         string scoringSummary,
         string scoringRecommendation,
         string scoringRequirementsJson,
+        ResumeOptimizationLevel optimizationLevel = ResumeOptimizationLevel.None,
         CancellationToken ct = default);
 }

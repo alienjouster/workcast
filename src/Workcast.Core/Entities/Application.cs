@@ -114,6 +114,12 @@ public sealed class Application
     /// <summary>Error message from the most recent failed scoring attempt, or null if scoring succeeded or was never run.</summary>
     public string? LastScoringError { get; private set; }
 
+    /// <summary>True while a resume generation job is in progress for this application.</summary>
+    public bool IsResumeGenerationPending { get; private set; }
+
+    /// <summary>Error message from the most recent failed resume generation attempt, or null if it succeeded or was never run.</summary>
+    public string? LastResumeGenerationError { get; private set; }
+
     // ── Status tracking ───────────────────────────────────────────────────────
 
     /// <summary>Current workflow stage of the application.</summary>
@@ -165,6 +171,23 @@ public sealed class Application
     {
         IsScoringPending = false;
         LastScoringError = error;
+    }
+
+    /// <summary>Marks the application as having a resume generation job in progress.</summary>
+    public void SetResumeGenerationPending()
+    {
+        IsResumeGenerationPending = true;
+        LastResumeGenerationError = null;
+    }
+
+    /// <summary>Clears the resume-generation-pending flag after a successful run.</summary>
+    public void ClearResumeGenerationPending() => IsResumeGenerationPending = false;
+
+    /// <summary>Records a resume generation failure and clears the pending flag.</summary>
+    public void SetResumeGenerationFailed(string error)
+    {
+        IsResumeGenerationPending = false;
+        LastResumeGenerationError = error;
     }
 
     /// <summary>Applies a fresh scoring result to this application's snapshot fields.</summary>

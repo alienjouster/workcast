@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useLatestGeneratedResume, useGenerateResume, useUpdateGeneratedResume } from '@/lib/hooks/useApplications';
+import type { ResumeOptimizationLevel } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid } from '@/components/scoring/ScoringShared';
@@ -328,6 +329,13 @@ function ResumeIframe({
 
 // ── Custom Resume tab ──────────────────────────────────────────────────────────
 
+const OPTIMIZATION_OPTIONS: { value: ResumeOptimizationLevel; label: string; description: string }[] = [
+  { value: 'None',   label: 'None',   description: 'Strict — only information from your resume, word for word.' },
+  { value: 'Light',  label: 'Light',  description: 'Synonyms only — words may be replaced to better match the job ad.' },
+  { value: 'Medium', label: 'Medium', description: 'Rewording — experiences may be rephrased to align with the job ad.' },
+  { value: 'Heavy',  label: 'Heavy',  description: 'Gap-filling — similar skills may be added to cover partial gaps.' },
+];
+
 function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
   const { data: settings } = useSettings();
   const { data: latest, isLoading: isLoadingLatest } = useLatestGeneratedResume(app?.id ?? '');
@@ -336,14 +344,24 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
-
+  const [optimizationLevel, setOptimizationLevel] = useState<ResumeOptimizationLevel>('None');
   if (!app) return null;
+
+  const highlightsVisible = !(latest?.htmlContent.includes('<!--mark-->') ?? false);
+
+  function toggleHighlights() {
+    if (!latest) return;
+    const newHtml = highlightsVisible
+      ? latest.htmlContent.replace(/<mark>/g, '<!--mark-->').replace(/<\/mark>/g, '<!--/mark-->')
+      : latest.htmlContent.replace(/<!--mark-->/g, '<mark>').replace(/<!--\/mark-->/g, '</mark>');
+    update.mutate(newHtml);
+  }
 
   const hasResume    = settings?.hasResume ?? false;
   const hasTemplate  = settings?.hasResumeTemplate ?? false;
   const hasScoring   = app.overallScore != null;
   const canGenerate  = hasResume && hasTemplate && hasScoring;
-  const isGenerating = generate.isPending;
+  const isGenerating = app.isResumeGenerationPending || generate.isPending;
 
   const missingItems: string[] = [];
   if (!hasResume)   missingItems.push('resume content (Settings)');
@@ -366,6 +384,59 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
 
   return (
     <div className="space-y-4">
+      {/* Optimization level selector */}
+      {!editing && (
+        <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <p className="text-xs font-medium text-gray-500 mb-3">Optimization level</p>
+          <div className="grid grid-cols-4 gap-2">
+            {OPTIMIZATION_OPTIONS.map(({ value, label, description }) => (
+              <button
+                key={value}
+                onClick={() => setOptimizationLevel(value)}
+                disabled={isGenerating}
+                className={`flex flex-col items-start gap-1 rounded-md border px-3 py-2.5 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                  optimizationLevel === value
+                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                }`}
+              >
+                <span className="text-xs font-semibold">{label}</span>
+                <span className="text-[11px] leading-tight text-gray-400">{description}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-gray-500">Highlight optimization</span>
+              <button
+                role="switch"
+                aria-checked={highlightsVisible}
+                onClick={toggleHighlights}
+                disabled={update.isPending}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${highlightsVisible ? 'bg-indigo-600' : 'bg-gray-200'}`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${highlightsVisible ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              {!canGenerate && missingItems.length > 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
+                  Requires: {missingItems.join(', ')}
+                </p>
+              )}
+              <button
+                onClick={() => generate.mutate(optimizationLevel)}
+                disabled={!canGenerate || isGenerating}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <SparkleIcon className="w-4 h-4" />
+                {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -376,12 +447,7 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
           )}
         </div>
         <div className="flex items-center gap-3">
-          {!canGenerate && missingItems.length > 0 && !editing && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-1.5">
-              Requires: {missingItems.join(', ')}
-            </p>
-          )}
-          {editing ? (
+          {editing && (
             <>
               <button
                 onClick={saveEdit}
@@ -398,32 +464,50 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                 Cancel
               </button>
             </>
-          ) : (
+          )}
+          {!editing && latest && !isGenerating && (
             <>
-              {latest && !isGenerating && (
-                <button
-                  onClick={startEdit}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  Edit
-                </button>
-              )}
               <button
-                onClick={() => generate.mutate()}
-                disabled={!canGenerate || isGenerating}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                onClick={startEdit}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
               >
-                <SparkleIcon className="w-4 h-4" />
-                {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+                Edit
+              </button>
+              <button
+                onClick={() => {
+                  const blob = new Blob([latest.htmlContent], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'resume.html';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  const win = window.open('', '_blank');
+                  if (!win) return;
+                  win.document.write(latest.htmlContent);
+                  win.document.close();
+                  win.focus();
+                  win.print();
+                }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Print
               </button>
             </>
           )}
         </div>
       </div>
 
-      {generate.error && (
+      {app.lastResumeGenerationError && !isGenerating && (
         <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-4 py-3">
-          {(generate.error as Error).message}
+          {app.lastResumeGenerationError}
         </div>
       )}
 

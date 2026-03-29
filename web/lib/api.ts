@@ -12,6 +12,7 @@ import type {
   Application,
   ApplicationStatus,
   GeneratedResume,
+  ResumeOptimizationLevel,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -229,8 +230,11 @@ export const api = {
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'POST' }),
     cancelScoring: (id: string) =>
       apiFetch<void>(`/api/applications/${id}/scoring`, { method: 'DELETE' }),
-    generateResume: (id: string) =>
-      apiFetch<GeneratedResume>(`/api/applications/${id}/resume/generate`, { method: 'POST' }),
+    generateResume: (id: string, optimizationLevel: ResumeOptimizationLevel = 'None') =>
+      apiFetch<void>(`/api/applications/${id}/resume/generate`, {
+        method: 'POST',
+        body: JSON.stringify({ optimizationLevel }),
+      }),
     getLatestResume: (id: string) =>
       apiFetch<GeneratedResume>(`/api/applications/${id}/resume/latest`),
     updateLatestResume: (id: string, htmlContent: string) =>
