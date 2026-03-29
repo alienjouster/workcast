@@ -148,9 +148,11 @@ export interface GeneratedResume {
 export interface GeneratedLetter {
   id: string;
   applicationId: string;
+  versionNumber: number;
   htmlContent: string;
   modelUsed: string;
   generatedAt: string;
+  isManualEdit: boolean;
 }
 
 export type ApplicationStatus =

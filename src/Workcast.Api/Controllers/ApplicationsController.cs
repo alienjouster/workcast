@@ -632,7 +632,9 @@ public sealed class ApplicationsController : ControllerBase
     }
 
     /// <summary>
-    /// Updates the HTML content of the most recently generated application letter (manual edit).
+    /// Saves a manual edit of the letter as a new version.
+    /// The new version inherits the model name from the highest existing version.
+    /// IsManualEdit is true for all versions created here.
     /// </summary>
     [HttpPatch("{id:guid}/letter/latest")]
     [ProducesResponseType(typeof(GeneratedLetterResponse), StatusCodes.Status200OK)]
@@ -642,24 +644,27 @@ public sealed class ApplicationsController : ControllerBase
         [FromBody] UpdateGeneratedLetterRequest request,
         CancellationToken ct)
     {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
         var latest = await _db.GeneratedLetters
             .Where(l => l.ApplicationId == id)
-            .OrderByDescending(l => l.GeneratedAt)
+            .OrderByDescending(l => l.VersionNumber)
             .FirstOrDefaultAsync(ct);
 
         if (latest is null) return NotFound();
 
-        latest.UpdateHtmlContent(request.HtmlContent);
+        var newVersion = GeneratedLetter.Create(
+            id,
+            request.HtmlContent,
+            latest.ModelUsed,
+            latest.VersionNumber + 1,
+            isManualEdit: true);
+
+        _db.GeneratedLetters.Add(newVersion);
         await _db.SaveChangesAsync(ct);
 
-        return Ok(new GeneratedLetterResponse
-        {
-            Id            = latest.Id,
-            ApplicationId = latest.ApplicationId,
-            HtmlContent   = latest.HtmlContent,
-            ModelUsed     = latest.ModelUsed,
-            GeneratedAt   = latest.GeneratedAt,
-        });
+        return Ok(MapLetterToResponse(newVersion));
     }
 
     /// <summary>
@@ -676,22 +681,66 @@ public sealed class ApplicationsController : ControllerBase
 
         var latest = await _db.GeneratedLetters
             .Where(l => l.ApplicationId == id)
-            .OrderByDescending(l => l.GeneratedAt)
+            .OrderByDescending(l => l.VersionNumber)
             .FirstOrDefaultAsync(ct);
 
         if (latest is null) return NotFound();
 
-        return Ok(new GeneratedLetterResponse
-        {
-            Id            = latest.Id,
-            ApplicationId = latest.ApplicationId,
-            HtmlContent   = latest.HtmlContent,
-            ModelUsed     = latest.ModelUsed,
-            GeneratedAt   = latest.GeneratedAt,
-        });
+        return Ok(MapLetterToResponse(latest));
+    }
+
+    /// <summary>
+    /// Returns all versions of the generated letter for the given application,
+    /// ordered by version number descending (latest first).
+    /// </summary>
+    [HttpGet("{id:guid}/letter/versions")]
+    [ProducesResponseType(typeof(IList<GeneratedLetterResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ListLetterVersionsAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var versions = await _db.GeneratedLetters
+            .Where(l => l.ApplicationId == id)
+            .OrderByDescending(l => l.VersionNumber)
+            .ToListAsync(ct);
+
+        return Ok(versions.Select(MapLetterToResponse).ToList());
+    }
+
+    /// <summary>
+    /// Permanently deletes a specific letter version. This cannot be undone.
+    /// Returns 404 if the version does not belong to the given application.
+    /// </summary>
+    [HttpDelete("{id:guid}/letter/versions/{versionId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteLetterVersionAsync(Guid id, Guid versionId, CancellationToken ct)
+    {
+        var version = await _db.GeneratedLetters
+            .FirstOrDefaultAsync(l => l.Id == versionId && l.ApplicationId == id, ct);
+
+        if (version is null) return NotFound();
+
+        _db.GeneratedLetters.Remove(version);
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static GeneratedLetterResponse MapLetterToResponse(GeneratedLetter l) =>
+        new()
+        {
+            Id            = l.Id,
+            ApplicationId = l.ApplicationId,
+            VersionNumber = l.VersionNumber,
+            HtmlContent   = l.HtmlContent,
+            ModelUsed     = l.ModelUsed,
+            GeneratedAt   = l.GeneratedAt,
+            IsManualEdit  = l.IsManualEdit,
+        };
 
     private static GeneratedResumeResponse MapResumeToResponse(GeneratedResume r) =>
         new()

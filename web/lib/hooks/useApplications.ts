@@ -188,8 +188,29 @@ export function useUpdateGeneratedLetter(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (htmlContent: string) => api.applications.updateLatestLetter(id, htmlContent),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(['generated-letter', id], updated);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['letter-versions', id] });
+      queryClient.invalidateQueries({ queryKey: ['generated-letter', id] });
+    },
+  });
+}
+
+export function useLetterVersions(id: string) {
+  return useQuery({
+    queryKey: ['letter-versions', id],
+    queryFn: () => api.applications.listLetterVersions(id),
+    staleTime: STALE_TIMES.LONG,
+    enabled: !!id,
+  });
+}
+
+export function useDeleteLetterVersion(applicationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (versionId: string) => api.applications.deleteLetterVersion(applicationId, versionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['letter-versions', applicationId] });
+      queryClient.invalidateQueries({ queryKey: ['generated-letter', applicationId] });
     },
   });
 }

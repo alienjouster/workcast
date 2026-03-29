@@ -256,6 +256,10 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ htmlContent }),
       }),
+    listLetterVersions: (id: string) =>
+      apiFetch<GeneratedLetter[]>(`/api/applications/${id}/letter/versions`),
+    deleteLetterVersion: (id: string, versionId: string) =>
+      apiFetch<void>(`/api/applications/${id}/letter/versions/${versionId}`, { method: 'DELETE' }),
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),

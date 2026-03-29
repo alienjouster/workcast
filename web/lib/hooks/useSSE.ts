@@ -36,6 +36,7 @@ export function useSSE() {
       qc.invalidateQueries({ queryKey: ['generated-resume'] });
       qc.invalidateQueries({ queryKey: ['resume-versions'] });
       qc.invalidateQueries({ queryKey: ['generated-letter'] });
+      qc.invalidateQueries({ queryKey: ['letter-versions'] });
     };
 
     es.onmessage = (e: MessageEvent) => {
@@ -133,6 +134,7 @@ export function useSSE() {
         case 'applicationLetterGenerationCompleted':
           qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
           qc.invalidateQueries({ queryKey: ['generated-letter', event.applicationId] });
+          qc.invalidateQueries({ queryKey: ['letter-versions', event.applicationId] });
           break;
       }
     };

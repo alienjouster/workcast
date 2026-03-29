@@ -2,7 +2,7 @@ namespace Workcast.Core.Entities;
 
 /// <summary>
 /// Stores a generated HTML application letter for a specific application.
-/// Each generation creates a new row; the latest is retrieved by <c>GeneratedAt DESC</c>.
+/// Each generation or manual edit creates a new row; the latest is retrieved by <c>VersionNumber DESC</c>.
 /// </summary>
 public sealed class GeneratedLetter
 {
@@ -24,20 +24,30 @@ public sealed class GeneratedLetter
     /// <summary>UTC timestamp when this letter was generated.</summary>
     public DateTimeOffset GeneratedAt { get; private set; }
 
-    /// <summary>Updates the HTML content (manual edit after generation).</summary>
-    public void UpdateHtmlContent(string htmlContent) => HtmlContent = htmlContent;
+    /// <summary>Sequential version number per application. Never reuses numbers (gaps from deletion are permanent).</summary>
+    public int VersionNumber { get; private set; }
+
+    /// <summary>Whether this version was created by a manual edit (rather than AI generation).</summary>
+    public bool IsManualEdit { get; private set; }
 
     // Required by EF Core.
     private GeneratedLetter() { }
 
     /// <summary>Creates a new generated letter record.</summary>
-    public static GeneratedLetter Create(Guid applicationId, string htmlContent, string modelUsed) =>
+    public static GeneratedLetter Create(
+        Guid applicationId,
+        string htmlContent,
+        string modelUsed,
+        int versionNumber,
+        bool isManualEdit) =>
         new()
         {
-            Id = Guid.NewGuid(),
+            Id            = Guid.NewGuid(),
             ApplicationId = applicationId,
-            HtmlContent = htmlContent,
-            ModelUsed = modelUsed,
-            GeneratedAt = DateTimeOffset.UtcNow,
+            HtmlContent   = htmlContent,
+            ModelUsed     = modelUsed,
+            VersionNumber = versionNumber,
+            GeneratedAt   = DateTimeOffset.UtcNow,
+            IsManualEdit  = isManualEdit,
         };
 }

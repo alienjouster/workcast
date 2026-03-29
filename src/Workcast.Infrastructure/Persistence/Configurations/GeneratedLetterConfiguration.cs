@@ -36,6 +36,17 @@ internal sealed class GeneratedLetterConfiguration : IEntityTypeConfiguration<Ge
             .HasColumnType("timestamptz")
             .IsRequired();
 
+        builder.Property(l => l.VersionNumber)
+            .HasColumnName("version_number")
+            .HasColumnType("integer")
+            .IsRequired();
+
+        builder.Property(l => l.IsManualEdit)
+            .HasColumnName("is_manual_edit")
+            .HasColumnType("boolean")
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasOne(l => l.Application)
             .WithMany()
             .HasForeignKey(l => l.ApplicationId)
@@ -44,8 +55,8 @@ internal sealed class GeneratedLetterConfiguration : IEntityTypeConfiguration<Ge
         builder.HasIndex(l => l.ApplicationId)
             .HasDatabaseName("ix_generated_letters_application_id");
 
-        builder.HasIndex(l => new { l.ApplicationId, l.GeneratedAt })
-            .HasDatabaseName("ix_generated_letters_application_id_generated_at_desc")
-            .IsDescending(false, true);
+        builder.HasIndex(l => new { l.ApplicationId, l.VersionNumber })
+            .HasDatabaseName("ix_generated_letters_application_id_version_number")
+            .IsUnique();
     }
 }

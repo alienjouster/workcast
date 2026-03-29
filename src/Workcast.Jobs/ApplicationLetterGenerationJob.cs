@@ -89,16 +89,17 @@ public sealed class ApplicationLetterGenerationJob
                 ct:                      ct)
             .ConfigureAwait(false);
 
-            var existing = await _dbContext.GeneratedLetters
+            var maxVersion = await _dbContext.GeneratedLetters
                 .Where(l => l.ApplicationId == applicationId)
-                .OrderByDescending(l => l.GeneratedAt)
-                .FirstOrDefaultAsync(CancellationToken.None)
+                .MaxAsync(l => (int?)l.VersionNumber, CancellationToken.None)
                 .ConfigureAwait(false);
 
-            if (existing is not null)
-                _dbContext.GeneratedLetters.Remove(existing);
-
-            _dbContext.GeneratedLetters.Add(GeneratedLetter.Create(applicationId, htmlContent, settings.LetterGenerationModel));
+            _dbContext.GeneratedLetters.Add(GeneratedLetter.Create(
+                applicationId,
+                htmlContent,
+                settings.LetterGenerationModel,
+                versionNumber: (maxVersion ?? 0) + 1,
+                isManualEdit: false));
             application.ClearLetterGenerationPending();
 
             _logger.LogInformation("Letter generation completed for application {ApplicationId}", applicationId);

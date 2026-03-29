@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useResumeVersions, useDeleteResumeVersion, useGenerateResume, useUpdateGeneratedResume, useLatestGeneratedLetter, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useResumeVersions, useDeleteResumeVersion, useGenerateResume, useUpdateGeneratedResume, useLetterVersions, useDeleteLetterVersion, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
 import type { ResumeOptimizationLevel } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -275,13 +275,26 @@ function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] })
 
 function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
   const { data: settings } = useSettings();
-  const { data: latest, isLoading: isLoadingLatest } = useLatestGeneratedLetter(app?.id ?? '');
+  const { data: versions = [], isLoading: isLoadingVersions } = useLetterVersions(app?.id ?? '');
   const generate = useGenerateLetter(app?.id ?? '');
   const update = useUpdateGeneratedLetter(app?.id ?? '');
+  const deleteVersion = useDeleteLetterVersion(app?.id ?? '');
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [versionsExpanded, setVersionsExpanded] = useState(false);
+
   if (!app) return null;
+
+  // Sorted descending by version number (latest first)
+  const sortedVersions = [...versions].sort((a, b) => b.versionNumber - a.versionNumber);
+
+  // The currently viewed version: explicit selection or the latest one
+  const selectedVersion = selectedVersionId
+    ? (sortedVersions.find(v => v.id === selectedVersionId) ?? sortedVersions[0] ?? null)
+    : (sortedVersions[0] ?? null);
 
   const hasResume   = settings?.hasResume ?? false;
   const hasScoring  = app.overallScore != null;
@@ -293,7 +306,7 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   if (!hasScoring) missingItems.push('scoring data (Scoring tab)');
 
   function startEdit() {
-    setDraft(latest?.htmlContent ?? '');
+    setDraft(selectedVersion?.htmlContent ?? '');
     setEditing(true);
   }
 
@@ -303,8 +316,21 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   }
 
   function saveEdit() {
-    update.mutate(draft, { onSuccess: () => setEditing(false) });
+    if (draft === selectedVersion?.htmlContent) {
+      setEditing(false);
+      setDraft('');
+      return;
+    }
+    update.mutate(draft, {
+      onSuccess: () => {
+        setEditing(false);
+        setDraft('');
+        setSelectedVersionId(null); // auto-select the newly created version
+      },
+    });
   }
+
+  const confirmDeleteVersion = sortedVersions.find(v => v.id === confirmDeleteId);
 
   return (
     <div className="space-y-4">
@@ -320,12 +346,12 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               )}
             </div>
             <button
-              onClick={() => generate.mutate()}
+              onClick={() => { generate.mutate(); setSelectedVersionId(null); }}
               disabled={!canGenerate || isGenerating}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <SparkleIcon className="w-4 h-4" />
-              {isGenerating ? 'Generating…' : latest ? 'Re-generate' : 'Generate'}
+              {isGenerating ? 'Generating…' : sortedVersions.length > 0 ? 'Re-generate' : 'Generate'}
             </button>
           </div>
         </div>
@@ -334,9 +360,9 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
       {/* Toolbar */}
       <div className="flex items-center justify-between">
         <div>
-          {latest && !isGenerating && !editing && (
+          {selectedVersion && !isGenerating && !editing && (
             <span className="text-xs text-gray-400">
-              Generated {new Date(latest.generatedAt).toLocaleString()} · {latest.modelUsed}
+              {selectedVersion.isManualEdit ? 'Edited' : 'Generated'} {new Date(selectedVersion.generatedAt).toLocaleString()} · {selectedVersion.modelUsed}
             </span>
           )}
         </div>
@@ -359,7 +385,7 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               </button>
             </>
           )}
-          {!editing && latest && !isGenerating && (
+          {!editing && selectedVersion && !isGenerating && (
             <>
               <button
                 onClick={startEdit}
@@ -369,7 +395,7 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               </button>
               <button
                 onClick={() => {
-                  const blob = new Blob([latest.htmlContent], { type: 'text/html' });
+                  const blob = new Blob([selectedVersion.htmlContent], { type: 'text/html' });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
@@ -385,7 +411,7 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                 onClick={() => {
                   const win = window.open('', '_blank');
                   if (!win) return;
-                  win.document.write(latest.htmlContent);
+                  win.document.write(selectedVersion.htmlContent);
                   win.document.close();
                   win.focus();
                   win.print();
@@ -394,6 +420,22 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
               >
                 Print
               </button>
+              {sortedVersions.length > 0 && (
+                <button
+                  onClick={() => setVersionsExpanded(v => !v)}
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${versionsExpanded ? 'rotate-180' : ''}`}
+                  >
+                    <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                  </svg>
+                  {sortedVersions.length} version{sortedVersions.length !== 1 ? 's' : ''}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -413,13 +455,13 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
         </div>
       )}
 
-      {!isGenerating && isLoadingLatest && (
+      {!isGenerating && isLoadingVersions && (
         <div className="bg-white rounded-lg border border-gray-200 p-8 flex justify-center">
           <ScoringSpinner />
         </div>
       )}
 
-      {!isGenerating && !isLoadingLatest && !latest && (
+      {!isGenerating && !isLoadingVersions && sortedVersions.length === 0 && (
         <div className="bg-white rounded-lg border border-dashed border-gray-200 p-12 text-center">
           <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-3">
             <SparkleIcon className="w-6 h-6 text-indigo-400" />
@@ -432,13 +474,105 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
         </div>
       )}
 
-      {!isGenerating && latest && (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <ResumeIframe
-            htmlContent={latest.htmlContent}
-            editing={editing}
-            onDraftChange={setDraft}
-          />
+      {!isGenerating && sortedVersions.length > 0 && selectedVersion && (
+        <div className="flex gap-3 items-start">
+          {/* Letter preview */}
+          <div className="flex-1 min-w-0 bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <ResumeIframe
+              htmlContent={selectedVersion.htmlContent}
+              editing={editing}
+              onDraftChange={setDraft}
+            />
+          </div>
+
+          {/* Version list sidebar — right side, only when expanded */}
+          {versionsExpanded && (
+            <div className="w-44 flex-shrink-0 relative" style={{ maxHeight: '900px' }}>
+              <div className="bg-white rounded-lg border border-gray-200 overflow-y-auto divide-y divide-gray-100" style={{ maxHeight: '900px' }}>
+                {sortedVersions.map((v) => {
+                  const isSelected = v.id === selectedVersion.id;
+                  return (
+                    <div
+                      key={v.id}
+                      onClick={() => { if (!editing) setSelectedVersionId(v.id); }}
+                      className={`group relative flex flex-col gap-0.5 px-3 py-2.5 cursor-pointer transition-colors ${
+                        isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                      } ${editing ? 'cursor-default opacity-60' : ''}`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={`text-xs font-semibold ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
+                          v{v.versionNumber}
+                        </span>
+                        {!editing && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
+                            title="Delete this version"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                              <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-400 leading-tight">
+                        {new Date(v.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap gap-1">
+                        {v.isManualEdit && (
+                          <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">
+                            Edited
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-300 truncate leading-tight mt-0.5" title={v.modelUsed}>
+                        {v.modelUsed}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Bottom fade — only visible when the list overflows */}
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 rounded-b-lg bg-gradient-to-t from-white to-transparent" />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDeleteId && confirmDeleteVersion && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Delete v{confirmDeleteVersion.versionNumber}?</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              This will permanently delete version {confirmDeleteVersion.versionNumber}
+              {confirmDeleteVersion.isManualEdit ? ' (manual edit)' : ''}.
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                disabled={deleteVersion.isPending}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800 border border-gray-200 rounded-md disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  deleteVersion.mutate(confirmDeleteId, {
+                    onSuccess: () => {
+                      setConfirmDeleteId(null);
+                      setSelectedVersionId(null);
+                    },
+                  });
+                }}
+                disabled={deleteVersion.isPending}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50"
+              >
+                {deleteVersion.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
