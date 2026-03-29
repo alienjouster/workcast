@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { ScraperConfigView } from '@/components/boards/ScraperConfigView';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 const CRON_FIELDS = [
   { label: 'min',  min: 0, max: 59 },
@@ -275,7 +276,7 @@ export default function BoardDetailPage() {
             <h2 className="font-semibold text-gray-900">Board Details</h2>
             <p className="text-xs text-gray-400 mt-0.5">
               Created {formatDate(board.createdAt)}{board.lastScrapedAt && (
-                <> · Last scraped <span title={formatDate(board.lastScrapedAt)} className="cursor-default">{timeAgo(board.lastScrapedAt)}</span></>
+                <> · Last scraped <Tooltip content={formatDate(board.lastScrapedAt)} position="top" wrapperAs="span"><span className="cursor-default">{timeAgo(board.lastScrapedAt)}</span></Tooltip></>
               )}
             </p>
           </div>
@@ -331,7 +332,9 @@ export default function BoardDetailPage() {
                 ) : (
                   <>
                     <td className="px-4 py-2.5 min-w-0 max-w-0">
-                      <a href={board.url} target="_blank" rel="noopener noreferrer" title={board.url} className="font-mono text-xs text-indigo-600 hover:underline truncate block">{board.url}</a>
+                      <Tooltip content={board.url} position="bottom" wrapperAs="span" wrap tooltipClassName="max-w-xs">
+                        <a href={board.url} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-indigo-600 hover:underline truncate block">{board.url}</a>
+                      </Tooltip>
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
                       <button onClick={() => startFieldEdit('url', board.url)} className="text-xs text-indigo-500 hover:underline">Edit</button>
@@ -482,7 +485,9 @@ export default function BoardDetailPage() {
                   <tr key={run.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3"><Badge status={run.status} /></td>
                     <td className="px-4 py-3 text-gray-600">
-                      <span title={new Date(run.startedAt).toLocaleString()} className="cursor-default">{timeAgo(run.startedAt)}</span>
+                      <Tooltip content={new Date(run.startedAt).toLocaleString()} position="top" wrapperAs="span">
+                        <span className="cursor-default">{timeAgo(run.startedAt)}</span>
+                      </Tooltip>
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {isActiveRunStatus(run.status) ? (

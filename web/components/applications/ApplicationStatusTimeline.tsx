@@ -7,6 +7,7 @@ import {
   useUpdateApplicationStatusDate,
   useUpdateApplicationScrapedAt,
 } from '@/lib/hooks/useApplications';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -95,13 +96,14 @@ function DateCell({ e: ent, onSave, isSaving, placeholder = '—' }: {
   );
 
   return (
-    <button
-      onClick={() => { setDraft(toInput(ent.achievedAt)); setEditing(true); }}
-      title="Click to edit date"
-      className="text-[11px] text-gray-400 hover:text-indigo-500 hover:underline transition-colors"
-    >
-      {fmt(ent.achievedAt)}
-    </button>
+    <Tooltip content="Click to edit date" position="top" wrapperAs="span">
+      <button
+        onClick={() => { setDraft(toInput(ent.achievedAt)); setEditing(true); }}
+        className="text-[11px] text-gray-400 hover:text-indigo-500 hover:underline transition-colors"
+      >
+        {fmt(ent.achievedAt)}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -189,12 +191,9 @@ function StepNode({
     : <div className={`rounded-full flex-shrink-0 transition-all duration-200 ${dotCls} ${!isAnchor ? 'hover:scale-110' : ''}`} />;
 
   const dotWithTooltip = urgency ? (
-    <div className="relative group flex items-center justify-center">
+    <Tooltip content={URGENCY_TOOLTIP} position="top" className="flex items-center justify-center">
       {dotEl}
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-2 whitespace-nowrap rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-30">
-        {URGENCY_TOOLTIP}
-      </span>
-    </div>
+    </Tooltip>
   ) : dotEl;
 
   return (

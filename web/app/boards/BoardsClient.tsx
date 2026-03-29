@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card, CardBody } from '@/components/ui/Card';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -139,7 +140,9 @@ export function BoardsClient() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{board.name ?? board.url}</div>
                         {board.name && (
-                          <div className="text-xs text-gray-400 truncate max-w-xs" title={board.url}>{board.url}</div>
+                          <Tooltip content={board.url} position="bottom" wrapperAs="span" wrap tooltipClassName="max-w-xs">
+                            <div className="text-xs text-gray-400 truncate max-w-xs">{board.url}</div>
+                          </Tooltip>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -158,7 +161,9 @@ export function BoardsClient() {
                             Running
                           </span>
                         ) : board.lastScrapedAt ? (
-                          <span title={new Date(board.lastScrapedAt).toLocaleString()}>{timeAgo(board.lastScrapedAt)}</span>
+                          <Tooltip content={new Date(board.lastScrapedAt).toLocaleString()} position="top" wrapperAs="span">
+                            <span>{timeAgo(board.lastScrapedAt)}</span>
+                          </Tooltip>
                         ) : (
                           <span className="italic">Never</span>
                         )}
@@ -212,9 +217,9 @@ export function BoardsClient() {
                       </td>
                       <td className="px-4 py-3"><Badge status={run.status} /></td>
                       <td className="px-4 py-3 text-gray-600">
-                        <span title={new Date(run.startedAt).toLocaleString()} className="cursor-default">
-                          {timeAgo(run.startedAt)}
-                        </span>
+                        <Tooltip content={new Date(run.startedAt).toLocaleString()} position="top" wrapperAs="span">
+                          <span className="cursor-default">{timeAgo(run.startedAt)}</span>
+                        </Tooltip>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         {isActiveRunStatus(run.status) ? (

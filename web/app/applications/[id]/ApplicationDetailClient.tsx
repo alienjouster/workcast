@@ -10,6 +10,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid } from '@/components/scoring/ScoringShared';
 import { ApplicationStatusTimeline } from '@/components/applications/ApplicationStatusTimeline';
 import { StatusBadge } from '@/components/applications/StatusBadge';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
@@ -504,15 +505,16 @@ function LetterTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                           v{v.versionNumber}
                         </span>
                         {!editing && (
+                          <Tooltip content="Delete this version" position="top" wrapperAs="span">
                           <button
                             onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
                             className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
-                            title="Delete this version"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
                               <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
                             </svg>
                           </button>
+                          </Tooltip>
                         )}
                       </div>
                       <p className="text-[10px] text-gray-400 leading-tight">
@@ -915,15 +917,16 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
                             v{v.versionNumber}
                           </span>
                           {!editing && (
+                            <Tooltip content="Delete this version" position="top" wrapperAs="span">
                             <button
                               onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(v.id); }}
                               className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
-                              title="Delete this version"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
                                 <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A2.25 2.25 0 0 0 8.75 1h-1.5A2.25 2.25 0 0 0 5 3.25Zm2.25-.75a.75.75 0 0 0-.75.75V4h3v-.75a.75.75 0 0 0-.75-.75h-1.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5a.75.75 0 0 1 .786-.711Z" clipRule="evenodd" />
                               </svg>
                             </button>
+                            </Tooltip>
                           )}
                         </div>
                         <p className="text-[10px] text-gray-400 leading-tight">

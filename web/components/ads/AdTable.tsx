@@ -11,6 +11,7 @@ import { useSettings } from '@/lib/hooks/useSettings';
 import { useCreateApplication } from '@/lib/hooks/useApplications';
 import { NoteModal } from '@/components/ads/NoteModal';
 import { CATEGORY_STYLES, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid, scoreColorClass } from '@/components/scoring/ScoringShared';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,8 +31,8 @@ function ApplyCell({ adId }: { adId: string }) {
   const createApplication = useCreateApplication();
 
   return (
+    <Tooltip content="Apply to this job" position="top" wrapperAs="span">
     <button
-      title="Apply to this job"
       disabled={createApplication.isPending}
       onClick={(e) => {
         e.stopPropagation();
@@ -54,6 +55,7 @@ function ApplyCell({ adId }: { adId: string }) {
         </svg>
       )}
     </button>
+    </Tooltip>
   );
 }
 
@@ -77,8 +79,8 @@ function ScoreCell({ ad }: { ad: JobAd }) {
   }
 
   return (
+    <Tooltip content="✨ Run scoring analysis" position="top" wrapperAs="span">
     <button
-      title="✨ Run scoring analysis"
       disabled={!hasResume}
       onClick={(e) => { e.stopPropagation(); runScoring.mutate(ad.id); }}
       className="text-gray-300 hover:text-indigo-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
@@ -89,6 +91,7 @@ function ScoreCell({ ad }: { ad: JobAd }) {
         <circle cx="12" cy="13.5" r="1" fill="currentColor" stroke="none" />
       </svg>
     </button>
+    </Tooltip>
   );
 }
 
@@ -437,8 +440,8 @@ export function AdTable({ ads }: AdTableProps) {
                       />
                     </td>
                     <td className="px-4 py-3">
+                      <Tooltip content={ad.isPinned ? 'Unpin' : 'Pin to top'} position="top" wrapperAs="span">
                       <button
-                        title={ad.isPinned ? 'Unpin' : 'Pin to top'}
                         onClick={(e) => {
                           e.stopPropagation();
                           pinAd.mutate({ id: ad.id, pinned: ad.isPinned });
@@ -449,10 +452,11 @@ export function AdTable({ ads }: AdTableProps) {
                           <path d="M6.32 2.577a49.255 49.255 0 0 1 11.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 0 1-1.085.67L12 18.089l-7.165 3.583A.75.75 0 0 1 3.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93Z" />
                         </svg>
                       </button>
+                      </Tooltip>
                     </td>
                     <td className="px-4 py-3">
+                      <Tooltip content={ad.isRead ? 'Mark as unread' : 'Mark as read'} position="top" wrapperAs="span">
                       <button
-                        title={ad.isRead ? 'Mark as unread' : 'Mark as read'}
                         onClick={(e) => {
                           e.stopPropagation();
                           markRead.mutate({ id: ad.id, read: ad.isRead });
@@ -471,6 +475,7 @@ export function AdTable({ ads }: AdTableProps) {
                           </svg>
                         )}
                       </button>
+                      </Tooltip>
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center">
@@ -511,8 +516,8 @@ export function AdTable({ ads }: AdTableProps) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
+                        <Tooltip content={ad.note ? 'Edit note' : 'Add note'} position="top" wrapperAs="span">
                         <button
-                          title={ad.note ? 'Edit note' : 'Add note'}
                           onClick={(e) => {
                             e.stopPropagation();
                             setNoteAdId(ad.id);
@@ -524,10 +529,11 @@ export function AdTable({ ads }: AdTableProps) {
                             <path d="M15 3v6h6" />
                           </svg>
                         </button>
+                        </Tooltip>
+                        <Tooltip content="Move to trash" position="top" wrapperAs="span">
                         <Button
                           variant="ghost"
                           size="sm"
-                          title="Move to trash"
                           onClick={(e) => {
                             e.stopPropagation();
                             trashAd.mutate(ad.id);
@@ -538,6 +544,7 @@ export function AdTable({ ads }: AdTableProps) {
                             <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 0 0 6 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 1 0 .23 1.482l.149-.022.841 10.518A2.75 2.75 0 0 0 7.596 19h4.807a2.75 2.75 0 0 0 2.742-2.53l.841-10.52.149.023a.75.75 0 0 0 .23-1.482A41.03 41.03 0 0 0 14 4.193V3.75A2.75 2.75 0 0 0 11.25 1h-2.5ZM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4ZM8.58 7.72a.75.75 0 0 0-1.5.06l.3 7.5a.75.75 0 1 0 1.5-.06l-.3-7.5Zm4.34.06a.75.75 0 1 0-1.5-.06l-.3 7.5a.75.75 0 1 0 1.5.06l.3-7.5Z" clipRule="evenodd" />
                           </svg>
                         </Button>
+                        </Tooltip>
                       </div>
                     </td>
                   </tr>

@@ -1,12 +1,17 @@
 'use client';
 
 import { useIsProcessing } from '@/lib/hooks/useProcessingStatus';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 export function WorkcastLogo() {
   const isProcessing = useIsProcessing().data ?? false;
 
   return (
-    <div className="relative flex items-center gap-2 select-none group">
+    <Tooltip
+      content={isProcessing ? 'Working like a dog for you...' : null}
+      position="bottom-start"
+      className="flex items-center gap-2 select-none"
+    >
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -61,11 +66,6 @@ export function WorkcastLogo() {
         Workcast
       </span>
 
-      {isProcessing && (
-        <span className="pointer-events-none absolute left-0 top-full mt-2 whitespace-nowrap rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity z-20">
-          Working like a dog for you...
-        </span>
-      )}
-    </div>
+    </Tooltip>
   );
 }

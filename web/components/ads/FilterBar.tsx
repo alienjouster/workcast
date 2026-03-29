@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { JobBoard } from '@/types';
 import { api } from '@/lib/api';
 import { STALE_TIMES, SCORE_FILTER_PRESETS } from '@/lib/constants';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,14 +124,15 @@ function Chip({
   return (
     <span className={`inline-flex items-center rounded-full pr-1.5 py-1 text-xs font-medium ${colors}`}>
       {onToggleVariant ? (
+        <Tooltip content={isExclude ? 'Switch to include' : 'Switch to exclude'} position="top" wrapperAs="span">
         <button
           onClick={onToggleVariant}
           className={`pl-2 pr-1.5 py-0.5 font-bold rounded-full transition-colors ${toggleHover}`}
           aria-label={isExclude ? 'Switch to include' : 'Switch to exclude'}
-          title={isExclude ? 'Switch to include' : 'Switch to exclude'}
         >
           {isExclude ? '≠' : '='}
         </button>
+        </Tooltip>
       ) : (
         <span className="pl-3" />
       )}
@@ -474,11 +476,11 @@ export function FilterBar({
 
         {/* 2. Toggle slider — only when there are active filters */}
         {active && (
+          <Tooltip content={filters.enabled ? 'Disable all filters' : 'Enable all filters'} position="top" wrapperAs="span">
           <button
             role="switch"
             aria-checked={filters.enabled}
             onClick={() => onChange({ ...filters, enabled: !filters.enabled })}
-            title={filters.enabled ? 'Disable all filters' : 'Enable all filters'}
             className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
             style={{ backgroundColor: filters.enabled ? '#6366f1' : '#d1d5db' }}
           >
@@ -486,6 +488,7 @@ export function FilterBar({
               className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${filters.enabled ? 'translate-x-4' : 'translate-x-0'}`}
             />
           </button>
+          </Tooltip>
         )}
 
         {/* 3. Add filter button */}

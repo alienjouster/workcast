@@ -8,6 +8,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import FontFamily from '@tiptap/extension-font-family';
 import Highlight from '@tiptap/extension-highlight';
 import { useEffect, useRef } from 'react';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 const FONTS = [
   { label: 'Default',          value: '' },
@@ -33,18 +34,19 @@ function ToolbarBtn({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      onMouseDown={(e) => { e.preventDefault(); onClick(); }}
-      title={title}
-      className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors select-none ${
-        active
-          ? 'bg-indigo-100 text-indigo-700'
-          : 'text-gray-600 hover:bg-gray-200'
-      }`}
-    >
-      {children}
-    </button>
+    <Tooltip content={title} position="top" wrapperAs="span">
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); onClick(); }}
+        className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors select-none ${
+          active
+            ? 'bg-indigo-100 text-indigo-700'
+            : 'text-gray-600 hover:bg-gray-200'
+        }`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -168,55 +170,54 @@ export function RichTextEditor({ value, onChange, minHeight = 400 }: RichTextEdi
         <Divider />
 
         {/* Font family */}
-        <select
-          value={currentFont}
-          onChange={(e) => {
-            const font = e.target.value;
-            if (font) {
-              editor.chain().focus().setFontFamily(font).run();
-            } else {
-              editor.chain().focus().unsetFontFamily().run();
-            }
-          }}
-          title="Font family"
-          className="text-xs text-gray-600 bg-transparent border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300"
-        >
-          {FONTS.map((f) => (
-            <option key={f.value} value={f.value}>{f.label}</option>
-          ))}
-        </select>
+        <Tooltip content="Font family" position="top" wrapperAs="span">
+          <select
+            value={currentFont}
+            onChange={(e) => {
+              const font = e.target.value;
+              if (font) {
+                editor.chain().focus().setFontFamily(font).run();
+              } else {
+                editor.chain().focus().unsetFontFamily().run();
+              }
+            }}
+            className="text-xs text-gray-600 bg-transparent border border-gray-200 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+          >
+            {FONTS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </Tooltip>
         <Divider />
 
         {/* Text color */}
-        <label
-          title="Text color"
-          className="flex items-center gap-1 cursor-pointer text-xs text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-200"
-        >
-          <span style={{ borderBottom: `2px solid ${editor.getAttributes('textStyle').color ?? '#000000'}` }}>A</span>
-          <input
-            type="color"
-            defaultValue="#000000"
-            onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
-            className="w-0 h-0 opacity-0 absolute"
-          />
-        </label>
+        <Tooltip content="Text color" position="top" wrapperAs="span">
+          <label className="flex items-center gap-1 cursor-pointer text-xs text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-200">
+            <span style={{ borderBottom: `2px solid ${editor.getAttributes('textStyle').color ?? '#000000'}` }}>A</span>
+            <input
+              type="color"
+              defaultValue="#000000"
+              onChange={(e) => editor.chain().focus().setColor(e.target.value).run()}
+              className="w-0 h-0 opacity-0 absolute"
+            />
+          </label>
+        </Tooltip>
 
         {/* Highlight color */}
-        <label
-          title="Highlight color"
-          className="flex items-center gap-1 cursor-pointer text-xs text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-200"
-        >
-          <span
-            className="px-0.5"
-            style={{ backgroundColor: editor.isActive('highlight') ? (editor.getAttributes('highlight').color ?? '#fef08a') : '#fef08a' }}
-          >ab</span>
-          <input
-            type="color"
-            defaultValue="#fef08a"
-            onChange={(e) => editor.chain().focus().toggleHighlight({ color: e.target.value }).run()}
-            className="w-0 h-0 opacity-0 absolute"
-          />
-        </label>
+        <Tooltip content="Highlight color" position="top" wrapperAs="span">
+          <label className="flex items-center gap-1 cursor-pointer text-xs text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-200">
+            <span
+              className="px-0.5"
+              style={{ backgroundColor: editor.isActive('highlight') ? (editor.getAttributes('highlight').color ?? '#fef08a') : '#fef08a' }}
+            >ab</span>
+            <input
+              type="color"
+              defaultValue="#fef08a"
+              onChange={(e) => editor.chain().focus().toggleHighlight({ color: e.target.value }).run()}
+              className="w-0 h-0 opacity-0 absolute"
+            />
+          </label>
+        </Tooltip>
         <Divider />
 
         {/* Clear formatting */}
