@@ -47,7 +47,7 @@ public sealed class EventsController : ControllerBase
 
         // Serialize writes — HttpResponse is not thread-safe; the keepalive timer and
         // the event loop both need to write to the response concurrently.
-        var writeLock = new SemaphoreSlim(1, 1);
+        using var writeLock = new SemaphoreSlim(1, 1);
 
         async Task WriteFrameAsync(string frame)
         {

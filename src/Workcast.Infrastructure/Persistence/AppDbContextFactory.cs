@@ -19,7 +19,7 @@ internal sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbCon
         var services = new ServiceCollection();
         services.AddSingleton<TimestampInterceptor>();
 
-        var sp = services.BuildServiceProvider();
+        using var sp = services.BuildServiceProvider();
 
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
         optionsBuilder
