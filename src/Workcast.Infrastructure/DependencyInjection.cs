@@ -9,6 +9,7 @@ using Workcast.Infrastructure.AI.Options;
 using Workcast.Infrastructure.Events;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Infrastructure.Persistence.Interceptors;
+using Workcast.Infrastructure.Observability;
 using Workcast.Infrastructure.Scheduling;
 using Workcast.Infrastructure.Scraping;
 
@@ -39,6 +40,8 @@ public static class DependencyInjection
         // EventBroadcaster must be Singleton so Hangfire jobs and the SSE controller
         // share the same in-memory channel registry.
         services.AddSingleton<IEventBroadcaster, EventBroadcaster>();
+
+        services.AddHostedService<HangfireMetricsService>();
 
         return services;
     }

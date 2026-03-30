@@ -1,0 +1,270 @@
+{
+  "annotations": {
+    "list": [{ "builtIn": 1, "datasource": { "type": "grafana", "uid": "-- Grafana --" }, "enable": true, "hide": true, "iconColor": "rgba(0,211,255,1)", "name": "Annotations & Alerts", "type": "dashboard" }]
+  },
+  "description": "Workcast backend — HTTP API, Hangfire jobs, .NET process and PostgreSQL",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["workcast"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Workcast Backend",
+  "uid": "workcast-backend",
+  "version": 1,
+  "templating": {
+    "list": [
+      { "current": {}, "hide": 0, "includeAll": false, "multi": false, "name": "datasource", "options": [], "query": "prometheus", "refresh": 1, "type": "datasource", "label": "Datasource" }
+    ]
+  },
+  "panels": [
+
+    { "id": 1, "type": "row", "title": "HTTP API", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false, "panels": [] },
+
+    {
+      "id": 2, "type": "stat", "title": "Request Rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_requests_received_total{job=\"workcast-api\"}[5m]))", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 3, "type": "stat", "title": "Error Rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_requests_received_total{job=\"workcast-api\",code=~\"5..\"}[5m])) / sum(rate(http_requests_received_total{job=\"workcast-api\"}[5m])) * 100", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 4, "type": "stat", "title": "In Flight",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(http_requests_in_progress{job=\"workcast-api\"})", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 5, "type": "stat", "title": "P99 Latency",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"workcast-api\"}[5m])) by (le)) * 1000", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }, { "color": "red", "value": 2000 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 6, "type": "timeseries", "title": "Request Rate by Controller",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_requests_received_total{job=\"workcast-api\"}[5m])) by (controller, code)", "legendFormat": "{{controller}} {{code}}", "refId": "A" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "drawStyle": "line" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 7, "type": "timeseries", "title": "Latency Percentiles",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"workcast-api\"}[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{job=\"workcast-api\"}[5m])) by (le))", "legendFormat": "p90", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=\"workcast-api\"}[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 5, "showPoints": "never", "drawStyle": "line" } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    { "id": 8, "type": "row", "title": "Hangfire Jobs", "gridPos": { "x": 0, "y": 13, "w": 24, "h": 1 }, "collapsed": false, "panels": [] },
+
+    {
+      "id": 9, "type": "timeseries", "title": "Queue Depths",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 14, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_enqueued{job=\"workcast-api\"}", "legendFormat": "Enqueued", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_scheduled{job=\"workcast-api\"}", "legendFormat": "Scheduled", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_processing{job=\"workcast-api\"}", "legendFormat": "Processing", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 15, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 10, "type": "timeseries", "title": "Job Outcomes",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 14, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_succeeded{job=\"workcast-api\"}", "legendFormat": "Succeeded (cumulative)", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_failed{job=\"workcast-api\"}", "legendFormat": "Failed", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "drawStyle": "line" }, "min": 0 },
+        "overrides": [{ "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] }]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 11, "type": "stat", "title": "Enqueued",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_enqueued{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 12, "type": "stat", "title": "Scheduled",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 4, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_scheduled{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 13, "type": "stat", "title": "Processing",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 8, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_processing{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 14, "type": "stat", "title": "Succeeded",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_succeeded{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 15, "type": "stat", "title": "Failed",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 16, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_failed{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 16, "type": "stat", "title": "Recurring Jobs",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 20, "y": 22, "w": 4, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "hangfire_jobs_recurring{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    { "id": 17, "type": "row", "title": ".NET Process", "gridPos": { "x": 0, "y": 26, "w": 24, "h": 1 }, "collapsed": false, "panels": [] },
+
+    {
+      "id": 18, "type": "timeseries", "title": "Memory",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 27, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "process_resident_memory_bytes{job=\"workcast-api\"}", "legendFormat": "Resident (RSS)", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "dotnet_total_memory_bytes{job=\"workcast-api\"}", "legendFormat": "GC Heap", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "process_virtual_memory_bytes{job=\"workcast-api\"}", "legendFormat": "Virtual", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 19, "type": "timeseries", "title": "CPU Usage",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 27, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(process_cpu_seconds_total{job=\"workcast-api\"}[1m]) * 100", "legendFormat": "CPU %", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 20, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean", "max"] }, "tooltip": { "mode": "single", "sort": "none" } }
+    },
+
+    {
+      "id": 20, "type": "timeseries", "title": "GC Collections",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 35, "w": 12, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(dotnet_collection_count_total{job=\"workcast-api\",generation=\"0\"}[5m])", "legendFormat": "Gen 0", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(dotnet_collection_count_total{job=\"workcast-api\",generation=\"1\"}[5m])", "legendFormat": "Gen 1", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(dotnet_collection_count_total{job=\"workcast-api\",generation=\"2\"}[5m])", "legendFormat": "Gen 2", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 5, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 21, "type": "stat", "title": "Threads",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 12, "y": 35, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "process_num_threads{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 80 }, { "color": "red", "value": 150 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    {
+      "id": 22, "type": "stat", "title": "Open Handles",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 18, "y": 35, "w": 6, "h": 4 },
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "process_open_handles{job=\"workcast-api\"}", "legendFormat": "", "refId": "A", "instant": true }],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }] } }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" }
+    },
+
+    { "id": 23, "type": "row", "title": "PostgreSQL", "gridPos": { "x": 0, "y": 43, "w": 24, "h": 1 }, "collapsed": false, "panels": [] },
+
+    {
+      "id": 24, "type": "timeseries", "title": "Active Connections",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 0, "y": 44, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "pg_stat_database_numbackends{job=\"postgres\",datname!~\"template.*|postgres\"}", "legendFormat": "{{datname}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 20, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 25, "type": "timeseries", "title": "Transaction Rate",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 8, "y": 44, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_xact_commit{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Commits — {{datname}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_xact_rollback{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Rollbacks — {{datname}}", "refId": "B" }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 10, "showPoints": "never", "drawStyle": "line" }, "min": 0 },
+        "overrides": [{ "matcher": { "id": "byRegexp", "options": "Rollbacks.*" }, "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] }]
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    },
+
+    {
+      "id": 26, "type": "timeseries", "title": "Row Operations",
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "gridPos": { "x": 16, "y": 44, "w": 8, "h": 8 },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_tup_returned{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Returned", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_tup_inserted{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Inserted", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_tup_updated{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Updated", "refId": "C" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "rate(pg_stat_database_tup_deleted{job=\"postgres\",datname!~\"template.*|postgres\"}[5m])", "legendFormat": "Deleted", "refId": "D" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "rps", "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 5, "showPoints": "never", "drawStyle": "line" }, "min": 0 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["mean"] }, "tooltip": { "mode": "multi", "sort": "desc" } }
+    }
+
+  ]
+}

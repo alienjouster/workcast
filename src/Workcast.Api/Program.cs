@@ -1,6 +1,7 @@
 using Hangfire;
 using Hangfire.Dashboard;
 using Microsoft.EntityFrameworkCore;
+using Prometheus;
 using Workcast.Core.Enums;
 using Workcast.Infrastructure;
 using Workcast.Infrastructure.Persistence;
@@ -28,6 +29,7 @@ builder.Services.AddHttpClient("UrlValidation")
     });
 
 var app = builder.Build();
+
 
 // Section 8.5: Apply pending EF Core migrations on startup
 using (var scope = app.Services.CreateScope())
@@ -79,7 +81,9 @@ using (var scope = app.Services.CreateScope())
             board.ScheduleCron);
 }
 
+app.UseHttpMetrics();  // captures per-route request count, duration, and in-flight requests
 app.UseExceptionHandler();
 app.MapControllers();
+app.MapMetrics("/metrics");  // exposes the Prometheus scrape endpoint
 
 app.Run();
