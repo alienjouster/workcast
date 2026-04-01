@@ -15,6 +15,11 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     private const int ViewportHeight = 800;
     private const int PageLoadTimeoutMs = 30_000;
 
+    // Matches the Chromium version bundled with Playwright 1.44.
+    // Deliberately omits "HeadlessChrome" which is the first string every bot-detector checks.
+    private const string UserAgent =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
     private IPlaywright? _playwright;
     private IBrowser? _browser;
     private readonly SemaphoreSlim _initLock = new(1, 1);
@@ -49,10 +54,7 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     {
         var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
 
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            ViewportSize = new ViewportSize { Width = ViewportWidth, Height = ViewportHeight },
-        }).ConfigureAwait(false);
+        await using var context = await NewStealthContextAsync(browser).ConfigureAwait(false);
 
         var page = await context.NewPageAsync().ConfigureAwait(false);
 
@@ -103,10 +105,7 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
     {
         var browser = await GetBrowserAsync(ct).ConfigureAwait(false);
 
-        await using var context = await browser.NewContextAsync(new BrowserNewContextOptions
-        {
-            ViewportSize = new ViewportSize { Width = ViewportWidth, Height = ViewportHeight },
-        }).ConfigureAwait(false);
+        await using var context = await NewStealthContextAsync(browser).ConfigureAwait(false);
 
         var page = await context.NewPageAsync().ConfigureAwait(false);
 
@@ -247,6 +246,39 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
         _initLock.Dispose();
     }
 
+    /// <summary>
+    /// Creates a new browser context configured to resemble a real Chrome session:
+    /// realistic User-Agent, client-hint headers, locale, timezone, and a script
+    /// that removes the <c>navigator.webdriver</c> flag Chromium sets in headless mode.
+    /// </summary>
+    private static async Task<IBrowserContext> NewStealthContextAsync(IBrowser browser)
+    {
+        var context = await browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            ViewportSize  = new ViewportSize { Width = ViewportWidth, Height = ViewportHeight },
+            UserAgent     = UserAgent,
+            Locale        = "en-US",
+            TimezoneId    = "America/New_York",
+            ExtraHTTPHeaders = new Dictionary<string, string>
+            {
+                ["Accept-Language"]           = "en-US,en;q=0.9",
+                ["Accept"]                    = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                ["sec-ch-ua"]                 = "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"",
+                ["sec-ch-ua-mobile"]          = "?0",
+                ["sec-ch-ua-platform"]        = "\"Windows\"",
+                ["upgrade-insecure-requests"] = "1",
+            },
+        }).ConfigureAwait(false);
+
+        // Runs before every page load in this context — hides the last detectable
+        // automation signal that --disable-blink-features=AutomationControlled misses.
+        await context.AddInitScriptAsync(
+            "Object.defineProperty(navigator, 'webdriver', { get: () => undefined });"
+        ).ConfigureAwait(false);
+
+        return context;
+    }
+
     private async Task<IBrowser> GetBrowserAsync(CancellationToken ct)
     {
         if (_browser is not null)
@@ -272,7 +304,14 @@ public sealed class PlaywrightScraperEngine : IScraperEngine, IAsyncDisposable
                 // process crashes with SIGBUS (exit code 135) immediately on launch.
                 // --disable-dev-shm-usage makes Chrome write shared memory to /tmp instead
                 // of /dev/shm, avoiding SIGBUS when Docker's default 64 MB /dev/shm fills up.
-                Args = ["--no-sandbox", "--disable-dev-shm-usage"],
+                Args =
+                [
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    // Removes the navigator.webdriver property and related automation
+                    // flags that Chromium exposes when launched programmatically.
+                    "--disable-blink-features=AutomationControlled",
+                ],
             }).ConfigureAwait(false);
 
             return _browser;
