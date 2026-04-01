@@ -126,6 +126,18 @@ export function useBulkAction() {
   return { pin, unpin, read, unread, trash, isPending };
 }
 
+export function useBulkTrashAction() {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['job-ads'] });
+    qc.invalidateQueries({ queryKey: ['status'] });
+  };
+  const restore = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkRestore(ids), onSuccess: invalidate });
+  const del     = useMutation({ mutationFn: (ids: string[]) => api.ads.bulkDelete(ids),  onSuccess: invalidate });
+  const isPending = restore.isPending || del.isPending;
+  return { restore, del, isPending };
+}
+
 export function useSetNote() {
   const qc = useQueryClient();
   return useMutation({

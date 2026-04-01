@@ -436,6 +436,26 @@ public sealed class JobAdsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Restores all specified job ads from the trash bin.</summary>
+    [HttpPost("bulk/restore")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkRestoreAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.IsTrashed, false), ct);
+        return NoContent();
+    }
+
+    /// <summary>Hard-deletes all specified job ads.</summary>
+    [HttpPost("bulk/delete")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> BulkDeleteAsync([FromBody] BulkAdActionRequest req, CancellationToken ct)
+    {
+        await _db.JobAds.Where(a => req.Ids.Contains(a.Id))
+            .ExecuteDeleteAsync(ct);
+        return NoContent();
+    }
+
     // ── Hard delete ─────────────────────────────────────────────────────────────
 
     /// <summary>

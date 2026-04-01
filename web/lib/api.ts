@@ -150,6 +150,10 @@ export const api = {
       apiFetch<void>('/api/job-ads/bulk/unread', { method: 'POST', body: JSON.stringify({ ids }) }),
     bulkTrash: (ids: string[]) =>
       apiFetch<void>('/api/job-ads/bulk/trash', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkRestore: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/restore', { method: 'POST', body: JSON.stringify({ ids }) }),
+    bulkDelete: (ids: string[]) =>
+      apiFetch<void>('/api/job-ads/bulk/delete', { method: 'POST', body: JSON.stringify({ ids }) }),
     setNote: (id: string, note: string | null) =>
       apiFetch<import('@/types').JobAd>(`/api/job-ads/${id}/note`, {
         method: 'PATCH',
