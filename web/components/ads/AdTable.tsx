@@ -384,12 +384,25 @@ export function AdTable({ ads }: AdTableProps) {
       <div
         ref={parentRef}
         className="overflow-auto"
-        style={{ maxHeight: 'calc(100vh - 280px)' }}
+        style={{ maxHeight: 'calc(100vh - 280px)', overflowAnchor: 'none' }}
       >
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
+        <table className="w-full divide-y divide-gray-200 text-sm table-fixed">
+          {/* col widths lock layout; title col has no width so it takes the remainder */}
+          <colgroup>
+            <col style={{ width: '2rem' }} />
+            <col style={{ width: '2rem' }} />
+            <col style={{ width: '2rem' }} />
+            <col style={{ width: '3.5rem' }} />
+            <col style={{ width: '2.5rem' }} />
+            <col />
+            <col style={{ width: '9rem' }} />
+            <col style={{ width: '9rem' }} />
+            <col style={{ width: '6rem' }} />
+            <col style={{ width: '7rem' }} />
+          </colgroup>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <th className="px-4 py-3 w-8">
+              <th className="px-4 py-3">
                 <input
                   type="checkbox"
                   checked={allSelected}
@@ -397,10 +410,10 @@ export function AdTable({ ads }: AdTableProps) {
                   className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
               </th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
-              <th className="px-4 py-3 text-left font-medium text-gray-500 w-8"></th>
-              <th className="px-4 py-3 w-16"></th>
-              <th className="px-4 py-3 w-10"></th>
+              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3"></th>
               <th className="px-4 py-3 text-left font-medium text-gray-500">Title</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500">Company</th>
               <th className="px-4 py-3 text-left font-medium text-gray-500">Location</th>
@@ -423,7 +436,6 @@ export function AdTable({ ads }: AdTableProps) {
                   <tr
                     key={virtualItem.key}
                     data-index={virtualItem.index}
-                    ref={rowVirtualizer.measureElement}
                     className={`cursor-pointer ${ad.isPinned ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}
                     onClick={() => {
                       const isOpening = expandedId !== ad.id;
@@ -487,11 +499,11 @@ export function AdTable({ ads }: AdTableProps) {
                         <ApplyCell adId={ad.id} />
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                    <td className="px-4 py-3 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span className={`w-2 h-2 rounded-full shrink-0 ${ad.isRead ? 'invisible' : 'bg-red-500'}`} />
                         {!ad.isActive && (
-                          <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                          <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">
                             Inactive
                           </span>
                         )}
@@ -499,7 +511,8 @@ export function AdTable({ ads }: AdTableProps) {
                           href={ad.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={`hover:underline ${ad.isRead ? 'font-normal text-indigo-400' : 'font-semibold text-indigo-700'}`}
+                          title={ad.title ?? undefined}
+                          className={`truncate hover:underline ${ad.isRead ? 'font-normal text-indigo-400' : 'font-semibold text-indigo-700'}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!ad.isRead) markRead.mutate({ id: ad.id, read: false });
@@ -509,8 +522,8 @@ export function AdTable({ ads }: AdTableProps) {
                         </a>
                       </div>
                     </td>
-                    <td className={`px-4 py-3 ${ad.isRead ? 'text-gray-400' : 'text-gray-700'}`}>{ad.company ?? '—'}</td>
-                    <td className={`px-4 py-3 ${ad.isRead ? 'text-gray-400' : 'text-gray-700'}`}>{ad.location ?? '—'}</td>
+                    <td className={`px-4 py-3 overflow-hidden truncate ${ad.isRead ? 'text-gray-400' : 'text-gray-700'}`} title={ad.company ?? undefined}>{ad.company ?? '—'}</td>
+                    <td className={`px-4 py-3 overflow-hidden truncate ${ad.isRead ? 'text-gray-400' : 'text-gray-700'}`} title={ad.location ?? undefined}>{ad.location ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500">
                       {new Date(ad.scrapedAt).toLocaleDateString()}
                     </td>
