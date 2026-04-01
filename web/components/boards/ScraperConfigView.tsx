@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { ScraperConfig, UpdateScraperConfigRequest } from '@/types';
 import { useUpdateScraperConfig } from '@/lib/hooks/useJobBoards';
 import { Button } from '@/components/ui/Button';
@@ -53,6 +53,249 @@ function SectionRow({ label }: { label: string }) {
   );
 }
 
+// ── Row components (defined outside ScraperConfigView to keep stable identity) ─
+
+interface RowSharedProps {
+  editingField: string | null;
+  draftValue: string;
+  setDraftValue: (v: string) => void;
+  isSaving: boolean;
+  onCancel: () => void;
+}
+
+function TextRow({
+  field,
+  label,
+  tooltip,
+  value,
+  mono = true,
+  nullable = true,
+  buildOverride,
+  editingField,
+  draftValue,
+  isSaving,
+  onCancel,
+  onStartEdit,
+  onSave,
+}: {
+  field: string;
+  label: string;
+  tooltip: string;
+  value: string | null;
+  mono?: boolean;
+  nullable?: boolean;
+  buildOverride: (val: string | null) => Partial<UpdateScraperConfigRequest>;
+  onStartEdit: (field: string, value: string) => void;
+  onSave: (override: Partial<UpdateScraperConfigRequest>) => void;
+} & RowSharedProps) {
+  const isEditing = editingField === field;
+  // Uncontrolled input: browser owns the value, React never resets it on re-render.
+  // defaultValue is applied only on mount (when the user clicks Edit), so cursor never jumps.
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="px-4 py-2.5 text-sm text-gray-500 w-48 shrink-0">
+        {label}<InfoTooltip text={tooltip} />
+      </td>
+      {isEditing ? (
+        <>
+          <td className="px-4 py-2.5">
+            <input
+              ref={inputRef}
+              autoFocus
+              className={`${mono ? monoCls : plainCls} w-full max-w-lg`}
+              defaultValue={draftValue}
+            />
+          </td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="primary" onClick={() => {
+                const v = inputRef.current?.value ?? '';
+                onSave(buildOverride(nullable ? v || null : v));
+              }} loading={isSaving}>
+                Save
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+            </div>
+          </td>
+        </>
+      ) : (
+        <>
+          <td className="px-4 py-2.5">
+            {value
+              ? <span className={mono ? 'font-mono text-xs bg-gray-100 px-2 py-1 rounded break-all' : 'text-sm text-gray-900'}>{value}</span>
+              : <span className="text-sm text-gray-400 italic">—</span>
+            }
+          </td>
+          <td className="px-4 py-2.5 text-right">
+            <button onClick={() => onStartEdit(field, value ?? '')} className="text-xs text-indigo-500 hover:underline">
+              Edit
+            </button>
+          </td>
+        </>
+      )}
+    </tr>
+  );
+}
+
+function SelectRow({
+  field,
+  label,
+  tooltip,
+  value,
+  options,
+  buildOverride,
+  editingField,
+  draftValue,
+  setDraftValue,
+  isSaving,
+  onCancel,
+  onStartEdit,
+  onSave,
+}: {
+  field: string;
+  label: string;
+  tooltip: string;
+  value: string;
+  options: { value: string; label: string }[];
+  buildOverride: (val: string) => Partial<UpdateScraperConfigRequest>;
+  onStartEdit: (field: string, value: string) => void;
+  onSave: (override: Partial<UpdateScraperConfigRequest>) => void;
+} & RowSharedProps) {
+  const isEditing = editingField === field;
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
+        {label}<InfoTooltip text={tooltip} />
+      </td>
+      {isEditing ? (
+        <>
+          <td className="px-4 py-2.5">
+            <select autoFocus className={plainCls} value={draftValue} onChange={(e) => setDraftValue(e.target.value)}>
+              {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="primary" onClick={() => onSave(buildOverride(draftValue))} loading={isSaving}>
+                Save
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+            </div>
+          </td>
+        </>
+      ) : (
+        <>
+          <td className="px-4 py-2.5">
+            <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{value}</span>
+          </td>
+          <td className="px-4 py-2.5 text-right">
+            <button onClick={() => onStartEdit(field, value)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+          </td>
+        </>
+      )}
+    </tr>
+  );
+}
+
+function NumberRow({
+  field,
+  label,
+  tooltip,
+  value,
+  nullable = false,
+  buildOverride,
+  editingField,
+  draftValue,
+  isSaving,
+  onCancel,
+  onStartEdit,
+  onSave,
+}: {
+  field: string;
+  label: string;
+  tooltip: string;
+  value: number | null;
+  nullable?: boolean;
+  buildOverride: (val: number | null) => Partial<UpdateScraperConfigRequest>;
+  onStartEdit: (field: string, value: string) => void;
+  onSave: (override: Partial<UpdateScraperConfigRequest>) => void;
+} & RowSharedProps) {
+  const isEditing = editingField === field;
+  const inputRef = useRef<HTMLInputElement>(null);
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
+        {label}<InfoTooltip text={tooltip} />
+      </td>
+      {isEditing ? (
+        <>
+          <td className="px-4 py-2.5">
+            <input ref={inputRef} type="number" autoFocus className={`${plainCls} w-32`} defaultValue={draftValue} />
+          </td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="primary" onClick={() => {
+                const v = inputRef.current?.value ?? '';
+                onSave(buildOverride(v ? Number(v) : null));
+              }} loading={isSaving}>
+                Save
+              </Button>
+              <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+            </div>
+          </td>
+        </>
+      ) : (
+        <>
+          <td className="px-4 py-2.5 text-sm text-gray-900">
+            {value != null ? value : <span className="text-gray-400 italic">Unlimited</span>}
+          </td>
+          <td className="px-4 py-2.5 text-right">
+            <button onClick={() => onStartEdit(field, value != null ? String(value) : '')} className="text-xs text-indigo-500 hover:underline">Edit</button>
+          </td>
+        </>
+      )}
+    </tr>
+  );
+}
+
+function ToggleRow({
+  label,
+  tooltip,
+  value,
+  isSaving,
+  buildOverride,
+  onSave,
+}: {
+  label: string;
+  tooltip: string;
+  value: boolean;
+  isSaving: boolean;
+  buildOverride: (val: boolean) => Partial<UpdateScraperConfigRequest>;
+  onSave: (override: Partial<UpdateScraperConfigRequest>) => void;
+}) {
+  return (
+    <tr className="border-t border-gray-100 hover:bg-gray-50">
+      <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
+        {label}<InfoTooltip text={tooltip} />
+      </td>
+      <td className="px-4 py-2.5" colSpan={2}>
+        <button
+          role="switch"
+          aria-checked={value}
+          onClick={() => onSave(buildOverride(!value))}
+          disabled={isSaving}
+          className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${value ? 'bg-indigo-600' : 'bg-gray-200'}`}
+        >
+          <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${value ? 'translate-x-4' : 'translate-x-0'}`} />
+        </button>
+      </td>
+    </tr>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
 export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState('');
@@ -68,207 +311,19 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
     setDraftValue('');
   }
 
-  async function saveField(request: UpdateScraperConfigRequest) {
-    await updateConfig.mutateAsync(request);
+  async function saveField(override: Partial<UpdateScraperConfigRequest>) {
+    await updateConfig.mutateAsync(buildRequest(config, override));
     setEditingField(null);
     setDraftValue('');
   }
 
-  // ── Row types ───────────────────────────────────────────────────────────────
-
-  function TextRow({
-    field,
-    label,
-    tooltip,
-    value,
-    mono = true,
-    nullable = true,
-    buildOverride,
-  }: {
-    field: string;
-    label: string;
-    tooltip: string;
-    value: string | null;
-    mono?: boolean;
-    nullable?: boolean;
-    buildOverride: (val: string | null) => Partial<UpdateScraperConfigRequest>;
-  }) {
-    const isEditing = editingField === field;
-    return (
-      <tr className="border-t border-gray-100 hover:bg-gray-50">
-        <td className="px-4 py-2.5 text-sm text-gray-500 w-48 shrink-0">
-          {label}<InfoTooltip text={tooltip} />
-        </td>
-        {isEditing ? (
-          <>
-            <td className="px-4 py-2.5">
-              <input
-                autoFocus
-                className={`${mono ? monoCls : plainCls} w-full max-w-lg`}
-                value={draftValue}
-                onChange={(e) => setDraftValue(e.target.value)}
-              />
-            </td>
-            <td className="px-4 py-2.5 text-right whitespace-nowrap">
-              <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="primary" onClick={() => saveField(buildRequest(config, buildOverride(nullable ? draftValue || null : draftValue)))} loading={updateConfig.isPending}>
-                  Save
-                </Button>
-                <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-              </div>
-            </td>
-          </>
-        ) : (
-          <>
-            <td className="px-4 py-2.5">
-              {value
-                ? <span className={mono ? 'font-mono text-xs bg-gray-100 px-2 py-1 rounded break-all' : 'text-sm text-gray-900'}>{value}</span>
-                : <span className="text-sm text-gray-400 italic">—</span>
-              }
-            </td>
-            <td className="px-4 py-2.5 text-right">
-              <button onClick={() => startEdit(field, value ?? '')} className="text-xs text-indigo-500 hover:underline">
-                Edit
-              </button>
-            </td>
-          </>
-        )}
-      </tr>
-    );
-  }
-
-  function SelectRow({
-    field,
-    label,
-    tooltip,
-    value,
-    options,
-    buildOverride,
-  }: {
-    field: string;
-    label: string;
-    tooltip: string;
-    value: string;
-    options: { value: string; label: string }[];
-    buildOverride: (val: string) => Partial<UpdateScraperConfigRequest>;
-  }) {
-    const isEditing = editingField === field;
-    return (
-      <tr className="border-t border-gray-100 hover:bg-gray-50">
-        <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
-          {label}<InfoTooltip text={tooltip} />
-        </td>
-        {isEditing ? (
-          <>
-            <td className="px-4 py-2.5">
-              <select autoFocus className={plainCls} value={draftValue} onChange={(e) => setDraftValue(e.target.value)}>
-                {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </td>
-            <td className="px-4 py-2.5 text-right whitespace-nowrap">
-              <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="primary" onClick={() => saveField(buildRequest(config, buildOverride(draftValue)))} loading={updateConfig.isPending}>
-                  Save
-                </Button>
-                <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-              </div>
-            </td>
-          </>
-        ) : (
-          <>
-            <td className="px-4 py-2.5">
-              <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{value}</span>
-            </td>
-            <td className="px-4 py-2.5 text-right">
-              <button onClick={() => startEdit(field, value)} className="text-xs text-indigo-500 hover:underline">Edit</button>
-            </td>
-          </>
-        )}
-      </tr>
-    );
-  }
-
-  function NumberRow({
-    field,
-    label,
-    tooltip,
-    value,
-    nullable = false,
-    buildOverride,
-  }: {
-    field: string;
-    label: string;
-    tooltip: string;
-    value: number | null;
-    nullable?: boolean;
-    buildOverride: (val: number | null) => Partial<UpdateScraperConfigRequest>;
-  }) {
-    const isEditing = editingField === field;
-    return (
-      <tr className="border-t border-gray-100 hover:bg-gray-50">
-        <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
-          {label}<InfoTooltip text={tooltip} />
-        </td>
-        {isEditing ? (
-          <>
-            <td className="px-4 py-2.5">
-              <input type="number" autoFocus className={`${plainCls} w-32`} value={draftValue} onChange={(e) => setDraftValue(e.target.value)} />
-            </td>
-            <td className="px-4 py-2.5 text-right whitespace-nowrap">
-              <div className="flex items-center justify-end gap-2">
-                <Button size="sm" variant="primary" onClick={() => saveField(buildRequest(config, buildOverride(draftValue ? Number(draftValue) : null)))} loading={updateConfig.isPending}>
-                  Save
-                </Button>
-                <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
-              </div>
-            </td>
-          </>
-        ) : (
-          <>
-            <td className="px-4 py-2.5 text-sm text-gray-900">
-              {value != null ? value : <span className="text-gray-400 italic">Unlimited</span>}
-            </td>
-            <td className="px-4 py-2.5 text-right">
-              <button onClick={() => startEdit(field, value != null ? String(value) : '')} className="text-xs text-indigo-500 hover:underline">Edit</button>
-            </td>
-          </>
-        )}
-      </tr>
-    );
-  }
-
-  function ToggleRow({
-    label,
-    tooltip,
-    value,
-    buildOverride,
-  }: {
-    label: string;
-    tooltip: string;
-    value: boolean;
-    buildOverride: (val: boolean) => Partial<UpdateScraperConfigRequest>;
-  }) {
-    return (
-      <tr className="border-t border-gray-100 hover:bg-gray-50">
-        <td className="px-4 py-2.5 text-sm text-gray-500 w-48">
-          {label}<InfoTooltip text={tooltip} />
-        </td>
-        <td className="px-4 py-2.5" colSpan={2}>
-          <button
-            role="switch"
-            aria-checked={value}
-            onClick={() => saveField(buildRequest(config, buildOverride(!value)))}
-            disabled={updateConfig.isPending}
-            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50 ${value ? 'bg-indigo-600' : 'bg-gray-200'}`}
-          >
-            <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${value ? 'translate-x-4' : 'translate-x-0'}`} />
-          </button>
-        </td>
-      </tr>
-    );
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  const rowShared: RowSharedProps = {
+    editingField,
+    draftValue,
+    setDraftValue,
+    isSaving: updateConfig.isPending,
+    onCancel: cancelEdit,
+  };
 
   return (
     <div className="space-y-6">
@@ -279,7 +334,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             label="Requires JS"
             tooltip="Enable if job listings are loaded dynamically by JavaScript. Necessary for React/Vue/Angular-based boards but slower than plain HTML scraping."
             value={config.requiresJs}
+            isSaving={updateConfig.isPending}
             buildOverride={(v) => ({ requiresJs: v })}
+            onSave={saveField}
           />
           <NumberRow
             field="suggestedDelayMs"
@@ -287,6 +344,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             tooltip="Milliseconds to wait between page requests. Increase this value if the board rate-limits or blocks the scraper."
             value={config.suggestedDelayMs}
             buildOverride={(v) => ({ suggestedDelayMs: v ?? 0 })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
 
           <SectionRow label="Selectors" />
@@ -297,6 +357,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             value={config.jobCardSelector}
             nullable={false}
             buildOverride={(v) => ({ jobCardSelector: v ?? '' })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
           {(
             [
@@ -317,6 +380,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
               tooltip={tooltip}
               value={config.fieldSelectors[key]}
               buildOverride={(v) => ({ fieldSelectors: { ...config.fieldSelectors, [key]: v } })}
+              onStartEdit={startEdit}
+              onSave={saveField}
+              {...rowShared}
             />
           ))}
 
@@ -334,6 +400,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
               { value: 'infinite_scroll', label: 'infinite_scroll' },
             ]}
             buildOverride={(v) => ({ paginationType: v as UpdateScraperConfigRequest['paginationType'] })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
           <NumberRow
             field="maxPages"
@@ -342,6 +411,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             value={config.maxPages}
             nullable
             buildOverride={(v) => ({ maxPages: v })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
           <TextRow
             field="nextPageSelector"
@@ -349,6 +421,9 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             tooltip="CSS selector for the 'Next page' link or 'Load more' button. Used by both 'next_button' (follows the href) and 'load_more_button' (clicks the element repeatedly)."
             value={config.nextPageSelector}
             buildOverride={(v) => ({ nextPageSelector: v })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
           <TextRow
             field="urlParamName"
@@ -356,12 +431,17 @@ export function ScraperConfigView({ boardId, config }: ScraperConfigViewProps) {
             tooltip="Query parameter name used for pagination, e.g. 'page' produces ?page=2, or 'start' produces ?start=20. Only used when pagination type is 'url_param'."
             value={config.urlParamName}
             buildOverride={(v) => ({ urlParamName: v })}
+            onStartEdit={startEdit}
+            onSave={saveField}
+            {...rowShared}
           />
           <ToggleRow
             label="URL param is offset"
             tooltip="Enable if the URL parameter is an item offset (e.g. ?start=20 skips 20 items) rather than a page number (e.g. ?page=2)."
             value={config.urlParamIsOffset}
+            isSaving={updateConfig.isPending}
             buildOverride={(v) => ({ urlParamIsOffset: v })}
+            onSave={saveField}
           />
         </tbody>
       </table>

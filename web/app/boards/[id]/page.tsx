@@ -182,6 +182,7 @@ export default function BoardDetailPage() {
 
   const [editingField, setEditingField] = useState<string | null>(null);
   const [draftValue, setDraftValue] = useState('');
+  const fieldInputRef = useRef<HTMLInputElement>(null);
 
   if (isLoading) return <LoadingSpinner />;
   if (error || !board) {
@@ -212,6 +213,11 @@ export default function BoardDetailPage() {
     await updateBoard.mutateAsync(data);
     setEditingField(null);
     setDraftValue('');
+  }
+
+  function saveFieldFromRef(builder: (v: string) => UpdateJobBoardRequest) {
+    const v = fieldInputRef.current?.value ?? '';
+    saveField(builder(v));
   }
 
   async function handleTogglePause() {
@@ -295,11 +301,11 @@ export default function BoardDetailPage() {
                 {editingField === 'name' ? (
                   <>
                     <td className="px-4 py-2.5">
-                      <input autoFocus className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} />
+                      <input ref={fieldInputRef} autoFocus className="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64" defaultValue={draftValue} />
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="primary" onClick={() => saveField({ name: draftValue })} loading={updateBoard.isPending}>Save</Button>
+                        <Button size="sm" variant="primary" onClick={() => saveFieldFromRef((v) => ({ name: v }))} loading={updateBoard.isPending}>Save</Button>
                         <Button size="sm" variant="secondary" onClick={cancelFieldEdit}>Cancel</Button>
                       </div>
                     </td>
@@ -320,11 +326,11 @@ export default function BoardDetailPage() {
                 {editingField === 'url' ? (
                   <>
                     <td className="px-4 py-2.5">
-                      <input autoFocus className="rounded border border-gray-300 px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-lg" value={draftValue} onChange={(e) => setDraftValue(e.target.value)} />
+                      <input ref={fieldInputRef} autoFocus className="rounded border border-gray-300 px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full max-w-lg" defaultValue={draftValue} />
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
-                        <Button size="sm" variant="primary" onClick={() => saveField({ url: draftValue })} loading={updateBoard.isPending}>Save</Button>
+                        <Button size="sm" variant="primary" onClick={() => saveFieldFromRef((v) => ({ url: v }))} loading={updateBoard.isPending}>Save</Button>
                         <Button size="sm" variant="secondary" onClick={cancelFieldEdit}>Cancel</Button>
                       </div>
                     </td>
