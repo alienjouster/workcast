@@ -465,7 +465,7 @@ export default function BoardDetailPage() {
               onClick={() => { setAwaitingRun(true); refreshBoard.mutate(id); }}
               loading={refreshBoard.isPending}
             >
-              Manual Refresh
+              Launch Manual Scrape
             </Button>
           </div>
         </CardHeader>
