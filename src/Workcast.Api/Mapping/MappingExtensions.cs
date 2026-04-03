@@ -66,7 +66,6 @@ public static class MappingExtensions
             OverallScore = overallScore,
             IsScoringPending = ad.IsScoringPending,
             IsTrashed = ad.IsTrashed,
-            Note = ad.Note,
             LastScoringError = ad.LastScoringError,
             IsManual = ad.IsManual,
         };

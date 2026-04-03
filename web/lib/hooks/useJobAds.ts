@@ -158,11 +158,3 @@ export function useBulkTrashAction() {
   return { restore, del, isPending };
 }
 
-export function useSetNote() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, note }: { id: string; note: string | null }) => api.ads.setNote(id, note),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
-  });
-}
-

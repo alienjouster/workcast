@@ -74,7 +74,6 @@ export interface JobAd {
   overallScore: number | null;
   isScoringPending: boolean;
   isTrashed: boolean;
-  note: string | null;
   lastScoringError: string | null;
   isManual: boolean;
 }

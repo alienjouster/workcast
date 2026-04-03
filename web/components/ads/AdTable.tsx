@@ -9,7 +9,6 @@ import { useMarkAdRead, usePinAd, useTrashAd, useBulkAction } from '@/lib/hooks/
 import { useAdScoring, useRunScoring } from '@/lib/hooks/useAdScoring';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { useCreateApplication } from '@/lib/hooks/useApplications';
-import { NoteModal } from '@/components/ads/NoteModal';
 import { NewJobAdModal } from '@/components/ads/NewJobAdModal';
 import { CATEGORY_STYLES, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid, scoreColorClass } from '@/components/scoring/ScoringShared';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -292,17 +291,11 @@ interface AdTableProps {
 export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [noteAdId, setNoteAdId] = useState<string | null>(null);
   const [editAdId, setEditAdId] = useState<string | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const trashAd = useTrashAd();
   const pinAd = usePinAd();
   const markRead = useMarkAdRead();
-
-  const noteAd = useMemo(
-    () => (noteAdId ? ads.find((a) => a.id === noteAdId) ?? null : null),
-    [noteAdId, ads]
-  );
 
   const editAd = useMemo(
     () => (editAdId ? ads.find((a) => a.id === editAdId) ?? null : null),
@@ -358,14 +351,6 @@ export function AdTable({ ads }: AdTableProps) {
 
   return (
     <>
-      {noteAd && (
-        <NoteModal
-          adId={noteAd.id}
-          initialNote={noteAd.note}
-          adTitle={noteAd.title}
-          onClose={() => setNoteAdId(null)}
-        />
-      )}
       {editAd && (
         <NewJobAdModal ad={editAd} onClose={() => setEditAdId(null)} />
       )}
@@ -539,20 +524,6 @@ export function AdTable({ ads }: AdTableProps) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <Tooltip content={ad.note ? 'Edit note' : 'Add note'} position="top" wrapperAs="span">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setNoteAdId(ad.id);
-                          }}
-                          className={`transition-colors ${ad.note ? 'text-indigo-500 hover:text-indigo-700' : 'text-gray-300 hover:text-gray-500'}`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                            <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
-                            <path d="M15 3v6h6" />
-                          </svg>
-                        </button>
-                        </Tooltip>
                         <Tooltip content="Edit" position="top" wrapperAs="span">
                         <button
                           onClick={(e) => {

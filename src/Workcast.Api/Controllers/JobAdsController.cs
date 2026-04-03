@@ -404,22 +404,6 @@ public sealed class JobAdsController : ControllerBase
         return Ok(ad.ToResponse());
     }
 
-    /// <summary>Sets or clears the personal note for a job ad.</summary>
-    [HttpPatch("{id:guid}/note")]
-    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> SetNoteAsync(Guid id, [FromBody] SetNoteRequest req, CancellationToken ct)
-    {
-        var ad = await _db.JobAds.FindAsync(new object[] { id }, ct);
-        if (ad is null)
-            return Problem(type: $"{ERROR_TYPE_BASE}not-found", title: "Not Found",
-                statusCode: StatusCodes.Status404NotFound, detail: $"Job ad '{id}' was not found.");
-
-        ad.SetNote(req.Note);
-        await _db.SaveChangesAsync(ct);
-        return Ok(ad.ToResponse());
-    }
-
     // ── Bulk actions ────────────────────────────────────────────────────────────
 
     /// <summary>Pins all specified job ads.</summary>

@@ -242,19 +242,6 @@ public class JobAd
     }
 
     /// <summary>
-    /// Free-text personal note written by the user about this ad
-    /// (e.g. "Applied on 2026-03-22", "I know the hiring manager").
-    /// Null when no note has been written.
-    /// </summary>
-    public string? Note { get; private set; }
-
-    /// <summary>Sets or clears the personal note for this ad. Pass null or empty to delete.</summary>
-    public void SetNote(string? note)
-    {
-        Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
-    }
-
-    /// <summary>
     /// Updates the user-editable details of a job ad (URL, title, company, location).
     /// Intended for use with manually-entered ads but not restricted to them.
     /// </summary>
