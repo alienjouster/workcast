@@ -54,7 +54,20 @@ public sealed class ApplicationScoringJob
             return;
         }
 
-        var outcome = await _pipeline.RunAsync(application.Url, ct).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(application.JobAdContent))
+        {
+            _logger.LogWarning("Application {ApplicationId} has no job ad content — scoring aborted", applicationId);
+            application.SetScoringFailed("Job Ad Detail is missing. Open the Job Ad tab and fetch the content before scoring.");
+            await _dbContext.SaveChangesAsync(CancellationToken.None).ConfigureAwait(false);
+            await _broadcaster.PublishAsync(new WorkcastEvent
+            {
+                Type          = WorkcastEvent.ApplicationScoringCompleted,
+                ApplicationId = applicationId,
+            }).ConfigureAwait(false);
+            return;
+        }
+
+        var outcome = await _pipeline.RunWithContentAsync(application.JobAdContent, ct).ConfigureAwait(false);
 
         if (outcome.Succeeded)
         {

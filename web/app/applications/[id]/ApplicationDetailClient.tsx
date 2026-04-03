@@ -151,16 +151,17 @@ function SparkleIcon({ className }: { className?: string }) {
 
 // ── Scoring tab ────────────────────────────────────────────────────────────────
 
-function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) {
+function ScoringTab({ app, onNavigateToJobAd }: { app: ReturnType<typeof useApplication>['data']; onNavigateToJobAd: () => void }) {
   const { data: settings } = useSettings();
   const runScoring = useRunApplicationScoring(app?.id ?? '');
   const cancelScoring = useCancelApplicationScoring(app?.id ?? '');
 
   if (!app) return null;
 
-  const hasResume  = settings?.hasResume ?? false;
-  const isRunning  = app.isScoringPending || runScoring.isPending;
-  const hasScore   = app.overallScore != null;
+  const hasResume       = settings?.hasResume ?? false;
+  const hasJobAdContent = !!app.jobAdContent;
+  const isRunning       = app.isScoringPending || runScoring.isPending;
+  const hasScore        = app.overallScore != null;
 
   // ── Pending spinner ────────────────────────────────────────────────────────
   if (isRunning) {
@@ -209,9 +210,19 @@ function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] })
               {' '}to enable scoring.
             </p>
           )}
+          {!hasJobAdContent && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Job Ad Detail is missing. Open the{' '}
+              <button
+                onClick={onNavigateToJobAd}
+                className="underline hover:text-amber-800 font-medium"
+              >Job Ad tab</button>
+              {' '}and fetch the content before scoring.
+            </p>
+          )}
           <button
             onClick={() => runScoring.mutate()}
-            disabled={!hasResume || runScoring.isPending}
+            disabled={!hasResume || !hasJobAdContent || runScoring.isPending}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <SparkleIcon className="w-4 h-4" />
@@ -243,7 +254,7 @@ function ScoringTab({ app }: { app: ReturnType<typeof useApplication>['data'] })
           </div>
           <button
             onClick={() => runScoring.mutate()}
-            disabled={!hasResume || runScoring.isPending}
+            disabled={!hasResume || !hasJobAdContent || runScoring.isPending}
             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <SparkleIcon className="w-3.5 h-3.5" />
@@ -1062,7 +1073,7 @@ export function ApplicationDetailClient() {
 
       {/* Tab content */}
       {activeTab === 'job-ad'  && <JobAdTab app={app} />}
-      {activeTab === 'scoring' && <ScoringTab app={app} />}
+      {activeTab === 'scoring' && <ScoringTab app={app} onNavigateToJobAd={() => setActiveTab('job-ad')} />}
       {activeTab === 'resume'  && <ResumeTab app={app} />}
       {activeTab === 'letter'  && <LetterTab app={app} />}
     </div>

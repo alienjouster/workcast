@@ -393,7 +393,7 @@ public sealed class ApplicationsController : ControllerBase
     /// <summary>
     /// Enqueues a scoring job for the given application and returns 202 Accepted immediately.
     /// The result will be delivered via SSE (<c>applicationScoringCompleted</c> event) when done.
-    /// Returns 422 if no resume has been uploaded.
+    /// Returns 422 if no resume has been uploaded or if the job ad detail is missing.
     /// </summary>
     [HttpPost("{id:guid}/scoring")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
@@ -413,6 +413,15 @@ public sealed class ApplicationsController : ControllerBase
 
         var application = await _db.Applications.FindAsync(new object[] { id }, ct);
         if (application is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(application.JobAdContent))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No job ad detail",
+                Detail = "Fetch the job ad detail from the Job Ad tab before running scoring.",
+            });
+        }
 
         application.SetScoringPending();
         await _db.SaveChangesAsync(ct);

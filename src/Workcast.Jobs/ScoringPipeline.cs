@@ -59,23 +59,7 @@ public sealed class ScoringPipeline
                     $"Job ad page rendered less than {MinPageTextLength} characters of text ({pageText.Length} chars). " +
                     "The page may require authentication, be geo-blocked, or be temporarily unavailable.");
 
-            var result = await _aiProvider.ScoreAdAsync(
-                settings.ResumeContent!,
-                settings.ResumeContentType!,
-                settings.ResumeFileName!,
-                pageText,
-                ct).ConfigureAwait(false);
-
-            var requirements = result.Requirements.Select(r => new ScoringRequirement
-            {
-                Name       = r.Name,
-                Category   = r.Category,
-                IsOptional = r.IsOptional,
-                Score      = r.Score,
-                Notes      = r.Notes,
-            }).ToList();
-
-            return ScoringPipelineOutcome.Success(result.OverallScore, result.Summary, result.Recommendation, requirements);
+            return await ScoreWithContentAsync(settings, pageText, ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -86,6 +70,60 @@ public sealed class ScoringPipeline
             _logger.LogError(ex, "Scoring pipeline failed for URL {Url}", url);
             return ScoringPipelineOutcome.Failure(ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Runs the scoring pipeline using pre-fetched job ad text, skipping the Playwright scrape step.
+    /// Validates the resume, calls Claude, and maps the result.
+    /// </summary>
+    /// <param name="jobAdContent">The already-fetched plain-text content of the job ad.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <exception cref="InvalidOperationException">
+    /// Propagated to Hangfire when no resume has been uploaded — prevents a retry loop.
+    /// </exception>
+    public async Task<ScoringPipelineOutcome> RunWithContentAsync(string jobAdContent, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
+        if (!settings.HasResume)
+            throw new InvalidOperationException("Cannot score: no resume has been uploaded in Settings.");
+
+        try
+        {
+            return await ScoreWithContentAsync(settings, jobAdContent, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return ScoringPipelineOutcome.Failure("Scoring was cancelled.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Scoring pipeline failed using stored job ad content");
+            return ScoringPipelineOutcome.Failure(ex.Message);
+        }
+    }
+
+    private async Task<ScoringPipelineOutcome> ScoreWithContentAsync(
+        Workcast.Core.Entities.AppSettings settings,
+        string pageText,
+        CancellationToken ct)
+    {
+        var result = await _aiProvider.ScoreAdAsync(
+            settings.ResumeContent!,
+            settings.ResumeContentType!,
+            settings.ResumeFileName!,
+            pageText,
+            ct).ConfigureAwait(false);
+
+        var requirements = result.Requirements.Select(r => new ScoringRequirement
+        {
+            Name       = r.Name,
+            Category   = r.Category,
+            IsOptional = r.IsOptional,
+            Score      = r.Score,
+            Notes      = r.Notes,
+        }).ToList();
+
+        return ScoringPipelineOutcome.Success(result.OverallScore, result.Summary, result.Recommendation, requirements);
     }
 }
 
