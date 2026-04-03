@@ -115,6 +115,15 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
             .HasColumnName("last_letter_generation_error")
             .HasColumnType("text");
 
+        builder.Property(a => a.IsInterviewDrillPending)
+            .HasColumnName("is_interview_drill_pending")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(a => a.LastInterviewDrillError)
+            .HasColumnName("last_interview_drill_error")
+            .HasColumnType("text");
+
         builder.Property(a => a.Status)
             .HasColumnName("status")
             .HasDefaultValue(ApplicationStatus.ToApply)

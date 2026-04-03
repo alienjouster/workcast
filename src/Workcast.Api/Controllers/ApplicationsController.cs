@@ -14,6 +14,7 @@ using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
+using Workcast.Core.Events;
 
 namespace Workcast.Api.Controllers;
 
@@ -35,6 +36,7 @@ public sealed class ApplicationsController : ControllerBase
     private readonly ISettingsRepository _settingsRepository;
     private readonly IBackgroundJobClient _backgroundJobClient;
     private readonly IAiProvider _aiProvider;
+    private readonly IInterviewDrillRepository _drillRepository;
 
     /// <summary>Initializes a new instance of <see cref="ApplicationsController"/>.</summary>
     public ApplicationsController(
@@ -42,13 +44,15 @@ public sealed class ApplicationsController : ControllerBase
         IScraperEngine scraperEngine,
         ISettingsRepository settingsRepository,
         IBackgroundJobClient backgroundJobClient,
-        IAiProvider aiProvider)
+        IAiProvider aiProvider,
+        IInterviewDrillRepository drillRepository)
     {
         _db = db;
         _scraperEngine = scraperEngine;
         _settingsRepository = settingsRepository;
         _backgroundJobClient = backgroundJobClient;
         _aiProvider = aiProvider;
+        _drillRepository = drillRepository;
     }
 
     /// <summary>
@@ -737,7 +741,93 @@ public sealed class ApplicationsController : ControllerBase
         return NoContent();
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Interview drill ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Enqueues a Hangfire background job to generate an interview drill plan for the given application.
+    /// Requires a resume uploaded in Settings.
+    /// Returns 202 Accepted immediately; the UI is updated via SSE when the job completes.
+    /// </summary>
+    [HttpPost("{id:guid}/interview-drill/generate")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> GenerateInterviewDrillAsync(Guid id, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+
+        if (!settings.HasResume)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No resume uploaded",
+                Detail = "Upload a resume in Settings before generating an interview drill.",
+            });
+        }
+
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        if (application.OverallScore is null)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "No scoring data",
+                Detail = "Run scoring on this application before generating an interview drill.",
+            });
+        }
+
+        application.SetInterviewDrillPending();
+        await _db.SaveChangesAsync(ct);
+
+        _backgroundJobClient.Enqueue<InterviewDrillJob>(j => j.ExecuteAsync(id, CancellationToken.None));
+        return Accepted();
+    }
+
+    /// <summary>
+    /// Clears a stuck <c>isInterviewDrillPending</c> flag, allowing the user to re-trigger generation.
+    /// </summary>
+    [HttpDelete("{id:guid}/interview-drill/generate")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelInterviewDrillAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        application.ClearInterviewDrillPending();
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Returns the current interview drill plan for the given application, or 404 if none exists.
+    /// </summary>
+    [HttpGet("{id:guid}/interview-drill")]
+    [ProducesResponseType(typeof(InterviewDrillResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInterviewDrillAsync(Guid id, CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var plan = await _drillRepository.GetByApplicationIdAsync(id, ct);
+        if (plan is null) return NotFound();
+
+        return Ok(MapDrillToResponse(plan));
+    }
+
+    private static InterviewDrillResponse MapDrillToResponse(InterviewDrillPlan plan) =>
+        new(
+            plan.Id,
+            plan.ApplicationId,
+            plan.GeneratedAt,
+            plan.ModelUsed,
+            plan.Questions
+                .Select(q => new InterviewQuestionDto(q.OrderIndex, q.Text, q.Category, q.RequirementName))
+                .ToList());
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static GeneratedLetterResponse MapLetterToResponse(GeneratedLetter l) =>
         new()
@@ -998,3 +1088,18 @@ public record UpdateStatusDateRequest
     /// <summary>Gets the new UTC timestamp to record for this status.</summary>
     public required DateTimeOffset AchievedAt { get; init; }
 }
+
+/// <summary>Response for an interview drill plan.</summary>
+public record InterviewDrillResponse(
+    Guid Id,
+    Guid ApplicationId,
+    DateTimeOffset GeneratedAt,
+    string ModelUsed,
+    IList<InterviewQuestionDto> Questions);
+
+/// <summary>A single interview question in a drill plan response.</summary>
+public record InterviewQuestionDto(
+    int OrderIndex,
+    string Text,
+    string Category,
+    string? RequirementName);

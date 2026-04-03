@@ -44,6 +44,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>Generated HTML application letters for applications.</summary>
     public DbSet<GeneratedLetter> GeneratedLetters => Set<GeneratedLetter>();
 
+    /// <summary>AI-generated interview drill plans for applications.</summary>
+    public DbSet<InterviewDrillPlan> InterviewDrillPlans => Set<InterviewDrillPlan>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,5 +60,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ApplicationConfiguration());
         modelBuilder.ApplyConfiguration(new GeneratedResumeConfiguration());
         modelBuilder.ApplyConfiguration(new GeneratedLetterConfiguration());
+        modelBuilder.ApplyConfiguration(new InterviewDrillPlanConfiguration());
     }
 }

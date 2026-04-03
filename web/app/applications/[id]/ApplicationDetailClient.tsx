@@ -11,17 +11,19 @@ import { CATEGORY_STYLES, scoreColorClass, ScoringSpinner, ScoringErrorBanner, S
 import { ApplicationStatusTimeline } from '@/components/applications/ApplicationStatusTimeline';
 import { StatusBadge } from '@/components/applications/StatusBadge';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { InterviewDrillTab } from '@/components/applications/InterviewDrillTab';
 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter';
+type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter' | 'interview';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'job-ad',  label: 'Job Ad' },
-  { id: 'scoring', label: 'Scoring' },
-  { id: 'resume',  label: 'Custom Resume' },
-  { id: 'letter',  label: 'Application Letter' },
+  { id: 'job-ad',    label: 'Job Ad' },
+  { id: 'scoring',   label: 'Scoring' },
+  { id: 'resume',    label: 'Custom Resume' },
+  { id: 'letter',    label: 'Application Letter' },
+  { id: 'interview', label: 'Interview drill' },
 ];
 
 // ── Tab content ───────────────────────────────────────────────────────────────
@@ -1072,10 +1074,11 @@ export function ApplicationDetailClient() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'job-ad'  && <JobAdTab app={app} />}
-      {activeTab === 'scoring' && <ScoringTab app={app} onNavigateToJobAd={() => setActiveTab('job-ad')} />}
-      {activeTab === 'resume'  && <ResumeTab app={app} />}
-      {activeTab === 'letter'  && <LetterTab app={app} />}
+      {activeTab === 'job-ad'    && <JobAdTab app={app} />}
+      {activeTab === 'scoring'   && <ScoringTab app={app} onNavigateToJobAd={() => setActiveTab('job-ad')} />}
+      {activeTab === 'resume'    && <ResumeTab app={app} />}
+      {activeTab === 'letter'    && <LetterTab app={app} />}
+      {activeTab === 'interview' && <InterviewDrillTab app={app} />}
     </div>
   );
 }

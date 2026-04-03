@@ -126,6 +126,12 @@ public sealed class Application
     /// <summary>Error message from the most recent failed letter generation attempt, or null if it succeeded or was never run.</summary>
     public string? LastLetterGenerationError { get; private set; }
 
+    /// <summary>True while an interview drill generation job is in progress for this application.</summary>
+    public bool IsInterviewDrillPending { get; private set; }
+
+    /// <summary>Error message from the most recent failed interview drill generation attempt, or null if it succeeded or was never run.</summary>
+    public string? LastInterviewDrillError { get; private set; }
+
     // ── Status tracking ───────────────────────────────────────────────────────
 
     /// <summary>Current workflow stage of the application.</summary>
@@ -211,6 +217,23 @@ public sealed class Application
     {
         IsLetterGenerationPending = false;
         LastLetterGenerationError = error;
+    }
+
+    /// <summary>Marks the application as having an interview drill generation job in progress.</summary>
+    public void SetInterviewDrillPending()
+    {
+        IsInterviewDrillPending = true;
+        LastInterviewDrillError = null;
+    }
+
+    /// <summary>Clears the interview drill pending flag after a successful generation run.</summary>
+    public void ClearInterviewDrillPending() => IsInterviewDrillPending = false;
+
+    /// <summary>Records an interview drill generation failure and clears the pending flag.</summary>
+    public void SetInterviewDrillFailed(string error)
+    {
+        IsInterviewDrillPending = false;
+        LastInterviewDrillError = error;
     }
 
     /// <summary>Applies a fresh scoring result to this application's snapshot fields.</summary>

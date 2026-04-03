@@ -56,6 +56,7 @@ public static class DependencyInjection
 
         services.AddScoped<ISettingsRepository, SettingsRepository>();
         services.AddScoped<IAdScoringRepository, AdScoringRepository>();
+        services.AddScoped<IInterviewDrillRepository, InterviewDrillRepository>();
 
         services.AddDbContext<AppDbContext>((sp, options) =>
         {

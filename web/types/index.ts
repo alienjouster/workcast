@@ -123,10 +123,12 @@ export interface AppSettings {
   scoringModel: string;
   resumeGenerationModel: string;
   letterGenerationModel: string;
+  interviewTrainerModel: string;
   boardAnalyzerMaxTokens: number;
   scoringMaxTokens: number;
   resumeGenerationMaxTokens: number;
   letterGenerationMaxTokens: number;
+  interviewTrainerMaxTokens: number;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
@@ -218,8 +220,27 @@ export interface Application {
   lastResumeGenerationError: string | null;
   isLetterGenerationPending: boolean;
   lastLetterGenerationError: string | null;
+  isInterviewDrillPending: boolean;
+  lastInterviewDrillError: string | null;
   status: ApplicationStatus;
   statusHistory: StatusHistoryEntry[];
+}
+
+export type InterviewQuestionCategory = 'warm_up' | 'easy' | 'medium' | 'challenging';
+
+export interface InterviewQuestion {
+  orderIndex: number;
+  text: string;
+  category: InterviewQuestionCategory;
+  requirementName: string | null;
+}
+
+export interface InterviewDrillPlan {
+  id: string;
+  applicationId: string;
+  generatedAt: string;
+  modelUsed: string;
+  questions: InterviewQuestion[];
 }
 
 export interface UpdateSettingsRequest {
@@ -227,10 +248,12 @@ export interface UpdateSettingsRequest {
   scoringModel: string;
   resumeGenerationModel: string;
   letterGenerationModel: string;
+  interviewTrainerModel: string;
   boardAnalyzerMaxTokens: number;
   scoringMaxTokens: number;
   resumeGenerationMaxTokens: number;
   letterGenerationMaxTokens: number;
+  interviewTrainerMaxTokens: number;
 }
 
 export interface CreateJobAdRequest {

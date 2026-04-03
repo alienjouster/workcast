@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
@@ -442,6 +443,166 @@ public sealed class ClaudeAiProvider : IAiProvider
                     overall_score  = new { type = "number", minimum = 0, maximum = 100, description = "Arithmetic mean of all requirement scores." },
                     summary        = new { type = "string", description = "1–2 sentence factual narrative of the overall match quality." },
                     recommendation = new { type = "string", description = "1–2 actionable sentences advising whether to proceed and what to highlight or address." },
+                },
+            },
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<InterviewDrillResult> GenerateInterviewQuestionsAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobAdContent,
+        IReadOnlyList<ScoringRequirement> requirements,
+        string model,
+        int maxTokens,
+        CancellationToken ct = default)
+    {
+        var tool = BuildInterviewDrillTool();
+
+        // Group requirements by category so the prompt can reference them explicitly.
+        var matches        = requirements.Where(r => r.Category == "match").ToList();
+        var partialMatches = requirements.Where(r => r.Category == "partial_match").ToList();
+        var gaps           = requirements.Where(r => r.Category == "gap").ToList();
+
+        static string FormatList(IList<ScoringRequirement> items) =>
+            items.Count == 0
+                ? "None"
+                : string.Join("\n", items.Select((r, i) => $"  {i + 1}. {r.Name}{(r.IsOptional ? " (optional)" : "")}"));
+
+        const string system = "You are an expert interview coach preparing a candidate for a job interview. Generate targeted, realistic interview questions based on the job requirements and the candidate's profile.";
+
+        var prompt = $"""
+            You are preparing interview questions for a candidate applying for the following position.
+
+            === JOB AD ===
+            {jobAdContent}
+
+            === SCORING ANALYSIS ===
+            MATCH requirements (candidate clearly meets these):
+            {FormatList(matches)}
+
+            PARTIAL MATCH requirements (candidate partially meets these):
+            {FormatList(partialMatches)}
+
+            GAP requirements (candidate does not meet these):
+            {FormatList(gaps)}
+
+            === INSTRUCTIONS ===
+            Generate {(matches.Count + partialMatches.Count + gaps.Count > 0 ? "15 to 20" : "15")} interview questions following these rules:
+
+            1. WARM-UP (2–3 questions): Generic, relationship-building questions such as:
+               - "Why did you apply for this position?"
+               - "Tell us about your career in 5 minutes."
+               - "What do you know about our company?"
+               These do not reference specific requirements. Set category to "warm_up" and requirement_name to null.
+
+            2. EASY (4–5 questions): Questions about MATCH requirements where the candidate has clear experience.
+               The goal is to let the candidate shine and confirm their strengths.
+               {(matches.Count < 4 ? $"There are only {matches.Count} match requirements — fill remaining EASY slots with questions about other relevant topics from the JOB AD (responsibilities, company context, domain knowledge) at an easy difficulty level." : "Draw from the MATCH list above.")}
+               Set category to "easy".
+
+            3. MEDIUM (4–5 questions): Questions about PARTIAL MATCH requirements to explore depth and context.
+               {(partialMatches.Count < 4 ? $"There are only {partialMatches.Count} partial match requirements — fill remaining MEDIUM slots with questions about relevant topics from the JOB AD (role responsibilities, domain knowledge, team dynamics) at a medium difficulty level." : "Draw from the PARTIAL MATCH list above.")}
+               Set category to "medium".
+
+            4. CHALLENGING (4–5 questions): Probing questions about GAP requirements or areas not evidenced in the resume.
+               These should be tough but fair — designed to reveal how the candidate handles gaps.
+               {(gaps.Count < 4 ? $"There are only {gaps.Count} gap requirements — fill remaining CHALLENGING slots with questions about advanced topics, edge cases, or stretch goals from the JOB AD at a challenging difficulty level." : "Draw from the GAP list above.")}
+               Set category to "challenging".
+
+            For each question:
+            - Write a realistic, open-ended question an interviewer would actually ask.
+            - Set requirement_name to the exact requirement name from the scoring analysis that inspired the question, or null for warm-up and job-ad-derived questions.
+            - Assign order_index starting at 1, ordered as: warm-up → easy → medium → challenging.
+
+            Call the submit_interview_questions tool with the complete list.
+            """;
+
+        object userContent;
+
+        if (resumeContentType == "application/pdf")
+        {
+            userContent = new object[]
+            {
+                new
+                {
+                    Type = "document",
+                    Source = new
+                    {
+                        Type = "base64",
+                        MediaType = "application/pdf",
+                        Data = Convert.ToBase64String(resumeContent),
+                    }
+                },
+                new { Type = "text", Text = prompt },
+            };
+        }
+        else
+        {
+            var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+            userContent = $"{prompt}\n\n=== RESUME ({resumeFileName}) ===\n{resumeText}";
+        }
+
+        var input = await CallWithRetryAsync(userContent, maxTokens, timeoutSeconds: 120, tool, "submit_interview_questions", model, system, ct)
+            .ConfigureAwait(false);
+
+        return DeserializeInterviewDrillResult(input);
+    }
+
+    private static InterviewDrillResult DeserializeInterviewDrillResult(JsonObject input)
+    {
+        var questions = new List<InterviewQuestionResult>();
+        var items = input["questions"]?.AsArray();
+
+        if (items is not null)
+        {
+            foreach (var item in items)
+            {
+                if (item is not JsonObject q) continue;
+                questions.Add(new InterviewQuestionResult
+                {
+                    OrderIndex      = q["order_index"]?.GetValue<int>() ?? 0,
+                    Text            = q["text"]?.GetValue<string>() ?? "",
+                    Category        = q["category"]?.GetValue<string>() ?? "warm_up",
+                    RequirementName = q["requirement_name"]?.GetValue<string?>(),
+                });
+            }
+        }
+
+        return new InterviewDrillResult { Questions = questions };
+    }
+
+    private static ClaudeTool BuildInterviewDrillTool()
+    {
+        return new ClaudeTool
+        {
+            Name = "submit_interview_questions",
+            Description = "Submit the generated interview questions for the candidate's drill session.",
+            InputSchema = new
+            {
+                type = "object",
+                required = new[] { "questions" },
+                properties = new
+                {
+                    questions = new
+                    {
+                        type = "array",
+                        description = "Ordered list of interview questions (15–20 items).",
+                        items = new
+                        {
+                            type = "object",
+                            required = new[] { "order_index", "text", "category" },
+                            properties = new
+                            {
+                                order_index      = new { type = "integer", minimum = 1, description = "1-based display order. warm-up first, then easy, medium, challenging." },
+                                text             = new { type = "string", description = "The interview question text." },
+                                category         = new { type = "string", @enum = new[] { "warm_up", "easy", "medium", "challenging" } },
+                                requirement_name = new { type = new[] { "string", "null" }, description = "Exact requirement name from the scoring analysis that inspired this question, or null." },
+                            },
+                        },
+                    },
                 },
             },
         };

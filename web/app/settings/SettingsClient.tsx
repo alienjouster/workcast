@@ -19,8 +19,8 @@ const MODEL_INFO: Record<string, string> = {
   'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
 };
 
-type ModelField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration';
-type TokenField = 'boardAnalyzerTokens' | 'scoringTokens' | 'resumeGenerationTokens' | 'letterGenerationTokens';
+type ModelField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration' | 'interviewTrainer';
+type TokenField = 'boardAnalyzerTokens' | 'scoringTokens' | 'resumeGenerationTokens' | 'letterGenerationTokens' | 'interviewTrainerTokens';
 type EditingField = ModelField | TokenField | null;
 
 const TOKEN_OPTIONS = [512, 1024, 2048, 4096, 8192, 16384];
@@ -30,6 +30,7 @@ const DEFAULT_MAX_TOKENS: Record<TokenField, number> = {
   scoringTokens:            4096,
   resumeGenerationTokens:   8192,
   letterGenerationTokens:   2048,
+  interviewTrainerTokens:   4096,
 };
 
 export function SettingsClient() {
@@ -51,7 +52,8 @@ export function SettingsClient() {
       field === 'boardAnalyzer'    ? settings!.boardAnalyzerModel :
       field === 'scoring'          ? settings!.scoringModel :
       field === 'resumeGeneration' ? settings!.resumeGenerationModel :
-                                     settings!.letterGenerationModel;
+      field === 'letterGeneration' ? settings!.letterGenerationModel :
+                                     settings!.interviewTrainerModel;
     setDraft(value);
     setEditingField(field);
   }
@@ -61,7 +63,8 @@ export function SettingsClient() {
       field === 'boardAnalyzerTokens'    ? settings!.boardAnalyzerMaxTokens :
       field === 'scoringTokens'          ? settings!.scoringMaxTokens :
       field === 'resumeGenerationTokens' ? settings!.resumeGenerationMaxTokens :
-                                           settings!.letterGenerationMaxTokens;
+      field === 'letterGenerationTokens' ? settings!.letterGenerationMaxTokens :
+                                           settings!.interviewTrainerMaxTokens;
     setTokenDraft(value);
     setEditingField(field);
   }
@@ -77,13 +80,15 @@ export function SettingsClient() {
     const scoringModel          = editingField === 'scoring'          ? draft : settings!.scoringModel;
     const resumeGenerationModel = editingField === 'resumeGeneration' ? draft : settings!.resumeGenerationModel;
     const letterGenerationModel = editingField === 'letterGeneration' ? draft : settings!.letterGenerationModel;
+    const interviewTrainerModel = editingField === 'interviewTrainer' ? draft : settings!.interviewTrainerModel;
     const boardAnalyzerMaxTokens    = editingField === 'boardAnalyzerTokens'    ? tokenDraft : settings!.boardAnalyzerMaxTokens;
     const scoringMaxTokens          = editingField === 'scoringTokens'          ? tokenDraft : settings!.scoringMaxTokens;
     const resumeGenerationMaxTokens = editingField === 'resumeGenerationTokens' ? tokenDraft : settings!.resumeGenerationMaxTokens;
     const letterGenerationMaxTokens = editingField === 'letterGenerationTokens' ? tokenDraft : settings!.letterGenerationMaxTokens;
+    const interviewTrainerMaxTokens = editingField === 'interviewTrainerTokens' ? tokenDraft : settings!.interviewTrainerMaxTokens;
     updateSettings(
-      { boardAnalyzerModel, scoringModel, resumeGenerationModel, letterGenerationModel,
-        boardAnalyzerMaxTokens, scoringMaxTokens, resumeGenerationMaxTokens, letterGenerationMaxTokens },
+      { boardAnalyzerModel, scoringModel, resumeGenerationModel, letterGenerationModel, interviewTrainerModel,
+        boardAnalyzerMaxTokens, scoringMaxTokens, resumeGenerationMaxTokens, letterGenerationMaxTokens, interviewTrainerMaxTokens },
       { onSuccess: () => cancelEdit() }
     );
   }
@@ -194,15 +199,18 @@ export function SettingsClient() {
                     const scoringMaxTokens          = field === 'scoringTokens'          ? def : settings!.scoringMaxTokens;
                     const resumeGenerationMaxTokens = field === 'resumeGenerationTokens' ? def : settings!.resumeGenerationMaxTokens;
                     const letterGenerationMaxTokens = field === 'letterGenerationTokens' ? def : settings!.letterGenerationMaxTokens;
+                    const interviewTrainerMaxTokens = field === 'interviewTrainerTokens' ? def : settings!.interviewTrainerMaxTokens;
                     updateSettings({
                       boardAnalyzerModel: settings!.boardAnalyzerModel,
                       scoringModel: settings!.scoringModel,
                       resumeGenerationModel: settings!.resumeGenerationModel,
                       letterGenerationModel: settings!.letterGenerationModel,
+                      interviewTrainerModel: settings!.interviewTrainerModel,
                       boardAnalyzerMaxTokens,
                       scoringMaxTokens,
                       resumeGenerationMaxTokens,
                       letterGenerationMaxTokens,
+                      interviewTrainerMaxTokens,
                     });
                   }}
                   className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
@@ -385,6 +393,14 @@ export function SettingsClient() {
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
                 {renderTokenCell('letterGenerationTokens', settings?.letterGenerationMaxTokens)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Interview trainer model</td>
+                {renderModelCell('interviewTrainer', settings?.interviewTrainerModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                {renderTokenCell('interviewTrainerTokens', settings?.interviewTrainerMaxTokens)}
               </tr>
             </tbody>
           </table>

@@ -1,3 +1,4 @@
+using Workcast.Core.Entities;
 using Workcast.Core.Models;
 
 namespace Workcast.Core.Interfaces;
@@ -99,5 +100,30 @@ public interface IAiProvider
         string scoringSummary,
         string scoringRecommendation,
         string scoringRequirementsJson,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Generates 15–20 interview questions tailored to the candidate's resume and the job ad.
+    /// Questions are categorised into warm_up, easy (from match requirements), medium (from
+    /// partial_match requirements), and challenging (from gap requirements). If a category has
+    /// fewer than 4–5 requirements, the remaining slots are filled from the broader job ad content.
+    /// Uses Tool Use to guarantee structured output.
+    /// </summary>
+    /// <param name="resumeContent">Raw bytes of the resume file.</param>
+    /// <param name="resumeContentType">MIME type: "application/pdf", "text/plain", or "application/json".</param>
+    /// <param name="resumeFileName">Original file name (context label).</param>
+    /// <param name="jobAdContent">Plain-text or HTML content of the job advertisement.</param>
+    /// <param name="requirements">Scored requirements from the scoring analysis.</param>
+    /// <param name="model">Anthropic model identifier to use.</param>
+    /// <param name="maxTokens">Maximum tokens for the response.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<InterviewDrillResult> GenerateInterviewQuestionsAsync(
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string jobAdContent,
+        IReadOnlyList<ScoringRequirement> requirements,
+        string model,
+        int maxTokens,
         CancellationToken ct = default);
 }

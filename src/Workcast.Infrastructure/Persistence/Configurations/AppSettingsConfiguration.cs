@@ -82,6 +82,16 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .IsRequired()
             .HasDefaultValue(2048);
 
+        builder.Property(s => s.InterviewTrainerModel)
+            .HasColumnName("interview_trainer_model")
+            .HasMaxLength(100)
+            .IsRequired();
+
+        builder.Property(s => s.InterviewTrainerMaxTokens)
+            .HasColumnName("interview_trainer_max_tokens")
+            .IsRequired()
+            .HasDefaultValue(4096);
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

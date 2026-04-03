@@ -14,7 +14,8 @@ type SseEvent =
   | { type: 'scoringCompleted'; adId: string }
   | { type: 'applicationScoringCompleted'; applicationId: string }
   | { type: 'applicationResumeGenerationCompleted'; applicationId: string }
-  | { type: 'applicationLetterGenerationCompleted'; applicationId: string };
+  | { type: 'applicationLetterGenerationCompleted'; applicationId: string }
+  | { type: 'applicationInterviewDrillCompleted'; applicationId: string };
 
 export function useSSE() {
   const qc = useQueryClient();
@@ -37,6 +38,7 @@ export function useSSE() {
       qc.invalidateQueries({ queryKey: ['resume-versions'] });
       qc.invalidateQueries({ queryKey: ['generated-letter'] });
       qc.invalidateQueries({ queryKey: ['letter-versions'] });
+      qc.invalidateQueries({ queryKey: ['interview-drill'] });
     };
 
     es.onmessage = (e: MessageEvent) => {
@@ -135,6 +137,11 @@ export function useSSE() {
           qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
           qc.invalidateQueries({ queryKey: ['generated-letter', event.applicationId] });
           qc.invalidateQueries({ queryKey: ['letter-versions', event.applicationId] });
+          break;
+
+        case 'applicationInterviewDrillCompleted':
+          qc.invalidateQueries({ queryKey: ['applications', event.applicationId] });
+          qc.invalidateQueries({ queryKey: ['interview-drill', event.applicationId] });
           break;
       }
     };

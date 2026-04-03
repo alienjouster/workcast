@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tansta
 import type { InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { Application, ApplicationStatus, PagedResponse, ResumeOptimizationLevel } from '@/types';
+import type { Application, ApplicationStatus, InterviewDrillPlan, PagedResponse, ResumeOptimizationLevel } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -266,6 +266,41 @@ export function useUpdateApplicationStatusDate(id: string) {
       api.applications.updateStatusDate(id, status, achievedAt),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+    },
+  });
+}
+
+export function useInterviewDrillPlan(id: string) {
+  return useQuery({
+    queryKey: ['interview-drill', id],
+    queryFn: () => api.applications.getInterviewDrill(id),
+    staleTime: STALE_TIMES.LONG,
+    retry: false,
+  });
+}
+
+export function useGenerateInterviewDrill(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.generateInterviewDrill(id),
+    onSuccess: () => {
+      queryClient.setQueryData<Application>(
+        ['applications', id],
+        (old) => old ? { ...old, isInterviewDrillPending: true, lastInterviewDrillError: null } : old,
+      );
+    },
+  });
+}
+
+export function useCancelInterviewDrill(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.cancelInterviewDrill(id),
+    onSuccess: () => {
+      queryClient.setQueryData<Application>(
+        ['applications', id],
+        (old) => old ? { ...old, isInterviewDrillPending: false } : old,
+      );
     },
   });
 }
