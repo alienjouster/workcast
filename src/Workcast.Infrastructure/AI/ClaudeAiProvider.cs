@@ -24,10 +24,6 @@ public sealed class ClaudeAiProvider : IAiProvider
 {
     private const string ApiEndpoint = "https://api.anthropic.com/v1/messages";
     private const string AnthropicVersion = "2023-06-01";
-    private const int MaxTokens = 1024;
-    private const int ScoringMaxTokens = 4096;
-    private const int ResumeGenerationMaxTokens = 8192;
-    private const int LetterGenerationMaxTokens = 2048;
     private const int MaxRetries = 3;
 
     private static readonly TimeSpan[] RetryDelays =
@@ -136,7 +132,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             """;
 
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
-        var input = await CallWithRetryAsync(prompt, MaxTokens, timeoutSeconds: 30, tool, "save_board_config", settings.BoardAnalyzerModel, system, ct).ConfigureAwait(false);
+        var input = await CallWithRetryAsync(prompt, settings.BoardAnalyzerMaxTokens, timeoutSeconds: 30, tool, "save_board_config", settings.BoardAnalyzerModel, system, ct).ConfigureAwait(false);
         return DeserializeBoardAnalysisResult(input);
     }
 
@@ -212,7 +208,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             userContent = $"{promptSuffix}\n\nRESUME: {resumeText} \n\n JOB AD: {jobPageText}";
         }
 
-        var input = await CallWithRetryAsync(userContent, ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, scoringSystem, ct)
+        var input = await CallWithRetryAsync(userContent, settings.ScoringMaxTokens, timeoutSeconds: 120, tool, "submit_scoring", settings.ScoringModel, scoringSystem, ct)
             .ConfigureAwait(false);
 
         return DeserializeAdScoringResult(input);
@@ -268,7 +264,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             Call the submit_resume tool with the generated HTML.
             """;
 
-        var input = await CallWithRetryAsync(prompt, ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, resumeSystem, ct)
+        var input = await CallWithRetryAsync(prompt, settings.ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, resumeSystem, ct)
             .ConfigureAwait(false);
 
         return input["html_content"]?.GetValue<string>()
@@ -324,7 +320,7 @@ public sealed class ClaudeAiProvider : IAiProvider
             Call the submit_letter tool with the generated HTML.
             """;
 
-        var input = await CallWithRetryAsync(prompt, LetterGenerationMaxTokens, timeoutSeconds: 60, tool, "submit_letter", settings.LetterGenerationModel, letterSystem, ct)
+        var input = await CallWithRetryAsync(prompt, settings.LetterGenerationMaxTokens, timeoutSeconds: 60, tool, "submit_letter", settings.LetterGenerationModel, letterSystem, ct)
             .ConfigureAwait(false);
 
         return input["html_content"]?.GetValue<string>()

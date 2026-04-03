@@ -19,7 +19,18 @@ const MODEL_INFO: Record<string, string> = {
   'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
 };
 
-type EditingField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration' | null;
+type ModelField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration';
+type TokenField = 'boardAnalyzerTokens' | 'scoringTokens' | 'resumeGenerationTokens' | 'letterGenerationTokens';
+type EditingField = ModelField | TokenField | null;
+
+const TOKEN_OPTIONS = [512, 1024, 2048, 4096, 8192, 16384];
+
+const DEFAULT_MAX_TOKENS: Record<TokenField, number> = {
+  boardAnalyzerTokens:      4096,
+  scoringTokens:            4096,
+  resumeGenerationTokens:   8192,
+  letterGenerationTokens:   2048,
+};
 
 export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
@@ -33,8 +44,9 @@ export function SettingsClient() {
 
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
+  const [tokenDraft, setTokenDraft] = useState(0);
 
-  function startEdit(field: EditingField) {
+  function startEdit(field: ModelField) {
     const value =
       field === 'boardAnalyzer'    ? settings!.boardAnalyzerModel :
       field === 'scoring'          ? settings!.scoringModel :
@@ -44,9 +56,20 @@ export function SettingsClient() {
     setEditingField(field);
   }
 
+  function startTokenEdit(field: TokenField) {
+    const value =
+      field === 'boardAnalyzerTokens'    ? settings!.boardAnalyzerMaxTokens :
+      field === 'scoringTokens'          ? settings!.scoringMaxTokens :
+      field === 'resumeGenerationTokens' ? settings!.resumeGenerationMaxTokens :
+                                           settings!.letterGenerationMaxTokens;
+    setTokenDraft(value);
+    setEditingField(field);
+  }
+
   function cancelEdit() {
     setEditingField(null);
     setDraft('');
+    setTokenDraft(0);
   }
 
   function saveEdit() {
@@ -54,10 +77,18 @@ export function SettingsClient() {
     const scoringModel          = editingField === 'scoring'          ? draft : settings!.scoringModel;
     const resumeGenerationModel = editingField === 'resumeGeneration' ? draft : settings!.resumeGenerationModel;
     const letterGenerationModel = editingField === 'letterGeneration' ? draft : settings!.letterGenerationModel;
-    updateSettings({ boardAnalyzerModel, scoringModel, resumeGenerationModel, letterGenerationModel }, { onSuccess: () => setEditingField(null) });
+    const boardAnalyzerMaxTokens    = editingField === 'boardAnalyzerTokens'    ? tokenDraft : settings!.boardAnalyzerMaxTokens;
+    const scoringMaxTokens          = editingField === 'scoringTokens'          ? tokenDraft : settings!.scoringMaxTokens;
+    const resumeGenerationMaxTokens = editingField === 'resumeGenerationTokens' ? tokenDraft : settings!.resumeGenerationMaxTokens;
+    const letterGenerationMaxTokens = editingField === 'letterGenerationTokens' ? tokenDraft : settings!.letterGenerationMaxTokens;
+    updateSettings(
+      { boardAnalyzerModel, scoringModel, resumeGenerationModel, letterGenerationModel,
+        boardAnalyzerMaxTokens, scoringMaxTokens, resumeGenerationMaxTokens, letterGenerationMaxTokens },
+      { onSuccess: () => cancelEdit() }
+    );
   }
 
-  function renderModelCell(field: EditingField, currentValue: string | undefined) {
+  function renderModelCell(field: ModelField, currentValue: string | undefined) {
     if (editingField === field) {
       return (
         <>
@@ -105,6 +136,81 @@ export function SettingsClient() {
         <td className="px-4 py-2.5 text-right">
           {!isLoading && editingField === null && (
             <button onClick={() => startEdit(field)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+          )}
+        </td>
+      </>
+    );
+  }
+
+  function renderTokenCell(field: TokenField, currentValue: number | undefined) {
+    if (editingField === field) {
+      return (
+        <>
+          <td className="px-4 py-2.5">
+            <select
+              autoFocus
+              value={tokenDraft}
+              onChange={(e) => setTokenDraft(Number(e.target.value))}
+              className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              {TOKEN_OPTIONS.map((v) => (
+                <option key={v} value={v}>{v.toLocaleString()} tokens</option>
+              ))}
+            </select>
+          </td>
+          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+            <div className="flex items-center justify-end gap-2">
+              <Button size="sm" variant="primary" onClick={saveEdit} loading={isPending}>Save</Button>
+              <Button size="sm" variant="secondary" onClick={cancelEdit}>Cancel</Button>
+            </div>
+          </td>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <td className="px-4 py-2.5 text-sm text-gray-900">
+          {isLoading ? (
+            <span className="text-gray-400">Loading…</span>
+          ) : (
+            <span className="inline-flex items-baseline gap-2">
+              <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{currentValue?.toLocaleString()}</span>
+              {currentValue === DEFAULT_MAX_TOKENS[field] && (
+                <span className="text-xs text-gray-400">default</span>
+              )}
+            </span>
+          )}
+        </td>
+        <td className="px-4 py-2.5 text-right whitespace-nowrap">
+          {!isLoading && editingField === null && (
+            <div className="flex items-center justify-end gap-3">
+              <button onClick={() => startTokenEdit(field)} className="text-xs text-indigo-500 hover:underline">Edit</button>
+              {currentValue !== DEFAULT_MAX_TOKENS[field] && (
+                <button
+                  onClick={() => {
+                    const def = DEFAULT_MAX_TOKENS[field];
+                    const boardAnalyzerMaxTokens    = field === 'boardAnalyzerTokens'    ? def : settings!.boardAnalyzerMaxTokens;
+                    const scoringMaxTokens          = field === 'scoringTokens'          ? def : settings!.scoringMaxTokens;
+                    const resumeGenerationMaxTokens = field === 'resumeGenerationTokens' ? def : settings!.resumeGenerationMaxTokens;
+                    const letterGenerationMaxTokens = field === 'letterGenerationTokens' ? def : settings!.letterGenerationMaxTokens;
+                    updateSettings({
+                      boardAnalyzerModel: settings!.boardAnalyzerModel,
+                      scoringModel: settings!.scoringModel,
+                      resumeGenerationModel: settings!.resumeGenerationModel,
+                      letterGenerationModel: settings!.letterGenerationModel,
+                      boardAnalyzerMaxTokens,
+                      scoringMaxTokens,
+                      resumeGenerationMaxTokens,
+                      letterGenerationMaxTokens,
+                    });
+                  }}
+                  className="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+                >
+                  Restore default
+                </button>
+              )}
+            </div>
           )}
         </td>
       </>
@@ -253,16 +359,32 @@ export function SettingsClient() {
                 {renderModelCell('boardAnalyzer', settings?.boardAnalyzerModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                {renderTokenCell('boardAnalyzerTokens', settings?.boardAnalyzerMaxTokens)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Scoring model</td>
                 {renderModelCell('scoring', settings?.scoringModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                {renderTokenCell('scoringTokens', settings?.scoringMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Resume generation model</td>
                 {renderModelCell('resumeGeneration', settings?.resumeGenerationModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                {renderTokenCell('resumeGenerationTokens', settings?.resumeGenerationMaxTokens)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Letter generation model</td>
                 {renderModelCell('letterGeneration', settings?.letterGenerationModel)}
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                {renderTokenCell('letterGenerationTokens', settings?.letterGenerationMaxTokens)}
               </tr>
             </tbody>
           </table>

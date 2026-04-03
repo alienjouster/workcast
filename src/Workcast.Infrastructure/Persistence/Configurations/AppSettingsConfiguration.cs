@@ -62,6 +62,26 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .HasMaxLength(100)
             .IsRequired();
 
+        builder.Property(s => s.BoardAnalyzerMaxTokens)
+            .HasColumnName("board_analyzer_max_tokens")
+            .IsRequired()
+            .HasDefaultValue(4096);
+
+        builder.Property(s => s.ScoringMaxTokens)
+            .HasColumnName("scoring_max_tokens")
+            .IsRequired()
+            .HasDefaultValue(4096);
+
+        builder.Property(s => s.ResumeGenerationMaxTokens)
+            .HasColumnName("resume_generation_max_tokens")
+            .IsRequired()
+            .HasDefaultValue(8192);
+
+        builder.Property(s => s.LetterGenerationMaxTokens)
+            .HasColumnName("letter_generation_max_tokens")
+            .IsRequired()
+            .HasDefaultValue(2048);
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

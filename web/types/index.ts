@@ -123,6 +123,10 @@ export interface AppSettings {
   scoringModel: string;
   resumeGenerationModel: string;
   letterGenerationModel: string;
+  boardAnalyzerMaxTokens: number;
+  scoringMaxTokens: number;
+  resumeGenerationMaxTokens: number;
+  letterGenerationMaxTokens: number;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
@@ -223,6 +227,10 @@ export interface UpdateSettingsRequest {
   scoringModel: string;
   resumeGenerationModel: string;
   letterGenerationModel: string;
+  boardAnalyzerMaxTokens: number;
+  scoringMaxTokens: number;
+  resumeGenerationMaxTokens: number;
+  letterGenerationMaxTokens: number;
 }
 
 export interface UpdateScraperConfigRequest {

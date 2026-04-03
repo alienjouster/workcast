@@ -48,6 +48,18 @@ public sealed class AppSettings
     /// <summary>Anthropic model identifier used for application letter generation.</summary>
     public string LetterGenerationModel { get; private set; } = "claude-sonnet-4-6";
 
+    /// <summary>Maximum tokens for board analysis AI calls.</summary>
+    public int BoardAnalyzerMaxTokens { get; private set; } = 4096;
+
+    /// <summary>Maximum tokens for job ad scoring AI calls.</summary>
+    public int ScoringMaxTokens { get; private set; } = 4096;
+
+    /// <summary>Maximum tokens for custom resume generation AI calls.</summary>
+    public int ResumeGenerationMaxTokens { get; private set; } = 8192;
+
+    /// <summary>Maximum tokens for application letter generation AI calls.</summary>
+    public int LetterGenerationMaxTokens { get; private set; } = 2048;
+
     // Required by EF Core.
     private AppSettings() { }
 
@@ -65,6 +77,18 @@ public sealed class AppSettings
 
     /// <summary>Updates the letter generation model identifier.</summary>
     public void SetLetterGenerationModel(string model) => LetterGenerationModel = model;
+
+    /// <summary>Updates the maximum tokens for board analysis AI calls.</summary>
+    public void SetBoardAnalyzerMaxTokens(int value) => BoardAnalyzerMaxTokens = value;
+
+    /// <summary>Updates the maximum tokens for job ad scoring AI calls.</summary>
+    public void SetScoringMaxTokens(int value) => ScoringMaxTokens = value;
+
+    /// <summary>Updates the maximum tokens for resume generation AI calls.</summary>
+    public void SetResumeGenerationMaxTokens(int value) => ResumeGenerationMaxTokens = value;
+
+    /// <summary>Updates the maximum tokens for letter generation AI calls.</summary>
+    public void SetLetterGenerationMaxTokens(int value) => LetterGenerationMaxTokens = value;
 
     /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
     public void SetResume(string fileName, byte[] content, string contentType)

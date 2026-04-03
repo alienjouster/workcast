@@ -92,11 +92,51 @@ public sealed class SettingsController : ControllerBase
             });
         }
 
+        if (request.BoardAnalyzerMaxTokens <= 0)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid board analyzer max tokens",
+                Detail = "BoardAnalyzerMaxTokens must be a positive integer.",
+            });
+        }
+
+        if (request.ScoringMaxTokens <= 0)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid scoring max tokens",
+                Detail = "ScoringMaxTokens must be a positive integer.",
+            });
+        }
+
+        if (request.ResumeGenerationMaxTokens <= 0)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid resume generation max tokens",
+                Detail = "ResumeGenerationMaxTokens must be a positive integer.",
+            });
+        }
+
+        if (request.LetterGenerationMaxTokens <= 0)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid letter generation max tokens",
+                Detail = "LetterGenerationMaxTokens must be a positive integer.",
+            });
+        }
+
         var settings = await _settingsRepository.GetAsync(ct);
         settings.SetBoardAnalyzerModel(request.BoardAnalyzerModel);
         settings.SetScoringModel(request.ScoringModel);
         settings.SetResumeGenerationModel(request.ResumeGenerationModel);
         settings.SetLetterGenerationModel(request.LetterGenerationModel);
+        settings.SetBoardAnalyzerMaxTokens(request.BoardAnalyzerMaxTokens);
+        settings.SetScoringMaxTokens(request.ScoringMaxTokens);
+        settings.SetResumeGenerationMaxTokens(request.ResumeGenerationMaxTokens);
+        settings.SetLetterGenerationMaxTokens(request.LetterGenerationMaxTokens);
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(ToResponse(settings));
@@ -227,6 +267,10 @@ public sealed class SettingsController : ControllerBase
         s.ScoringModel,
         s.ResumeGenerationModel,
         s.LetterGenerationModel,
+        s.BoardAnalyzerMaxTokens,
+        s.ScoringMaxTokens,
+        s.ResumeGenerationMaxTokens,
+        s.LetterGenerationMaxTokens,
         AllowedModels,
         s.HasResume,
         s.ResumeFileName,
@@ -241,6 +285,10 @@ public sealed class SettingsController : ControllerBase
     /// <param name="ScoringModel">Active Anthropic model for job ad scoring.</param>
     /// <param name="ResumeGenerationModel">Active Anthropic model for custom resume generation.</param>
     /// <param name="LetterGenerationModel">Active Anthropic model for application letter generation.</param>
+    /// <param name="BoardAnalyzerMaxTokens">Max tokens for board analysis AI calls.</param>
+    /// <param name="ScoringMaxTokens">Max tokens for job ad scoring AI calls.</param>
+    /// <param name="ResumeGenerationMaxTokens">Max tokens for resume generation AI calls.</param>
+    /// <param name="LetterGenerationMaxTokens">Max tokens for letter generation AI calls.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
@@ -253,6 +301,10 @@ public sealed class SettingsController : ControllerBase
         string ScoringModel,
         string ResumeGenerationModel,
         string LetterGenerationModel,
+        int BoardAnalyzerMaxTokens,
+        int ScoringMaxTokens,
+        int ResumeGenerationMaxTokens,
+        int LetterGenerationMaxTokens,
         IEnumerable<string> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
@@ -265,7 +317,19 @@ public sealed class SettingsController : ControllerBase
     /// <param name="ScoringModel">Model identifier for job ad scoring.</param>
     /// <param name="ResumeGenerationModel">Model identifier for custom resume generation.</param>
     /// <param name="LetterGenerationModel">Model identifier for application letter generation.</param>
-    public sealed record UpdateSettingsRequest(string BoardAnalyzerModel, string ScoringModel, string ResumeGenerationModel, string LetterGenerationModel);
+    /// <param name="BoardAnalyzerMaxTokens">Max tokens for board analysis AI calls.</param>
+    /// <param name="ScoringMaxTokens">Max tokens for job ad scoring AI calls.</param>
+    /// <param name="ResumeGenerationMaxTokens">Max tokens for resume generation AI calls.</param>
+    /// <param name="LetterGenerationMaxTokens">Max tokens for letter generation AI calls.</param>
+    public sealed record UpdateSettingsRequest(
+        string BoardAnalyzerModel,
+        string ScoringModel,
+        string ResumeGenerationModel,
+        string LetterGenerationModel,
+        int BoardAnalyzerMaxTokens,
+        int ScoringMaxTokens,
+        int ResumeGenerationMaxTokens,
+        int LetterGenerationMaxTokens);
 
     /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
     /// <param name="ContentBase64">Base64-encoded file bytes.</param>
