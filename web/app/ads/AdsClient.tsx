@@ -7,6 +7,7 @@ import { useFilterState } from '@/lib/hooks/useFilterState';
 import { AdTable } from '@/components/ads/AdTable';
 import { TrashTable } from '@/components/ads/TrashTable';
 import { FilterBar, hasActiveFilters, effectiveFilters, type FilterState } from '@/components/ads/FilterBar';
+import { NewJobAdModal } from '@/components/ads/NewJobAdModal';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -16,6 +17,7 @@ type View = 'ads' | 'trash';
 
 export function AdsClient() {
   const [view, setView] = useState<View>('ads');
+  const [showNewAdModal, setShowNewAdModal] = useState(false);
   const [filters, setFilters] = useFilterState('workcast:ads-filters');
   const [trashFilters, setTrashFilters] = useFilterState('workcast:ads-trash-filters');
 
@@ -94,16 +96,25 @@ export function AdsClient() {
           <h1 className="text-2xl font-bold text-gray-900">Job Ads</h1>
           <p className="text-sm text-gray-500 mt-1">Browse all scraped job ads across all boards</p>
         </div>
-        {view === 'ads' && (
+        <div className="flex items-center gap-2">
+          {view === 'ads' && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => markAllRead.mutate(markAllReadBoardId)}
+              loading={markAllRead.isPending}
+            >
+              Mark all as read
+            </Button>
+          )}
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
-            onClick={() => markAllRead.mutate(markAllReadBoardId)}
-            loading={markAllRead.isPending}
+            onClick={() => setShowNewAdModal(true)}
           >
-            Mark all as read
+            New Job Ad
           </Button>
-        )}
+        </div>
       </div>
 
       {/* Tab toggle */}
@@ -215,6 +226,9 @@ export function AdsClient() {
             </div>
           )}
         </div>
+      )}
+      {showNewAdModal && (
+        <NewJobAdModal onClose={() => setShowNewAdModal(false)} />
       )}
     </div>
   );

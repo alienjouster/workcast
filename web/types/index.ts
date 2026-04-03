@@ -57,7 +57,7 @@ export interface JobBoard {
 
 export interface JobAd {
   id: string;
-  jobBoardId: string;
+  jobBoardId: string | null;
   scrapeRunId: string | null;
   externalId: string | null;
   url: string;
@@ -76,6 +76,7 @@ export interface JobAd {
   isTrashed: boolean;
   note: string | null;
   lastScoringError: string | null;
+  isManual: boolean;
 }
 
 export interface ScrapeRunError {
@@ -231,6 +232,13 @@ export interface UpdateSettingsRequest {
   scoringMaxTokens: number;
   resumeGenerationMaxTokens: number;
   letterGenerationMaxTokens: number;
+}
+
+export interface CreateJobAdRequest {
+  url: string;
+  title: string;
+  company?: string;
+  location?: string;
 }
 
 export interface UpdateScraperConfigRequest {

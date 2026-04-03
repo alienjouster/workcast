@@ -31,6 +31,23 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
+    /// Creates a manually-entered job ad not tied to any job board.
+    /// </summary>
+    [HttpPost]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateAsync([FromBody] CreateJobAdRequest req, CancellationToken ct)
+    {
+        var ad = Workcast.Core.Entities.JobAd.CreateManual(req.Url, req.Title, req.Company, req.Location);
+        _db.JobAds.Add(ad);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Created manual job ad {AdId} for URL {Url}.", ad.Id, req.Url);
+
+        return CreatedAtAction("Get", new { id = ad.Id }, ad.ToResponse());
+    }
+
+    /// <summary>
     /// Returns a paginated list of job ads, optionally filtered by board, search term, and active status.
     /// Uses cursor-based pagination ordered by ScrapedAt DESC, then Id DESC.
     /// </summary>
@@ -86,10 +103,10 @@ public sealed class JobAdsController : ControllerBase
         var query = _db.JobAds.AsQueryable().Where(a => a.IsTrashed == trashed);
 
         if (boardIds?.Length > 0)
-            query = query.Where(a => boardIds.Contains(a.JobBoardId));
+            query = query.Where(a => a.JobBoardId.HasValue && boardIds.Contains(a.JobBoardId.Value));
 
         if (excludeBoardIds?.Length > 0)
-            query = query.Where(a => !excludeBoardIds.Contains(a.JobBoardId));
+            query = query.Where(a => !a.JobBoardId.HasValue || !excludeBoardIds.Contains(a.JobBoardId.Value));
 
         if (titles?.Length > 0)
             query = ApplyPartialMatchFilter(query, a => a.Title, titles);

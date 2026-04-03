@@ -22,8 +22,7 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
             .HasDefaultValueSql("gen_random_uuid()");
 
         builder.Property(a => a.JobBoardId)
-            .HasColumnName("job_board_id")
-            .IsRequired();
+            .HasColumnName("job_board_id");
 
         builder.Property(a => a.ScrapeRunId)
             .HasColumnName("scrape_run_id");
@@ -78,6 +77,11 @@ public sealed class JobAdConfiguration : IEntityTypeConfiguration<JobAd>
 
         builder.Property(a => a.IsRead)
             .HasColumnName("is_read")
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(a => a.IsManual)
+            .HasColumnName("is_manual")
             .HasDefaultValue(false)
             .IsRequired();
 

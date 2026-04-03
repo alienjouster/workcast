@@ -28,11 +28,32 @@ public class JobAd
         };
     }
 
+    /// <summary>
+    /// Creates a new manually-entered <see cref="JobAd"/> that is not tied to any job board or scrape run.
+    /// </summary>
+    /// <param name="url">The URL of the job ad.</param>
+    /// <param name="title">The job title.</param>
+    /// <param name="company">Optional company name.</param>
+    /// <param name="location">Optional location.</param>
+    public static JobAd CreateManual(string url, string title, string? company, string? location)
+    {
+        return new JobAd
+        {
+            Url = url,
+            Title = title,
+            Company = company,
+            Location = location,
+            ScrapedAt = DateTimeOffset.UtcNow,
+            IsActive = true,
+            IsManual = true,
+        };
+    }
+
     /// <summary>UUID primary key.</summary>
     public Guid Id { get; private set; }
 
-    /// <summary>Foreign key to the owning <see cref="JobBoard"/>.</summary>
-    public Guid JobBoardId { get; private set; }
+    /// <summary>Foreign key to the owning <see cref="JobBoard"/>. Null for manually-entered ads.</summary>
+    public Guid? JobBoardId { get; private set; }
 
     /// <summary>Foreign key to the <see cref="ScrapeRun"/> that discovered this ad. Nullable (SET NULL on run delete).</summary>
     public Guid? ScrapeRunId { get; private set; }
@@ -94,6 +115,12 @@ public class JobAd
     /// on completion (success or failure) so the UI can track in-progress state.
     /// </summary>
     public bool IsScoringPending { get; private set; }
+
+    /// <summary>
+    /// True when this ad was manually entered by the user rather than scraped automatically.
+    /// Manual ads are not tied to any job board or scrape run.
+    /// </summary>
+    public bool IsManual { get; private set; }
 
     /// <summary>
     /// Human-readable error message from the last failed scoring attempt, or null if the

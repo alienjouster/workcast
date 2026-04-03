@@ -5,6 +5,7 @@ import type {
   ScrapeRun,
   PagedResponse,
   CreateJobBoardRequest,
+  CreateJobAdRequest,
   UpdateJobBoardRequest,
   UpdateScraperConfigRequest,
   AppSettings,
@@ -120,6 +121,11 @@ export const api = {
       const qs = q.toString();
       return apiFetch<PagedResponse<JobAd>>(`/api/job-ads${qs ? `?${qs}` : ''}`);
     },
+    create: (data: CreateJobAdRequest) =>
+      apiFetch<JobAd>('/api/job-ads', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     distinctTitles: makeDistinctEndpoint('/api/job-ads/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/job-ads/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/job-ads/distinct-companies'),

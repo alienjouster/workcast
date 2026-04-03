@@ -78,6 +78,7 @@ public sealed class JobBoardConfiguration : IEntityTypeConfiguration<JobBoard>
         builder.HasMany(b => b.JobAds)
             .WithOne(a => a.JobBoard)
             .HasForeignKey(a => a.JobBoardId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

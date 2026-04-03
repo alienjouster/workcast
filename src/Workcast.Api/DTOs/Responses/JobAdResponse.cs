@@ -10,8 +10,8 @@ public record JobAdResponse
     /// <summary>Gets the unique identifier of the job ad.</summary>
     public required Guid Id { get; init; }
 
-    /// <summary>Gets the identifier of the job board this ad belongs to.</summary>
-    public required Guid JobBoardId { get; init; }
+    /// <summary>Gets the identifier of the job board this ad belongs to. Null for manually-entered ads.</summary>
+    public Guid? JobBoardId { get; init; }
 
     /// <summary>Gets the identifier of the scrape run that discovered this ad, if available.</summary>
     public Guid? ScrapeRunId { get; init; }
@@ -66,4 +66,7 @@ public record JobAdResponse
 
     /// <summary>Gets the error message from the last failed scoring attempt, or null if scoring succeeded or has never been run.</summary>
     public string? LastScoringError { get; init; }
+
+    /// <summary>Gets a value indicating whether this ad was manually entered by the user (not scraped).</summary>
+    public required bool IsManual { get; init; }
 }

@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import type { CreateJobAdRequest } from '@/types';
 
 export interface UseJobAdsParams {
   boardIds?: string[];
@@ -45,6 +46,17 @@ export function useJobAds(params: UseJobAdsParams = {}, { poll = true, enabled =
         .flatMap((p) => p.items)
         .some((a) => a.isScoringPending);
       return hasPending ? 3_000 : 60_000;
+    },
+  });
+}
+
+export function useCreateJobAd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateJobAdRequest) => api.ads.create(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['job-ads'] });
+      qc.invalidateQueries({ queryKey: ['status'] });
     },
   });
 }

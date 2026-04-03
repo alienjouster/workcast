@@ -68,6 +68,7 @@ public static class MappingExtensions
             IsTrashed = ad.IsTrashed,
             Note = ad.Note,
             LastScoringError = ad.LastScoringError,
+            IsManual = ad.IsManual,
         };
     }
 
