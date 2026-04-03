@@ -4,6 +4,7 @@ volumes/
 **/obj/
 **/node_modules/
 .next/
+**/*.tsbuildinfo
 **/appsettings.Development.json
 **/.vscode/
 .claude/
