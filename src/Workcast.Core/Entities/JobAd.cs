@@ -253,4 +253,16 @@ public class JobAd
     {
         Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
     }
+
+    /// <summary>
+    /// Updates the user-editable details of a job ad (URL, title, company, location).
+    /// Intended for use with manually-entered ads but not restricted to them.
+    /// </summary>
+    public void UpdateDetails(string url, string title, string? company, string? location)
+    {
+        Url = url;
+        Title = title;
+        Company = company;
+        Location = location;
+    }
 }

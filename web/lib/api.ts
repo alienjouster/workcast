@@ -6,6 +6,7 @@ import type {
   PagedResponse,
   CreateJobBoardRequest,
   CreateJobAdRequest,
+  UpdateJobAdRequest,
   UpdateJobBoardRequest,
   UpdateScraperConfigRequest,
   AppSettings,
@@ -124,6 +125,11 @@ export const api = {
     create: (data: CreateJobAdRequest) =>
       apiFetch<JobAd>('/api/job-ads', {
         method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: UpdateJobAdRequest) =>
+      apiFetch<JobAd>(`/api/job-ads/${id}`, {
+        method: 'PATCH',
         body: JSON.stringify(data),
       }),
     distinctTitles: makeDistinctEndpoint('/api/job-ads/distinct-titles'),

@@ -241,6 +241,13 @@ export interface CreateJobAdRequest {
   location?: string;
 }
 
+export interface UpdateJobAdRequest {
+  url: string;
+  title: string;
+  company?: string;
+  location?: string;
+}
+
 export interface UpdateScraperConfigRequest {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;

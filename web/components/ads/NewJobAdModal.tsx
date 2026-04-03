@@ -1,19 +1,31 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useCreateJobAd } from '@/lib/hooks/useJobAds';
+import { useCreateJobAd, useUpdateJobAd } from '@/lib/hooks/useJobAds';
+import type { JobAd } from '@/types';
+
+// Matches http:// or https:// followed by at least one dot-separated segment.
+const URL_REGEX = /^https?:\/\/[^\s/$.?#][^\s]*\.[^\s]+$/i;
 
 interface NewJobAdModalProps {
   onClose: () => void;
+  /** When provided, the modal operates in edit mode for this ad. */
+  ad?: JobAd;
 }
 
-export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
-  const [url, setUrl] = useState('');
-  const [title, setTitle] = useState('');
-  const [company, setCompany] = useState('');
-  const [location, setLocation] = useState('');
+export function NewJobAdModal({ onClose, ad }: NewJobAdModalProps) {
+  const isEditMode = ad !== undefined;
+
+  const [url, setUrl] = useState(ad?.url ?? '');
+  const [title, setTitle] = useState(ad?.title ?? '');
+  const [company, setCompany] = useState(ad?.company ?? '');
+  const [location, setLocation] = useState(ad?.location ?? '');
+  const [urlError, setUrlError] = useState<string | null>(null);
+
   const urlRef = useRef<HTMLInputElement>(null);
   const createJobAd = useCreateJobAd();
+  const updateJobAd = useUpdateJobAd();
+  const mutation = isEditMode ? updateJobAd : createJobAd;
 
   useEffect(() => {
     urlRef.current?.focus();
@@ -25,19 +37,34 @@ export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
     return () => window.removeEventListener('keydown', handler);
   }, [onClose]);
 
-  const isValid = url.trim().length > 0 && title.trim().length > 0;
+  const validateUrl = (value: string): boolean => {
+    if (!URL_REGEX.test(value.trim())) {
+      setUrlError('Please enter a valid URL starting with http:// or https://');
+      return false;
+    }
+    setUrlError(null);
+    return true;
+  };
+
+  const isValid = url.trim().length > 0 && title.trim().length > 0 && urlError === null;
 
   const submit = () => {
-    if (!isValid || createJobAd.isPending) return;
-    createJobAd.mutate(
-      {
-        url: url.trim(),
-        title: title.trim(),
-        company: company.trim() || undefined,
-        location: location.trim() || undefined,
-      },
-      { onSuccess: onClose },
-    );
+    if (mutation.isPending) return;
+    if (!validateUrl(url)) return;
+    if (!isValid) return;
+
+    const data = {
+      url: url.trim(),
+      title: title.trim(),
+      company: company.trim() || undefined,
+      location: location.trim() || undefined,
+    };
+
+    if (isEditMode) {
+      updateJobAd.mutate({ id: ad.id, data }, { onSuccess: onClose });
+    } else {
+      createJobAd.mutate(data, { onSuccess: onClose });
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -51,7 +78,9 @@ export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col" onKeyDown={handleKeyDown}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-900">New Job Ad</h2>
+          <h2 className="text-sm font-semibold text-gray-900">
+            {isEditMode ? 'Edit Job Ad' : 'New Job Ad'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -73,10 +102,21 @@ export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
               ref={urlRef}
               type="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => {
+                setUrl(e.target.value);
+                if (urlError) validateUrl(e.target.value);
+              }}
+              onBlur={() => url.trim() && validateUrl(url)}
               placeholder="https://example.com/jobs/123"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className={`w-full rounded-md border px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:border-transparent ${
+                urlError
+                  ? 'border-red-400 focus:ring-red-400'
+                  : 'border-gray-300 focus:ring-indigo-500'
+              }`}
             />
+            {urlError && (
+              <p className="mt-1 text-xs text-red-600">{urlError}</p>
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
@@ -113,9 +153,9 @@ export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
             </div>
           </div>
 
-          {createJobAd.isError && (
+          {mutation.isError && (
             <p className="text-sm text-red-600 bg-red-50 rounded-md px-3 py-2">
-              {(createJobAd.error as Error).message}
+              {(mutation.error as Error).message}
             </p>
           )}
         </div>
@@ -130,10 +170,12 @@ export function NewJobAdModal({ onClose }: NewJobAdModalProps) {
           </button>
           <button
             onClick={submit}
-            disabled={!isValid || createJobAd.isPending}
+            disabled={!isValid || mutation.isPending}
             className="px-4 py-1.5 text-sm font-medium bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
-            {createJobAd.isPending ? 'Adding…' : 'Add Job Ad'}
+            {mutation.isPending
+              ? isEditMode ? 'Saving…' : 'Adding…'
+              : isEditMode ? 'Save Changes' : 'Add Job Ad'}
           </button>
         </div>
       </div>

@@ -48,6 +48,25 @@ public sealed class JobAdsController : ControllerBase
     }
 
     /// <summary>
+    /// Updates the user-editable details (URL, title, company, location) of a job ad.
+    /// </summary>
+    [HttpPatch("{id:guid}")]
+    [ProducesResponseType(typeof(JobAdResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateAsync(Guid id, [FromBody] UpdateJobAdRequest req, CancellationToken ct)
+    {
+        var ad = await _db.JobAds.FindAsync([id], ct);
+        if (ad is null) return NotFound();
+
+        ad.UpdateDetails(req.Url, req.Title, req.Company, req.Location);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Updated job ad {AdId}.", ad.Id);
+        return Ok(ad.ToResponse());
+    }
+
+    /// <summary>
     /// Returns a paginated list of job ads, optionally filtered by board, search term, and active status.
     /// Uses cursor-based pagination ordered by ScrapedAt DESC, then Id DESC.
     /// </summary>

@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
-import type { CreateJobAdRequest } from '@/types';
+import type { CreateJobAdRequest, UpdateJobAdRequest } from '@/types';
 
 export interface UseJobAdsParams {
   boardIds?: string[];
@@ -58,6 +58,14 @@ export function useCreateJobAd() {
       qc.invalidateQueries({ queryKey: ['job-ads'] });
       qc.invalidateQueries({ queryKey: ['status'] });
     },
+  });
+}
+
+export function useUpdateJobAd() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateJobAdRequest }) => api.ads.update(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-ads'] }),
   });
 }
 

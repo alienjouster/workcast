@@ -10,6 +10,7 @@ import { useAdScoring, useRunScoring } from '@/lib/hooks/useAdScoring';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { useCreateApplication } from '@/lib/hooks/useApplications';
 import { NoteModal } from '@/components/ads/NoteModal';
+import { NewJobAdModal } from '@/components/ads/NewJobAdModal';
 import { CATEGORY_STYLES, ScoringSpinner, ScoringErrorBanner, ScoringRequirementsGrid, scoreColorClass } from '@/components/scoring/ScoringShared';
 import { Tooltip } from '@/components/ui/Tooltip';
 
@@ -292,6 +293,7 @@ export function AdTable({ ads }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [noteAdId, setNoteAdId] = useState<string | null>(null);
+  const [editAdId, setEditAdId] = useState<string | null>(null);
   const parentRef = useRef<HTMLDivElement>(null);
   const trashAd = useTrashAd();
   const pinAd = usePinAd();
@@ -300,6 +302,11 @@ export function AdTable({ ads }: AdTableProps) {
   const noteAd = useMemo(
     () => (noteAdId ? ads.find((a) => a.id === noteAdId) ?? null : null),
     [noteAdId, ads]
+  );
+
+  const editAd = useMemo(
+    () => (editAdId ? ads.find((a) => a.id === editAdId) ?? null : null),
+    [editAdId, ads]
   );
 
   const allSelected = useMemo(
@@ -359,6 +366,9 @@ export function AdTable({ ads }: AdTableProps) {
           onClose={() => setNoteAdId(null)}
         />
       )}
+      {editAd && (
+        <NewJobAdModal ad={editAd} onClose={() => setEditAdId(null)} />
+      )}
 
       {/* Bulk action bar — always visible to prevent layout shift */}
       <div className="flex items-center gap-3 px-4 py-2 bg-indigo-50 border-b border-indigo-100">
@@ -398,7 +408,7 @@ export function AdTable({ ads }: AdTableProps) {
             <col style={{ width: '9rem' }} />
             <col style={{ width: '9rem' }} />
             <col style={{ width: '6rem' }} />
-            <col style={{ width: '7rem' }} />
+            <col style={{ width: '8rem' }} />
           </colgroup>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
@@ -540,6 +550,20 @@ export function AdTable({ ads }: AdTableProps) {
                           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                             <path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z" />
                             <path d="M15 3v6h6" />
+                          </svg>
+                        </button>
+                        </Tooltip>
+                        <Tooltip content="Edit" position="top" wrapperAs="span">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditAdId(ad.id);
+                          }}
+                          className="text-gray-300 hover:text-indigo-500 transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                            <path d="M5.433 13.917l1.262-3.155A4 4 0 0 1 7.58 9.42l6.92-6.918a2.121 2.121 0 0 1 3 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 0 1-.65-.65Z" />
+                            <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0 0 10 3H4.75A2.75 2.75 0 0 0 2 5.75v9.5A2.75 2.75 0 0 0 4.75 18h9.5A2.75 2.75 0 0 0 17 15.25V10a.75.75 0 0 0-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5Z" />
                           </svg>
                         </button>
                         </Tooltip>
