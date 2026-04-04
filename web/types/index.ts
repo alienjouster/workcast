@@ -233,6 +233,8 @@ export interface InterviewQuestion {
   text: string;
   category: InterviewQuestionCategory;
   requirementName: string | null;
+  answer: string | null;
+  answeredAt: string | null;
 }
 
 export interface InterviewDrillPlan {

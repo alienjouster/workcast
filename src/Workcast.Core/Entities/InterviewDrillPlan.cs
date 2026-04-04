@@ -54,4 +54,10 @@ public sealed class InterviewQuestion
 
     /// <summary>The scoring requirement that inspired this question, or null for warm-up and job-ad-derived questions.</summary>
     public string? RequirementName { get; set; }
+
+    /// <summary>The user's answer to this question, recorded during a drill session. Null if not yet answered.</summary>
+    public string? Answer { get; set; }
+
+    /// <summary>UTC timestamp when the answer was last saved. Null if not yet answered.</summary>
+    public DateTimeOffset? AnsweredAt { get; set; }
 }

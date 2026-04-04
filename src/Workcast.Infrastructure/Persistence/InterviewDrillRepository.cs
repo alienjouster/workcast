@@ -37,4 +37,24 @@ internal sealed class InterviewDrillRepository : IInterviewDrillRepository
         _db.InterviewDrillPlans.Add(plan);
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
     }
+
+    public async Task<bool> SaveAnswerAsync(Guid applicationId, int orderIndex, string? answer, CancellationToken ct = default)
+    {
+        var plan = await _db.InterviewDrillPlans
+            .FirstOrDefaultAsync(p => p.ApplicationId == applicationId, ct)
+            .ConfigureAwait(false);
+
+        if (plan is null) return false;
+
+        var question = plan.Questions.FirstOrDefault(q => q.OrderIndex == orderIndex);
+        if (question is null) return false;
+
+        question.Answer     = answer;
+        question.AnsweredAt = string.IsNullOrWhiteSpace(answer) ? null : DateTimeOffset.UtcNow;
+
+        // The Questions column is a JSONB blob tracked via value conversion — mark it modified explicitly.
+        _db.Entry(plan).Property(p => p.Questions).IsModified = true;
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return true;
+    }
 }

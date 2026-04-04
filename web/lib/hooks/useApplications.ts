@@ -304,3 +304,24 @@ export function useCancelInterviewDrill(id: string) {
     },
   });
 }
+
+export function useSaveInterviewDrillAnswer(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orderIndex, answer }: { orderIndex: number; answer: string | null }) =>
+      api.applications.saveInterviewDrillAnswer(id, orderIndex, answer),
+    onSuccess: (_data, { orderIndex, answer }) => {
+      queryClient.setQueryData<InterviewDrillPlan>(['interview-drill', id], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          questions: old.questions.map((q) =>
+            q.orderIndex === orderIndex
+              ? { ...q, answer: answer ?? null, answeredAt: answer ? new Date().toISOString() : null }
+              : q,
+          ),
+        };
+      });
+    },
+  });
+}

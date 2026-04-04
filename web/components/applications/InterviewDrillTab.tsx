@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { Application, InterviewQuestionCategory } from '@/types';
-import { useInterviewDrillPlan, useGenerateInterviewDrill, useCancelInterviewDrill } from '@/lib/hooks/useApplications';
+import { useInterviewDrillPlan, useGenerateInterviewDrill, useCancelInterviewDrill, useSaveInterviewDrillAnswer } from '@/lib/hooks/useApplications';
 import { ScoringSpinner, ScoringErrorBanner } from '@/components/scoring/ScoringShared';
 
 // ── Category config ────────────────────────────────────────────────────────────
@@ -24,21 +24,214 @@ function SparkleIcon({ className }: { className?: string }) {
   );
 }
 
+// ── SpeechRecognition type augmentation (not in lib.dom for all envs) ─────────
+declare global {
+  interface Window {
+    SpeechRecognition: typeof SpeechRecognition | undefined;
+    webkitSpeechRecognition: typeof SpeechRecognition | undefined;
+  }
+}
+
+// ── MicIcon ───────────────────────────────────────────────────────────────────
+function MicIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M7 4a3 3 0 0 1 6 0v6a3 3 0 1 1-6 0V4Z" />
+      <path d="M5.5 9.643a.75.75 0 0 0-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 0 0 0 1.5h4.5a.75.75 0 0 0 0-1.5h-1.5v-1.546A6.001 6.001 0 0 0 16 10v-.357a.75.75 0 0 0-1.5 0V10a4.5 4.5 0 0 1-9 0v-.357Z" />
+    </svg>
+  );
+}
+
+// ── SpeakerIcon ───────────────────────────────────────────────────────────────
+function SpeakerIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M10 3.75a.75.75 0 0 0-1.264-.546L4.703 7H3.167a.75.75 0 0 0-.7.48A6.985 6.985 0 0 0 2 10c0 .93.168 1.82.468 2.52.13.313.43.48.699.48h1.536l4.033 3.796A.75.75 0 0 0 10 16.25V3.75ZM15.95 5.05a.75.75 0 0 0-1.06 1.061 5.5 5.5 0 0 1 0 7.778.75.75 0 0 0 1.06 1.06 7 7 0 0 0 0-9.899Z" />
+      <path d="M13.829 7.172a.75.75 0 0 0-1.061 1.06 2.5 2.5 0 0 1 0 3.536.75.75 0 0 0 1.06 1.06 4 4 0 0 0 0-5.656Z" />
+    </svg>
+  );
+}
+
+// ── StopIcon ──────────────────────────────────────────────────────────────────
+function StopIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+      <path d="M5.25 3A2.25 2.25 0 0 0 3 5.25v9.5A2.25 2.25 0 0 0 5.25 17h9.5A2.25 2.25 0 0 0 17 14.75v-9.5A2.25 2.25 0 0 0 14.75 3h-9.5Z" />
+    </svg>
+  );
+}
+
+// ── Detect browser SpeechRecognition support ──────────────────────────────────
+function getSpeechRecognition(): (new () => SpeechRecognition) | null {
+  if (typeof window === 'undefined') return null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
+}
+
+// ── Browser / OS detection (static, UA-based) ─────────────────────────────────
+type BrowserOS = {
+  isWindows: boolean;
+  isMac: boolean;
+  isEdge: boolean;
+  isChrome: boolean;
+  isSafari: boolean;
+  isFirefox: boolean;
+};
+
+function detectBrowserOS(): BrowserOS {
+  if (typeof window === 'undefined') return { isWindows: false, isMac: false, isEdge: false, isChrome: false, isSafari: false, isFirefox: false };
+  const ua = navigator.userAgent;
+  const isWindows = ua.includes('Windows');
+  const isMac    = ua.includes('Macintosh') || ua.includes('Mac OS');
+  const isEdge   = ua.includes('Edg/');
+  const isChrome = ua.includes('Chrome/') && !ua.includes('Edg/');
+  const isSafari = ua.includes('Safari/') && !ua.includes('Chrome/');
+  const isFirefox = ua.includes('Firefox/');
+  return { isWindows, isMac, isEdge, isChrome, isSafari, isFirefox };
+}
+
+/** Returns true if the current browser/OS combo offers high-quality TTS. */
+function hasPremiumTTS(): boolean {
+  const { isWindows, isMac, isEdge, isChrome, isSafari } = detectBrowserOS();
+  if (isEdge && isWindows) return true;       // Microsoft Neural voices
+  if ((isChrome || isSafari) && isMac) return true; // Apple system voices
+  return false;
+}
+
+// ── Pick the best available TTS voice ────────────────────────────────────────
+function pickVoice(): SpeechSynthesisVoice | null {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+  // Prefer natural/online neural voices (Edge/Windows), then any en-US, then first available.
+  const prefer = voices.find((v) => /natural|online/i.test(v.name) && v.lang.startsWith('en'));
+  if (prefer) return prefer;
+  const enUs = voices.find((v) => v.lang === 'en-US');
+  if (enUs) return enUs;
+  return voices[0] ?? null;
+}
+
+// ── DrillTips ─────────────────────────────────────────────────────────────────
+
+function DrillTips({ autoSpeak, onAutoSpeakChange }: { autoSpeak: boolean; onAutoSpeakChange: (v: boolean) => void }) {
+  const { isWindows, isChrome, isFirefox } = detectBrowserOS();
+  const premiumTTS = hasPremiumTTS();
+
+  const warnings: { icon: string; text: React.ReactNode }[] = [];
+
+  // Chrome on Windows — robotic TTS, suggest Edge
+  if (isChrome && isWindows) {
+    warnings.push({
+      icon: '🔊',
+      text: (
+        <>
+          <span className="font-medium">Chrome on Windows uses a lower-quality voice</span> for text-to-speech.
+          Switch to <span className="font-medium">Microsoft Edge</span> to get natural-sounding Microsoft Neural voices.
+        </>
+      ),
+    });
+  }
+
+  // Firefox — no speech-to-text
+  if (isFirefox) {
+    warnings.push({
+      icon: '🎤',
+      text: (
+        <>
+          <span className="font-medium">Firefox does not support voice recording.</span>{' '}
+          You can still type your answers. Switch to Chrome or Edge to enable the microphone button.
+        </>
+      ),
+    });
+  }
+
+  // Unknown or limited browser/OS — generic advisory
+  if (warnings.length === 0 && !premiumTTS) {
+    warnings.push({
+      icon: '💡',
+      text: 'Voice quality and microphone support depend on your browser. Chrome and Edge on desktop offer the best experience.',
+    });
+  }
+
+  const ttsSubtext = premiumTTS
+    ? 'High-quality voice detected — enabled by default.'
+    : 'Voice quality may vary on your current browser.';
+
+  return (
+    <div className="w-1/2 mx-auto rounded-lg border border-gray-200 bg-white overflow-hidden">
+      {/* Warning panel */}
+      {warnings.length > 0 && (
+        <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+          {warnings.map((w, i) => (
+            <p key={i} className="text-xs text-amber-800 leading-relaxed flex gap-2">
+              <span>{w.icon}</span>
+              <span>{w.text}</span>
+            </p>
+          ))}
+        </div>
+      )}
+
+      {/* TTS auto-play toggle */}
+      <label className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer select-none">
+        <div className="flex items-center gap-2.5">
+          <SpeakerIcon className="w-4 h-4 text-gray-400 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-gray-700">Read questions aloud (text-to-speech)</p>
+            <p className="text-xs text-gray-400 mt-0.5">{ttsSubtext}</p>
+          </div>
+        </div>
+        <button
+          role="switch"
+          aria-checked={autoSpeak}
+          onClick={() => onAutoSpeakChange(!autoSpeak)}
+          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${autoSpeak ? 'bg-indigo-600' : 'bg-gray-200'}`}
+        >
+          <span
+            className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${autoSpeak ? 'translate-x-4' : 'translate-x-0.5'}`}
+          />
+        </button>
+      </label>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export function InterviewDrillTab({ app }: { app: Application }) {
   const { data: plan, isLoading: isPlanLoading } = useInterviewDrillPlan(app.id);
   const generate = useGenerateInterviewDrill(app.id);
   const cancel = useCancelInterviewDrill(app.id);
+  const saveAnswer = useSaveInterviewDrillAnswer(app.id);
 
   // Drill mode state
   const [drillActive, setDrillActive] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [questionsRevealed, setQuestionsRevealed] = useState(false);
 
+  // TTS auto-play toggle — on by default only when premium voices are available
+  const [autoSpeak, setAutoSpeak] = useState(() => hasPremiumTTS());
+
+  // Answer + voice state
+  const [draftAnswer, setDraftAnswer] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const speechSupported = typeof window !== 'undefined' && getSpeechRecognition() !== null;
+
   const isGenerating = app.isInterviewDrillPending || generate.isPending;
   const hasResume = true; // validation happens server-side; the UI simply shows the button
   const hasScoring = app.overallScore != null;
+
+  // Load the saved answer and optionally auto-read the question when index changes.
+  useEffect(() => {
+    if (!drillActive || !plan) return;
+    const sorted = [...plan.questions].sort((a, b) => a.orderIndex - b.orderIndex);
+    setDraftAnswer(sorted[currentIndex]?.answer ?? '');
+    stopRecording();
+    stopSpeaking();
+    if (autoSpeak && sorted[currentIndex]) {
+      speakQuestion(sorted[currentIndex].text);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, drillActive]);
 
   function startDrill() {
     setCurrentIndex(0);
@@ -46,7 +239,73 @@ export function InterviewDrillTab({ app }: { app: Application }) {
   }
 
   function exitDrill() {
+    stopRecording();
+    stopSpeaking();
     setDrillActive(false);
+  }
+
+  function persistAnswer(orderIndex: number, text: string) {
+    saveAnswer.mutate({ orderIndex, answer: text.trim() || null });
+  }
+
+  // ── Speech-to-text (mic) ──────────────────────────────────────────────────
+  function startRecording() {
+    const SR = getSpeechRecognition();
+    if (!SR) return;
+    const recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    const base = draftAnswer;
+    recognition.onresult = (e) => {
+      let interim = '';
+      let final = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0].transcript;
+        if (e.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      setDraftAnswer(base + (base && (final || interim) ? ' ' : '') + final + interim);
+    };
+    recognition.onerror = () => setIsRecording(false);
+    recognition.onend = () => setIsRecording(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsRecording(true);
+  }
+
+  function stopRecording() {
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    setIsRecording(false);
+  }
+
+  // ── Text-to-speech (speaker) ──────────────────────────────────────────────
+  function speakQuestion(text: string) {
+    if (isSpeaking) { stopSpeaking(); return; }
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Wait for voices to load if needed (Chrome loads them async).
+    const trySpeak = () => {
+      const voice = pickVoice();
+      if (voice) utterance.voice = voice;
+      utterance.rate = 0.95;
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+      setIsSpeaking(true);
+    };
+    if (window.speechSynthesis.getVoices().length > 0) {
+      trySpeak();
+    } else {
+      window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true });
+    }
+  }
+
+  function stopSpeaking() {
+    window.speechSynthesis.cancel();
+    setIsSpeaking(false);
   }
 
   // ── Pending ──────────────────────────────────────────────────────────────────
@@ -122,6 +381,11 @@ export function InterviewDrillTab({ app }: { app: Application }) {
     const cfg = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG.warm_up;
     const progressPct = Math.round(((currentIndex + 1) / total) * 100);
 
+    function navigateTo(nextIndex: number) {
+      persistAnswer(q.orderIndex, draftAnswer);
+      setCurrentIndex(nextIndex);
+    }
+
     return (
       <div className="space-y-6">
         {/* Progress bar */}
@@ -129,7 +393,7 @@ export function InterviewDrillTab({ app }: { app: Application }) {
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs text-gray-400">Question {currentIndex + 1} of {total}</span>
             <button
-              onClick={exitDrill}
+              onClick={() => { persistAnswer(q.orderIndex, draftAnswer); exitDrill(); }}
               className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
             >
               Exit Drill
@@ -145,23 +409,74 @@ export function InterviewDrillTab({ app }: { app: Application }) {
 
         {/* Question card */}
         <div className="bg-white rounded-lg border border-gray-200 p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.badgeClass}`}>
-              {cfg.label}
-            </span>
-            {q.requirementName && (
-              <span className="text-xs text-gray-400 truncate max-w-xs" title={q.requirementName}>
-                {q.requirementName}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full ${cfg.badgeClass}`}>
+                {cfg.label}
               </span>
-            )}
+              {q.requirementName && (
+                <span className="text-xs text-gray-400 truncate max-w-xs" title={q.requirementName}>
+                  {q.requirementName}
+                </span>
+              )}
+            </div>
+            {/* Read question aloud */}
+            <button
+              onClick={() => speakQuestion(q.text)}
+              title={isSpeaking ? 'Stop reading' : 'Read question aloud'}
+              className={`p-1.5 rounded-md transition-colors ${isSpeaking ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-gray-400 hover:text-indigo-500 hover:bg-indigo-50'}`}
+            >
+              {isSpeaking ? <StopIcon className="w-4 h-4" /> : <SpeakerIcon className="w-4 h-4" />}
+            </button>
           </div>
           <p className="text-lg font-medium text-gray-900 leading-relaxed">{q.text}</p>
+        </div>
+
+        {/* Answer area */}
+        <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your answer</p>
+            {speechSupported && (
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                title={isRecording ? 'Stop recording' : 'Record answer (speech to text)'}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                  isRecording
+                    ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                    : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 border border-gray-200'
+                }`}
+              >
+                {isRecording ? (
+                  <>
+                    <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <StopIcon className="w-3.5 h-3.5" />
+                    Stop
+                  </>
+                ) : (
+                  <>
+                    <MicIcon className="w-3.5 h-3.5" />
+                    Record
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          <textarea
+            value={draftAnswer}
+            onChange={(e) => setDraftAnswer(e.target.value)}
+            placeholder="Type your answer here, or use the Record button to speak it…"
+            rows={5}
+            className="w-full resize-none rounded-md border border-gray-200 px-3 py-2.5 text-sm text-gray-800 placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent"
+          />
+          {saveAnswer.isPending && (
+            <p className="text-xs text-gray-400">Saving…</p>
+          )}
         </div>
 
         {/* Navigation */}
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+            onClick={() => navigateTo(Math.max(0, currentIndex - 1))}
             disabled={currentIndex === 0}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             aria-label="Previous question"
@@ -174,7 +489,7 @@ export function InterviewDrillTab({ app }: { app: Application }) {
 
           {currentIndex < total - 1 ? (
             <button
-              onClick={() => setCurrentIndex((i) => Math.min(total - 1, i + 1))}
+              onClick={() => navigateTo(Math.min(total - 1, currentIndex + 1))}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
               aria-label="Next question"
             >
@@ -185,7 +500,7 @@ export function InterviewDrillTab({ app }: { app: Application }) {
             </button>
           ) : (
             <button
-              onClick={exitDrill}
+              onClick={() => { persistAnswer(q.orderIndex, draftAnswer); exitDrill(); }}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors"
             >
               Finish
@@ -248,6 +563,9 @@ export function InterviewDrillTab({ app }: { app: Application }) {
           ))}
         </div>
       </div>
+
+      {/* Tips + TTS toggle */}
+      <DrillTips autoSpeak={autoSpeak} onAutoSpeakChange={setAutoSpeak} />
 
       {/* Start button */}
       <div className="flex justify-center">

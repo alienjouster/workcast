@@ -278,6 +278,11 @@ export const api = {
       apiFetch<void>(`/api/applications/${id}/interview-drill/generate`, { method: 'DELETE' }),
     getInterviewDrill: (id: string) =>
       apiFetch<InterviewDrillPlan>(`/api/applications/${id}/interview-drill`),
+    saveInterviewDrillAnswer: (id: string, orderIndex: number, answer: string | null) =>
+      apiFetch<void>(`/api/applications/${id}/interview-drill/questions/${orderIndex}/answer`, {
+        method: 'PUT',
+        body: JSON.stringify({ answer }),
+      }),
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),

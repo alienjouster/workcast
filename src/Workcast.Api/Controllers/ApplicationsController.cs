@@ -817,6 +817,23 @@ public sealed class ApplicationsController : ControllerBase
         return Ok(MapDrillToResponse(plan));
     }
 
+    /// <summary>
+    /// Saves (or clears) the user's answer for a single drill question.
+    /// Passing null or an empty string clears a previous answer.
+    /// </summary>
+    [HttpPut("{id:guid}/interview-drill/questions/{orderIndex:int}/answer")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SaveDrillAnswerAsync(
+        Guid id,
+        int orderIndex,
+        [FromBody] SaveDrillAnswerRequest request,
+        CancellationToken ct)
+    {
+        var found = await _drillRepository.SaveAnswerAsync(id, orderIndex, request.Answer, ct);
+        return found ? NoContent() : NotFound();
+    }
+
     private static InterviewDrillResponse MapDrillToResponse(InterviewDrillPlan plan) =>
         new(
             plan.Id,
@@ -824,7 +841,7 @@ public sealed class ApplicationsController : ControllerBase
             plan.GeneratedAt,
             plan.ModelUsed,
             plan.Questions
-                .Select(q => new InterviewQuestionDto(q.OrderIndex, q.Text, q.Category, q.RequirementName))
+                .Select(q => new InterviewQuestionDto(q.OrderIndex, q.Text, q.Category, q.RequirementName, q.Answer, q.AnsweredAt))
                 .ToList());
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1102,4 +1119,9 @@ public record InterviewQuestionDto(
     int OrderIndex,
     string Text,
     string Category,
-    string? RequirementName);
+    string? RequirementName,
+    string? Answer,
+    DateTimeOffset? AnsweredAt);
+
+/// <summary>Request body for saving a drill answer.</summary>
+public record SaveDrillAnswerRequest(string? Answer);
