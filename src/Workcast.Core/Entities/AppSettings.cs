@@ -66,6 +66,12 @@ public sealed class AppSettings
     /// <summary>Maximum tokens for interview drill generation AI calls.</summary>
     public int InterviewTrainerMaxTokens { get; private set; } = 4096;
 
+    /// <summary>Anthropic model identifier used for interview answer evaluation AI calls.</summary>
+    public string InterviewAnswerEvaluationModel { get; private set; } = "claude-sonnet-4-5";
+
+    /// <summary>Maximum tokens for interview answer evaluation AI calls.</summary>
+    public int InterviewAnswerEvaluationMaxTokens { get; private set; } = 1024;
+
     // Required by EF Core.
     private AppSettings() { }
 
@@ -101,6 +107,12 @@ public sealed class AppSettings
 
     /// <summary>Updates the maximum tokens for interview drill generation AI calls.</summary>
     public void SetInterviewTrainerMaxTokens(int value) => InterviewTrainerMaxTokens = value;
+
+    /// <summary>Updates the interview answer evaluation model identifier.</summary>
+    public void SetInterviewAnswerEvaluationModel(string model) => InterviewAnswerEvaluationModel = model;
+
+    /// <summary>Updates the maximum tokens for interview answer evaluation AI calls.</summary>
+    public void SetInterviewAnswerEvaluationMaxTokens(int value) => InterviewAnswerEvaluationMaxTokens = value;
 
     /// <summary>Stores a new resume, replacing any previously uploaded file.</summary>
     public void SetResume(string fileName, byte[] content, string contentType)

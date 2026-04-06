@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import type { Application, InterviewQuestionCategory } from '@/types';
-import { useInterviewDrillPlan, useGenerateInterviewDrill, useCancelInterviewDrill, useSaveInterviewDrillAnswer } from '@/lib/hooks/useApplications';
+import type { Application, InterviewAnswerEvaluation, InterviewQuestionCategory } from '@/types';
+import { useInterviewDrillPlan, useGenerateInterviewDrill, useCancelInterviewDrill, useSaveInterviewDrillAnswer, useClearInterviewDrillAnswers, useEvaluateInterviewDrillAnswer } from '@/lib/hooks/useApplications';
 import { ScoringSpinner, ScoringErrorBanner } from '@/components/scoring/ScoringShared';
 
 // ── Category config ────────────────────────────────────────────────────────────
@@ -109,6 +109,49 @@ function pickVoice(): SpeechSynthesisVoice | null {
   return voices[0] ?? null;
 }
 
+// ── EvaluationPanel ───────────────────────────────────────────────────────────
+
+const RATING_CONFIG: Record<InterviewAnswerEvaluation['rating'], { label: string; badgeClass: string; borderClass: string; bgClass: string }> = {
+  good:               { label: 'Good',              badgeClass: 'bg-green-100 text-green-700',  borderClass: 'border-green-200', bgClass: 'bg-green-50' },
+  satisfactory:       { label: 'Satisfactory',      badgeClass: 'bg-amber-100 text-amber-700',  borderClass: 'border-amber-200', bgClass: 'bg-amber-50' },
+  needs_improvement:  { label: 'Needs improvement', badgeClass: 'bg-red-100 text-red-700',      borderClass: 'border-red-200',   bgClass: 'bg-red-50' },
+};
+
+function EvaluationPanel({ evaluation, onDismiss }: { evaluation: InterviewAnswerEvaluation; onDismiss: () => void }) {
+  const cfg = RATING_CONFIG[evaluation.rating] ?? RATING_CONFIG.satisfactory;
+  return (
+    <div className={`rounded-lg border ${cfg.borderClass} ${cfg.bgClass} p-5 space-y-3`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <SparkleIcon className="w-4 h-4 text-gray-400" />
+          <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Recruiter feedback</span>
+          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.badgeClass}`}>{cfg.label}</span>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-gray-300 hover:text-gray-500 transition-colors"
+          title="Dismiss"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" />
+          </svg>
+        </button>
+      </div>
+      <p className="text-sm text-gray-700 leading-relaxed">{evaluation.feedback}</p>
+      {evaluation.tips.length > 0 && (
+        <ul className="space-y-1.5">
+          {evaluation.tips.map((tip, i) => (
+            <li key={i} className="flex gap-2 text-sm text-gray-600">
+              <span className="shrink-0 mt-0.5 text-gray-400">→</span>
+              <span>{tip}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── DrillTips ─────────────────────────────────────────────────────────────────
 
 function DrillTips({ autoSpeak, onAutoSpeakChange }: { autoSpeak: boolean; onAutoSpeakChange: (v: boolean) => void }) {
@@ -200,6 +243,8 @@ export function InterviewDrillTab({ app }: { app: Application }) {
   const generate = useGenerateInterviewDrill(app.id);
   const cancel = useCancelInterviewDrill(app.id);
   const saveAnswer = useSaveInterviewDrillAnswer(app.id);
+  const clearAnswers = useClearInterviewDrillAnswers(app.id);
+  const evaluateMutation = useEvaluateInterviewDrillAnswer(app.id);
 
   // Drill mode state
   const [drillActive, setDrillActive] = useState(false);
@@ -216,6 +261,10 @@ export function InterviewDrillTab({ app }: { app: Application }) {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const speechSupported = typeof window !== 'undefined' && getSpeechRecognition() !== null;
 
+  // Evaluation state
+  const [evaluation, setEvaluation] = useState<InterviewAnswerEvaluation | null>(null);
+  const [evaluationError, setEvaluationError] = useState<string | null>(null);
+
   const isGenerating = app.isInterviewDrillPending || generate.isPending;
   const hasResume = true; // validation happens server-side; the UI simply shows the button
   const hasScoring = app.overallScore != null;
@@ -225,15 +274,18 @@ export function InterviewDrillTab({ app }: { app: Application }) {
     if (!drillActive || !plan) return;
     const sorted = [...plan.questions].sort((a, b) => a.orderIndex - b.orderIndex);
     setDraftAnswer(sorted[currentIndex]?.answer ?? '');
+    setEvaluation(null);
+    setEvaluationError(null);
     stopRecording();
     stopSpeaking();
     if (autoSpeak && sorted[currentIndex]) {
-      speakQuestion(sorted[currentIndex].text);
+      speakQuestion(sorted[currentIndex].text, speechSupported ? startRecording : undefined);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, drillActive]);
 
-  function startDrill() {
+  async function startDrill() {
+    await clearAnswers.mutateAsync();
     setCurrentIndex(0);
     setDrillActive(true);
   }
@@ -248,6 +300,19 @@ export function InterviewDrillTab({ app }: { app: Application }) {
     saveAnswer.mutate({ orderIndex, answer: text.trim() || null });
   }
 
+  async function handleEvaluate(orderIndex: number) {
+    setEvaluation(null);
+    setEvaluationError(null);
+    // Save the current draft first so the backend evaluates the latest text.
+    await saveAnswer.mutateAsync({ orderIndex, answer: draftAnswer.trim() || null });
+    try {
+      const result = await evaluateMutation.mutateAsync(orderIndex);
+      setEvaluation(result);
+    } catch (err) {
+      setEvaluationError(err instanceof Error ? err.message : 'Evaluation failed.');
+    }
+  }
+
   // ── Speech-to-text (mic) ──────────────────────────────────────────────────
   function startRecording() {
     const SR = getSpeechRecognition();
@@ -258,15 +323,19 @@ export function InterviewDrillTab({ app }: { app: Application }) {
     recognition.lang = 'en-US';
 
     const base = draftAnswer;
+    let sessionFinals = ''; // accumulates all finalized segments within this recording session
     recognition.onresult = (e) => {
+      let newFinals = '';
       let interim = '';
-      let final = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) final += t;
+        if (e.results[i].isFinal) newFinals += t;
         else interim += t;
       }
-      setDraftAnswer(base + (base && (final || interim) ? ' ' : '') + final + interim);
+      if (newFinals) sessionFinals += (sessionFinals ? ' ' : '') + newFinals.trim();
+      const prefix = base ? base + ' ' : '';
+      const interimSuffix = interim ? (sessionFinals ? ' ' : '') + interim : '';
+      setDraftAnswer(prefix + sessionFinals + interimSuffix);
     };
     recognition.onerror = () => setIsRecording(false);
     recognition.onend = () => setIsRecording(false);
@@ -283,7 +352,7 @@ export function InterviewDrillTab({ app }: { app: Application }) {
   }
 
   // ── Text-to-speech (speaker) ──────────────────────────────────────────────
-  function speakQuestion(text: string) {
+  function speakQuestion(text: string, afterSpeak?: () => void) {
     if (isSpeaking) { stopSpeaking(); return; }
     const utterance = new SpeechSynthesisUtterance(text);
     // Wait for voices to load if needed (Chrome loads them async).
@@ -291,7 +360,7 @@ export function InterviewDrillTab({ app }: { app: Application }) {
       const voice = pickVoice();
       if (voice) utterance.voice = voice;
       utterance.rate = 0.95;
-      utterance.onend = () => setIsSpeaking(false);
+      utterance.onend = () => { setIsSpeaking(false); afterSpeak?.(); };
       utterance.onerror = () => setIsSpeaking(false);
       window.speechSynthesis.speak(utterance);
       setIsSpeaking(true);
@@ -436,30 +505,41 @@ export function InterviewDrillTab({ app }: { app: Application }) {
         <div className="bg-white rounded-lg border border-gray-200 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Your answer</p>
-            {speechSupported && (
+            <div className="flex items-center gap-2">
+              {speechSupported && (
+                <button
+                  onClick={isRecording ? stopRecording : startRecording}
+                  title={isRecording ? 'Stop recording' : 'Record answer (speech to text)'}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                    isRecording
+                      ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
+                      : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 border border-gray-200'
+                  }`}
+                >
+                  {isRecording ? (
+                    <>
+                      <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                      <StopIcon className="w-3.5 h-3.5" />
+                      Stop
+                    </>
+                  ) : (
+                    <>
+                      <MicIcon className="w-3.5 h-3.5" />
+                      Record
+                    </>
+                  )}
+                </button>
+              )}
               <button
-                onClick={isRecording ? stopRecording : startRecording}
-                title={isRecording ? 'Stop recording' : 'Record answer (speech to text)'}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  isRecording
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
-                    : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 border border-gray-200'
-                }`}
+                onClick={() => handleEvaluate(q.orderIndex)}
+                disabled={!draftAnswer.trim() || evaluateMutation.isPending || saveAnswer.isPending}
+                title="Get AI recruiter feedback on your answer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {isRecording ? (
-                  <>
-                    <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <StopIcon className="w-3.5 h-3.5" />
-                    Stop
-                  </>
-                ) : (
-                  <>
-                    <MicIcon className="w-3.5 h-3.5" />
-                    Record
-                  </>
-                )}
+                <SparkleIcon className="w-3.5 h-3.5" />
+                {evaluateMutation.isPending ? 'Evaluating…' : 'Evaluate'}
               </button>
-            )}
+            </div>
           </div>
           <textarea
             value={draftAnswer}
@@ -472,6 +552,16 @@ export function InterviewDrillTab({ app }: { app: Application }) {
             <p className="text-xs text-gray-400">Saving…</p>
           )}
         </div>
+
+        {/* Evaluation result */}
+        {evaluationError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-xs text-red-700">{evaluationError}</p>
+          </div>
+        )}
+        {evaluation && (
+          <EvaluationPanel evaluation={evaluation} onDismiss={() => setEvaluation(null)} />
+        )}
 
         {/* Navigation */}
         <div className="flex items-center justify-between">

@@ -103,6 +103,36 @@ public interface IAiProvider
         CancellationToken ct = default);
 
     /// <summary>
+    /// Evaluates a candidate's interview answer from a recruiter's perspective.
+    /// Returns a structured assessment with an overall rating, qualitative feedback, and
+    /// actionable improvement tips (what to say/avoid, how to frame gaps or partial matches).
+    /// Uses Tool Use to guarantee structured output.
+    /// </summary>
+    /// <param name="questionText">The interview question that was asked.</param>
+    /// <param name="category">Question category: warm_up | easy | medium | challenging.</param>
+    /// <param name="requirementName">The scoring requirement that inspired this question, or null.</param>
+    /// <param name="answer">The candidate's answer to evaluate.</param>
+    /// <param name="jobAdContent">Plain-text or HTML content of the job advertisement.</param>
+    /// <param name="resumeContent">Raw bytes of the resume file.</param>
+    /// <param name="resumeContentType">MIME type: "application/pdf", "text/plain", or "application/json".</param>
+    /// <param name="resumeFileName">Original file name (context label).</param>
+    /// <param name="model">Anthropic model identifier to use.</param>
+    /// <param name="maxTokens">Maximum tokens for the response.</param>
+    /// <param name="ct">Cancellation token.</param>
+    Task<InterviewAnswerEvaluationResult> EvaluateInterviewAnswerAsync(
+        string questionText,
+        string category,
+        string? requirementName,
+        string answer,
+        string jobAdContent,
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string model,
+        int maxTokens,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Generates 15–20 interview questions tailored to the candidate's resume and the job ad.
     /// Questions are categorised into warm_up, easy (from match requirements), medium (from
     /// partial_match requirements), and challenging (from gap requirements). If a category has

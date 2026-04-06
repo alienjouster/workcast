@@ -52,3 +52,10 @@ Provided in the 'TECHSPEC.md' file.
 3. **Migrations are generated, not hand-written** — run `dotnet ef migrations add`
 4. **No TODO comments** — implement it or document the decision explicitly
 5. **Use coding conventions** — from `CONVENTIONS.md`
+
+**Mandatory sequence — follow this every time:**
+1. Implement the change.
+2. Explain what was changed (per `feedback_explain_before_commit`).
+3. Output clear, specific test steps the user can follow.
+4. **STOP. Wait.**
+5. Only proceed to commit after the user explicitly says it works, or explicitly asks you to commit. Never run `git commit` or `git push` without the user to explicitly confirm that the change works. This applies to **every single change** — trivial or not, one-liner or refactor. There are no exceptions.

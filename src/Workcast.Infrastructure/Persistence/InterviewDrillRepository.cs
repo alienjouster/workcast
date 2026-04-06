@@ -57,4 +57,23 @@ internal sealed class InterviewDrillRepository : IInterviewDrillRepository
         await _db.SaveChangesAsync(ct).ConfigureAwait(false);
         return true;
     }
+
+    public async Task<bool> ClearAnswersAsync(Guid applicationId, CancellationToken ct = default)
+    {
+        var plan = await _db.InterviewDrillPlans
+            .FirstOrDefaultAsync(p => p.ApplicationId == applicationId, ct)
+            .ConfigureAwait(false);
+
+        if (plan is null) return false;
+
+        foreach (var question in plan.Questions)
+        {
+            question.Answer     = null;
+            question.AnsweredAt = null;
+        }
+
+        _db.Entry(plan).Property(p => p.Questions).IsModified = true;
+        await _db.SaveChangesAsync(ct).ConfigureAwait(false);
+        return true;
+    }
 }

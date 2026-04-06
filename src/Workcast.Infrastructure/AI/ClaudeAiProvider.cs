@@ -449,6 +449,155 @@ public sealed class ClaudeAiProvider : IAiProvider
     }
 
     /// <inheritdoc />
+    public async Task<InterviewAnswerEvaluationResult> EvaluateInterviewAnswerAsync(
+        string questionText,
+        string category,
+        string? requirementName,
+        string answer,
+        string jobAdContent,
+        byte[] resumeContent,
+        string resumeContentType,
+        string resumeFileName,
+        string model,
+        int maxTokens,
+        CancellationToken ct = default)
+    {
+        var tool = BuildAnswerEvaluationTool();
+
+        const string system =
+            "You are an experienced technical recruiter evaluating a candidate's live interview answer. " +
+            "Your feedback must be honest, constructive, and actionable — as if you were coaching the candidate " +
+            "immediately after the interview. Focus on what works, what does not, and exactly how to improve.";
+
+        var difficultyNote = category switch
+        {
+            "warm_up"     => "This is a warm-up question — assess openness, communication, and genuine motivation.",
+            "easy"        => "This targets a confirmed strength from the scoring analysis — the candidate should shine here.",
+            "medium"      => "This explores a partial match — assess depth, context, and ability to bridge the gap.",
+            "challenging" => "This probes a gap or weak area — assess self-awareness, honesty, and how the candidate frames limitations.",
+            _             => "",
+        };
+
+        var requirementContext = requirementName is not null
+            ? $"\nThe question was specifically inspired by the requirement: \"{requirementName}\"."
+            : "";
+
+        var prompt = $"""
+            Evaluate the candidate's answer to the following interview question.
+
+            === JOB AD ===
+            {jobAdContent}
+
+            === QUESTION ===
+            {questionText}
+
+            Difficulty: {category}{requirementContext}
+            {difficultyNote}
+
+            === CANDIDATE'S ANSWER ===
+            {answer}
+
+            === EVALUATION INSTRUCTIONS ===
+            1. Rating: Assign one of: "good" (strong, would impress), "satisfactory" (adequate but could be stronger), "needs_improvement" (weak, would concern a recruiter).
+            2. Feedback: Write 2–3 sentences from a recruiter's perspective. Be direct and specific — reference actual parts of the answer.
+            3. Tips: Provide 2–4 short, actionable tips. Cover at least:
+               - What to say or emphasise more.
+               - What to avoid or tone down.
+               - How to leverage the candidate's experience to address gaps or partial matches.
+               - Concrete phrases or angles that resonate in interviews for this type of role.
+
+            Call the submit_answer_evaluation tool with your assessment.
+            """;
+
+        object userContent;
+
+        if (resumeContentType == "application/pdf")
+        {
+            userContent = new object[]
+            {
+                new
+                {
+                    Type = "document",
+                    Source = new
+                    {
+                        Type = "base64",
+                        MediaType = "application/pdf",
+                        Data = Convert.ToBase64String(resumeContent),
+                    }
+                },
+                new { Type = "text", Text = prompt },
+            };
+        }
+        else
+        {
+            var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
+            userContent = $"{prompt}\n\n=== RESUME ({resumeFileName}) ===\n{resumeText}";
+        }
+
+        var input = await CallWithRetryAsync(userContent, maxTokens, timeoutSeconds: 60, tool, "submit_answer_evaluation", model, system, ct)
+            .ConfigureAwait(false);
+
+        return DeserializeAnswerEvaluationResult(input);
+    }
+
+    private static InterviewAnswerEvaluationResult DeserializeAnswerEvaluationResult(JsonObject input)
+    {
+        var tips = new List<string>();
+        var tipsArray = input["tips"]?.AsArray();
+        if (tipsArray is not null)
+        {
+            foreach (var tip in tipsArray)
+            {
+                var tipText = tip?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(tipText)) tips.Add(tipText);
+            }
+        }
+
+        return new InterviewAnswerEvaluationResult
+        {
+            Rating   = input["rating"]?.GetValue<string>() ?? "satisfactory",
+            Feedback = input["feedback"]?.GetValue<string>() ?? "",
+            Tips     = tips,
+        };
+    }
+
+    private static ClaudeTool BuildAnswerEvaluationTool()
+    {
+        return new ClaudeTool
+        {
+            Name = "submit_answer_evaluation",
+            Description = "Submit the structured evaluation of the candidate's interview answer.",
+            InputSchema = new
+            {
+                type = "object",
+                required = new[] { "rating", "feedback", "tips" },
+                properties = new
+                {
+                    rating = new
+                    {
+                        type = "string",
+                        @enum = new[] { "good", "satisfactory", "needs_improvement" },
+                        description = "Overall quality: 'good' = strong answer, 'satisfactory' = adequate, 'needs_improvement' = weak.",
+                    },
+                    feedback = new
+                    {
+                        type = "string",
+                        description = "2–3 sentences of honest recruiter-perspective assessment referencing specific parts of the answer.",
+                    },
+                    tips = new
+                    {
+                        type = "array",
+                        description = "2–4 short, actionable improvement tips covering what to say more, what to avoid, and how to frame gaps.",
+                        items = new { type = "string" },
+                        minItems = 2,
+                        maxItems = 4,
+                    },
+                },
+            },
+        };
+    }
+
+    /// <inheritdoc />
     public async Task<InterviewDrillResult> GenerateInterviewQuestionsAsync(
         byte[] resumeContent,
         string resumeContentType,

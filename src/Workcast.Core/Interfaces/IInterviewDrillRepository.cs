@@ -23,4 +23,10 @@ public interface IInterviewDrillRepository
     /// Returns false if no plan exists for the application.
     /// </summary>
     Task<bool> SaveAnswerAsync(Guid applicationId, int orderIndex, string? answer, CancellationToken ct = default);
+
+    /// <summary>
+    /// Clears all answers on the plan belonging to <paramref name="applicationId"/>.
+    /// Returns false if no plan exists for the application.
+    /// </summary>
+    Task<bool> ClearAnswersAsync(Guid applicationId, CancellationToken ct = default);
 }

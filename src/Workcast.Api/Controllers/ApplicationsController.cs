@@ -834,6 +834,85 @@ public sealed class ApplicationsController : ControllerBase
         return found ? NoContent() : NotFound();
     }
 
+    /// <summary>
+    /// Clears all saved answers on the current drill plan for the given application.
+    /// </summary>
+    [HttpDelete("{id:guid}/interview-drill/answers")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ClearDrillAnswersAsync(Guid id, CancellationToken ct)
+    {
+        var found = await _drillRepository.ClearAnswersAsync(id, ct);
+        return found ? NoContent() : NotFound();
+    }
+
+    /// <summary>
+    /// Evaluates the candidate's answer for a single drill question using AI.
+    /// Returns structured recruiter-perspective feedback: rating, assessment, and improvement tips.
+    /// </summary>
+    [HttpPost("{id:guid}/interview-drill/questions/{orderIndex:int}/evaluate")]
+    [ProducesResponseType(typeof(InterviewAnswerEvaluationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> EvaluateDrillAnswerAsync(
+        Guid id,
+        int orderIndex,
+        CancellationToken ct)
+    {
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var plan = await _drillRepository.GetByApplicationIdAsync(id, ct);
+        if (plan is null) return NotFound();
+
+        var question = plan.Questions.FirstOrDefault(q => q.OrderIndex == orderIndex);
+        if (question is null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(question.Answer))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "No answer to evaluate",
+                Detail = "Save an answer for this question before requesting evaluation.",
+            });
+        }
+
+        var jobAdContent = application.JobAdContent;
+        if (string.IsNullOrWhiteSpace(jobAdContent))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "No job ad content",
+                Detail = "The application has no job ad content available for evaluation context.",
+            });
+        }
+
+        var settings = await _settingsRepository.GetAsync(ct);
+        if (!settings.HasResume)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "No resume uploaded",
+                Detail = "Upload a resume in Settings before using answer evaluation.",
+            });
+        }
+
+        var result = await _aiProvider.EvaluateInterviewAnswerAsync(
+            questionText:      question.Text,
+            category:          question.Category,
+            requirementName:   question.RequirementName,
+            answer:            question.Answer,
+            jobAdContent:      jobAdContent,
+            resumeContent:     settings.ResumeContent!,
+            resumeContentType: settings.ResumeContentType!,
+            resumeFileName:    settings.ResumeFileName!,
+            model:             settings.InterviewAnswerEvaluationModel,
+            maxTokens:         settings.InterviewAnswerEvaluationMaxTokens,
+            ct:                ct);
+
+        return Ok(new InterviewAnswerEvaluationResponse(result.Rating, result.Feedback, result.Tips));
+    }
+
     private static InterviewDrillResponse MapDrillToResponse(InterviewDrillPlan plan) =>
         new(
             plan.Id,
@@ -1125,3 +1204,12 @@ public record InterviewQuestionDto(
 
 /// <summary>Request body for saving a drill answer.</summary>
 public record SaveDrillAnswerRequest(string? Answer);
+
+/// <summary>Response for an interview answer evaluation.</summary>
+public record InterviewAnswerEvaluationResponse(
+    /// <summary>Overall quality: "good" | "satisfactory" | "needs_improvement".</summary>
+    string Rating,
+    /// <summary>2–3 sentence recruiter-perspective assessment.</summary>
+    string Feedback,
+    /// <summary>Actionable improvement tips.</summary>
+    IList<string> Tips);

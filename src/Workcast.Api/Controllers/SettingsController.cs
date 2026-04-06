@@ -101,6 +101,15 @@ public sealed class SettingsController : ControllerBase
             });
         }
 
+        if (!AllowedModels.Contains(request.InterviewAnswerEvaluationModel))
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid interview answer evaluation model",
+                Detail = $"'{request.InterviewAnswerEvaluationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
+            });
+        }
+
         if (request.BoardAnalyzerMaxTokens <= 0)
         {
             return UnprocessableEntity(new ProblemDetails
@@ -146,17 +155,28 @@ public sealed class SettingsController : ControllerBase
             });
         }
 
+        if (request.InterviewAnswerEvaluationMaxTokens <= 0)
+        {
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title = "Invalid interview answer evaluation max tokens",
+                Detail = "InterviewAnswerEvaluationMaxTokens must be a positive integer.",
+            });
+        }
+
         var settings = await _settingsRepository.GetAsync(ct);
         settings.SetBoardAnalyzerModel(request.BoardAnalyzerModel);
         settings.SetScoringModel(request.ScoringModel);
         settings.SetResumeGenerationModel(request.ResumeGenerationModel);
         settings.SetLetterGenerationModel(request.LetterGenerationModel);
         settings.SetInterviewTrainerModel(request.InterviewTrainerModel);
+        settings.SetInterviewAnswerEvaluationModel(request.InterviewAnswerEvaluationModel);
         settings.SetBoardAnalyzerMaxTokens(request.BoardAnalyzerMaxTokens);
         settings.SetScoringMaxTokens(request.ScoringMaxTokens);
         settings.SetResumeGenerationMaxTokens(request.ResumeGenerationMaxTokens);
         settings.SetLetterGenerationMaxTokens(request.LetterGenerationMaxTokens);
         settings.SetInterviewTrainerMaxTokens(request.InterviewTrainerMaxTokens);
+        settings.SetInterviewAnswerEvaluationMaxTokens(request.InterviewAnswerEvaluationMaxTokens);
         await _settingsRepository.SaveAsync(ct);
 
         return Ok(ToResponse(settings));
@@ -288,11 +308,13 @@ public sealed class SettingsController : ControllerBase
         s.ResumeGenerationModel,
         s.LetterGenerationModel,
         s.InterviewTrainerModel,
+        s.InterviewAnswerEvaluationModel,
         s.BoardAnalyzerMaxTokens,
         s.ScoringMaxTokens,
         s.ResumeGenerationMaxTokens,
         s.LetterGenerationMaxTokens,
         s.InterviewTrainerMaxTokens,
+        s.InterviewAnswerEvaluationMaxTokens,
         AllowedModels,
         s.HasResume,
         s.ResumeFileName,
@@ -308,11 +330,13 @@ public sealed class SettingsController : ControllerBase
     /// <param name="ResumeGenerationModel">Active Anthropic model for custom resume generation.</param>
     /// <param name="LetterGenerationModel">Active Anthropic model for application letter generation.</param>
     /// <param name="InterviewTrainerModel">Active Anthropic model for interview drill generation.</param>
+    /// <param name="InterviewAnswerEvaluationModel">Active Anthropic model for interview answer evaluation.</param>
     /// <param name="BoardAnalyzerMaxTokens">Max tokens for board analysis AI calls.</param>
     /// <param name="ScoringMaxTokens">Max tokens for job ad scoring AI calls.</param>
     /// <param name="ResumeGenerationMaxTokens">Max tokens for resume generation AI calls.</param>
     /// <param name="LetterGenerationMaxTokens">Max tokens for letter generation AI calls.</param>
     /// <param name="InterviewTrainerMaxTokens">Max tokens for interview drill generation AI calls.</param>
+    /// <param name="InterviewAnswerEvaluationMaxTokens">Max tokens for interview answer evaluation AI calls.</param>
     /// <param name="AvailableModels">All selectable model identifiers.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
@@ -326,11 +350,13 @@ public sealed class SettingsController : ControllerBase
         string ResumeGenerationModel,
         string LetterGenerationModel,
         string InterviewTrainerModel,
+        string InterviewAnswerEvaluationModel,
         int BoardAnalyzerMaxTokens,
         int ScoringMaxTokens,
         int ResumeGenerationMaxTokens,
         int LetterGenerationMaxTokens,
         int InterviewTrainerMaxTokens,
+        int InterviewAnswerEvaluationMaxTokens,
         IEnumerable<string> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
@@ -344,22 +370,26 @@ public sealed class SettingsController : ControllerBase
     /// <param name="ResumeGenerationModel">Model identifier for custom resume generation.</param>
     /// <param name="LetterGenerationModel">Model identifier for application letter generation.</param>
     /// <param name="InterviewTrainerModel">Model identifier for interview drill generation.</param>
+    /// <param name="InterviewAnswerEvaluationModel">Model identifier for interview answer evaluation.</param>
     /// <param name="BoardAnalyzerMaxTokens">Max tokens for board analysis AI calls.</param>
     /// <param name="ScoringMaxTokens">Max tokens for job ad scoring AI calls.</param>
     /// <param name="ResumeGenerationMaxTokens">Max tokens for resume generation AI calls.</param>
     /// <param name="LetterGenerationMaxTokens">Max tokens for letter generation AI calls.</param>
     /// <param name="InterviewTrainerMaxTokens">Max tokens for interview drill generation AI calls.</param>
+    /// <param name="InterviewAnswerEvaluationMaxTokens">Max tokens for interview answer evaluation AI calls.</param>
     public sealed record UpdateSettingsRequest(
         string BoardAnalyzerModel,
         string ScoringModel,
         string ResumeGenerationModel,
         string LetterGenerationModel,
         string InterviewTrainerModel,
+        string InterviewAnswerEvaluationModel,
         int BoardAnalyzerMaxTokens,
         int ScoringMaxTokens,
         int ResumeGenerationMaxTokens,
         int LetterGenerationMaxTokens,
-        int InterviewTrainerMaxTokens);
+        int InterviewTrainerMaxTokens,
+        int InterviewAnswerEvaluationMaxTokens);
 
     /// <param name="FileName">Original file name (e.g. resume.pdf).</param>
     /// <param name="ContentBase64">Base64-encoded file bytes.</param>

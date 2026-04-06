@@ -124,11 +124,13 @@ export interface AppSettings {
   resumeGenerationModel: string;
   letterGenerationModel: string;
   interviewTrainerModel: string;
+  interviewAnswerEvaluationModel: string;
   boardAnalyzerMaxTokens: number;
   scoringMaxTokens: number;
   resumeGenerationMaxTokens: number;
   letterGenerationMaxTokens: number;
   interviewTrainerMaxTokens: number;
+  interviewAnswerEvaluationMaxTokens: number;
   availableModels: string[];
   hasResume: boolean;
   resumeFileName: string | null;
@@ -251,11 +253,19 @@ export interface UpdateSettingsRequest {
   resumeGenerationModel: string;
   letterGenerationModel: string;
   interviewTrainerModel: string;
+  interviewAnswerEvaluationModel: string;
   boardAnalyzerMaxTokens: number;
   scoringMaxTokens: number;
   resumeGenerationMaxTokens: number;
   letterGenerationMaxTokens: number;
   interviewTrainerMaxTokens: number;
+  interviewAnswerEvaluationMaxTokens: number;
+}
+
+export interface InterviewAnswerEvaluation {
+  rating: 'good' | 'satisfactory' | 'needs_improvement';
+  feedback: string;
+  tips: string[];
 }
 
 export interface CreateJobAdRequest {

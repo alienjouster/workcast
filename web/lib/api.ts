@@ -17,6 +17,7 @@ import type {
   GeneratedLetter,
   ResumeOptimizationLevel,
   InterviewDrillPlan,
+  InterviewAnswerEvaluation,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -283,6 +284,10 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ answer }),
       }),
+    clearInterviewDrillAnswers: (id: string) =>
+      apiFetch<void>(`/api/applications/${id}/interview-drill/answers`, { method: 'DELETE' }),
+    evaluateInterviewDrillAnswer: (id: string, orderIndex: number) =>
+      apiFetch<InterviewAnswerEvaluation>(`/api/applications/${id}/interview-drill/questions/${orderIndex}/evaluate`, { method: 'POST' }),
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),
