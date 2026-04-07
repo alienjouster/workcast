@@ -10,5 +10,4 @@ volumes/
 .claude/
 web/.env.local
 **/Properties/launchSettings.json
-logitech.txt
 architecture-analysis.html
