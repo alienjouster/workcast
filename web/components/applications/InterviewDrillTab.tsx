@@ -25,10 +25,15 @@ function SparkleIcon({ className }: { className?: string }) {
 }
 
 // ── SpeechRecognition type augmentation (not in lib.dom for all envs) ─────────
+interface SpeechRecognitionCtor {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  new (): any;
+}
+
 declare global {
   interface Window {
-    SpeechRecognition: typeof SpeechRecognition | undefined;
-    webkitSpeechRecognition: typeof SpeechRecognition | undefined;
+    SpeechRecognition: SpeechRecognitionCtor | undefined;
+    webkitSpeechRecognition: SpeechRecognitionCtor | undefined;
   }
 }
 
@@ -62,7 +67,7 @@ function StopIcon({ className }: { className?: string }) {
 }
 
 // ── Detect browser SpeechRecognition support ──────────────────────────────────
-function getSpeechRecognition(): (new () => SpeechRecognition) | null {
+function getSpeechRecognition(): SpeechRecognitionCtor | null {
   if (typeof window === 'undefined') return null;
   return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
@@ -258,7 +263,8 @@ export function InterviewDrillTab({ app }: { app: Application }) {
   const [draftAnswer, setDraftAnswer] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recognitionRef = useRef<any>(null);
   const speechSupported = typeof window !== 'undefined' && getSpeechRecognition() !== null;
 
   // Evaluation state
@@ -324,7 +330,8 @@ export function InterviewDrillTab({ app }: { app: Application }) {
 
     const base = draftAnswer;
     let sessionFinals = ''; // accumulates all finalized segments within this recording session
-    recognition.onresult = (e) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    recognition.onresult = (e: any) => {
       let newFinals = '';
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -450,10 +457,10 @@ export function InterviewDrillTab({ app }: { app: Application }) {
     const cfg = CATEGORY_CONFIG[category] ?? CATEGORY_CONFIG.warm_up;
     const progressPct = Math.round(((currentIndex + 1) / total) * 100);
 
-    function navigateTo(nextIndex: number) {
+    const navigateTo = (nextIndex: number) => {
       persistAnswer(q.orderIndex, draftAnswer);
       setCurrentIndex(nextIndex);
-    }
+    };
 
     return (
       <div className="space-y-6">
