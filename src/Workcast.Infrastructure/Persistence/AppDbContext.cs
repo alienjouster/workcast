@@ -47,6 +47,9 @@ public sealed class AppDbContext : DbContext
     /// <summary>AI-generated interview drill plans for applications.</summary>
     public DbSet<InterviewDrillPlan> InterviewDrillPlans => Set<InterviewDrillPlan>();
 
+    /// <summary>User-managed interview steps for applications.</summary>
+    public DbSet<InterviewStep> InterviewSteps => Set<InterviewStep>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -61,5 +64,6 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new GeneratedResumeConfiguration());
         modelBuilder.ApplyConfiguration(new GeneratedLetterConfiguration());
         modelBuilder.ApplyConfiguration(new InterviewDrillPlanConfiguration());
+        modelBuilder.ApplyConfiguration(new InterviewStepConfiguration());
     }
 }

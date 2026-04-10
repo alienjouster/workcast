@@ -282,6 +282,48 @@ export interface UpdateJobAdRequest {
   location?: string;
 }
 
+export interface InterviewStepInterviewer {
+  name: string;
+  jobFunction: string;
+}
+
+export interface InterviewStep {
+  id: string;
+  applicationId: string;
+  stepNumber: number;
+  date: string | null;
+  time: string | null;
+  durationMinutes: number | null;
+  timezone: string;
+  isOnSite: boolean;
+  remoteCallLink: string | null;
+  interviewers: InterviewStepInterviewer[];
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface CreateInterviewStepRequest {
+  date?: string | null;
+  time?: string | null;
+  durationMinutes?: number | null;
+  timezone: string;
+  isOnSite: boolean;
+  remoteCallLink?: string | null;
+  interviewers: InterviewStepInterviewer[];
+  notes?: string | null;
+}
+
+export interface UpdateInterviewStepRequest {
+  date?: string | null;
+  time?: string | null;
+  durationMinutes?: number | null;
+  timezone: string;
+  isOnSite: boolean;
+  remoteCallLink?: string | null;
+  interviewers: InterviewStepInterviewer[];
+  notes?: string | null;
+}
+
 export interface UpdateScraperConfigRequest {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;

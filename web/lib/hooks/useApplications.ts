@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tansta
 import type { InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { Application, ApplicationStatus, InterviewAnswerEvaluation, InterviewDrillPlan, PagedResponse, ResumeOptimizationLevel } from '@/types';
+import type { Application, ApplicationStatus, InterviewAnswerEvaluation, InterviewDrillPlan, InterviewStep, CreateInterviewStepRequest, UpdateInterviewStepRequest, PagedResponse, ResumeOptimizationLevel } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -346,5 +346,37 @@ export function useSaveInterviewDrillAnswer(id: string) {
         };
       });
     },
+  });
+}
+
+export function useInterviewSteps(id: string) {
+  return useQuery({
+    queryKey: ['interview-steps', id],
+    queryFn: () => api.applications.listInterviewSteps(id),
+  });
+}
+
+export function useCreateInterviewStep(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateInterviewStepRequest) => api.applications.createInterviewStep(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
+  });
+}
+
+export function useUpdateInterviewStep(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ stepId, data }: { stepId: string; data: UpdateInterviewStepRequest }) =>
+      api.applications.updateInterviewStep(id, stepId, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
+  });
+}
+
+export function useDeleteInterviewStep(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (stepId: string) => api.applications.deleteInterviewStep(id, stepId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
   });
 }

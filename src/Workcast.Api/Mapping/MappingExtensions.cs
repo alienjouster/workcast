@@ -280,6 +280,28 @@ public static class MappingExtensions
         };
     }
 
+    /// <summary>Converts an <see cref="InterviewStep"/> entity to its API response representation.</summary>
+    public static InterviewStepResponse ToResponse(this Core.Entities.InterviewStep step)
+    {
+        return new InterviewStepResponse
+        {
+            Id              = step.Id,
+            ApplicationId   = step.ApplicationId,
+            StepNumber      = step.StepNumber,
+            Date            = step.Date?.ToString("yyyy-MM-dd"),
+            Time            = step.Time?.ToString("HH:mm"),
+            DurationMinutes = step.DurationMinutes,
+            Timezone        = step.Timezone,
+            IsOnSite        = step.IsOnSite,
+            RemoteCallLink  = step.RemoteCallLink,
+            Interviewers    = step.Interviewers
+                .Select(i => new InterviewStepInterviewerResponse { Name = i.Name, JobFunction = i.JobFunction })
+                .ToList(),
+            Notes           = step.Notes,
+            CreatedAt       = step.CreatedAt,
+        };
+    }
+
     /// <summary>
     /// Converts a <see cref="PaginationType"/> enum value to its snake_case string representation
     /// as required by TECHSPEC section 3.5 (e.g. UrlParam → "url_param").

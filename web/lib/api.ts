@@ -18,6 +18,9 @@ import type {
   ResumeOptimizationLevel,
   InterviewDrillPlan,
   InterviewAnswerEvaluation,
+  InterviewStep,
+  CreateInterviewStepRequest,
+  UpdateInterviewStepRequest,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -288,6 +291,20 @@ export const api = {
       apiFetch<void>(`/api/applications/${id}/interview-drill/answers`, { method: 'DELETE' }),
     evaluateInterviewDrillAnswer: (id: string, orderIndex: number) =>
       apiFetch<InterviewAnswerEvaluation>(`/api/applications/${id}/interview-drill/questions/${orderIndex}/evaluate`, { method: 'POST' }),
+    listInterviewSteps: (id: string) =>
+      apiFetch<InterviewStep[]>(`/api/applications/${id}/interview-steps`),
+    createInterviewStep: (id: string, data: CreateInterviewStepRequest) =>
+      apiFetch<InterviewStep>(`/api/applications/${id}/interview-steps`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateInterviewStep: (id: string, stepId: string, data: UpdateInterviewStepRequest) =>
+      apiFetch<InterviewStep>(`/api/applications/${id}/interview-steps/${stepId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      }),
+    deleteInterviewStep: (id: string, stepId: string) =>
+      apiFetch<void>(`/api/applications/${id}/interview-steps/${stepId}`, { method: 'DELETE' }),
     distinctTitles: makeDistinctEndpoint('/api/applications/distinct-titles'),
     distinctLocations: makeDistinctEndpoint('/api/applications/distinct-locations'),
     distinctCompanies: makeDistinctEndpoint('/api/applications/distinct-companies'),

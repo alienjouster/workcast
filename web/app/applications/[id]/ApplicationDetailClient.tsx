@@ -12,18 +12,20 @@ import { ApplicationStatusTimeline } from '@/components/applications/Application
 import { StatusBadge } from '@/components/applications/StatusBadge';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { InterviewDrillTab } from '@/components/applications/InterviewDrillTab';
+import { InterviewStepsTab } from '@/components/applications/InterviewStepsTab';
 
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter' | 'interview';
+type Tab = 'job-ad' | 'scoring' | 'resume' | 'letter' | 'interview' | 'interview-steps';
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'job-ad',    label: 'Job Ad' },
-  { id: 'scoring',   label: 'Scoring' },
-  { id: 'resume',    label: 'Custom Resume' },
-  { id: 'letter',    label: 'Application Letter' },
-  { id: 'interview', label: 'Interview drill' },
+  { id: 'job-ad',           label: 'Job Ad' },
+  { id: 'scoring',          label: 'Scoring' },
+  { id: 'resume',           label: 'Custom Resume' },
+  { id: 'letter',           label: 'Application Letter' },
+  { id: 'interview-steps',  label: 'Interview steps' },
+  { id: 'interview',        label: 'Interview drill' },
 ];
 
 // ── Tab content ───────────────────────────────────────────────────────────────
@@ -1079,6 +1081,7 @@ export function ApplicationDetailClient() {
       {activeTab === 'resume'    && <ResumeTab app={app} />}
       {activeTab === 'letter'    && <LetterTab app={app} />}
       {activeTab === 'interview' && <InterviewDrillTab app={app} />}
+      {activeTab === 'interview-steps' && <InterviewStepsTab appId={app.id} />}
     </div>
   );
 }

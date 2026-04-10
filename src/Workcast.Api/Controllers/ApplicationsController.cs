@@ -913,6 +913,125 @@ public sealed class ApplicationsController : ControllerBase
         return Ok(new InterviewAnswerEvaluationResponse(result.Rating, result.Feedback, result.Tips));
     }
 
+    // ── Interview Steps ───────────────────────────────────────────────────────
+
+    /// <summary>Returns all interview steps for an application, ordered by step number.</summary>
+    [HttpGet("{id:guid}/interview-steps")]
+    [ProducesResponseType(typeof(IList<InterviewStepResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetInterviewStepsAsync(Guid id, CancellationToken ct)
+    {
+        var exists = await _db.Applications.AnyAsync(a => a.Id == id, ct);
+        if (!exists) return NotFound();
+
+        var steps = await _db.InterviewSteps
+            .Where(s => s.ApplicationId == id)
+            .OrderBy(s => s.StepNumber)
+            .ToListAsync(ct);
+
+        return Ok(steps.Select(s => s.ToResponse()).ToList());
+    }
+
+    /// <summary>Creates a new interview step for an application.</summary>
+    [HttpPost("{id:guid}/interview-steps")]
+    [ProducesResponseType(typeof(InterviewStepResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateInterviewStepAsync(
+        Guid id,
+        [FromBody] CreateInterviewStepRequest request,
+        CancellationToken ct)
+    {
+        var exists = await _db.Applications.AnyAsync(a => a.Id == id, ct);
+        if (!exists) return NotFound();
+
+        var maxStep = await _db.InterviewSteps
+            .Where(s => s.ApplicationId == id)
+            .MaxAsync(s => (int?)s.StepNumber, ct) ?? 0;
+
+        var date = request.Date is not null && DateOnly.TryParse(request.Date, out var d) ? d : (DateOnly?)null;
+        var time = request.Time is not null && TimeOnly.TryParse(request.Time, out var t) ? t : (TimeOnly?)null;
+
+        var step = InterviewStep.Create(
+            applicationId:   id,
+            stepNumber:      maxStep + 1,
+            date:            date,
+            time:            time,
+            durationMinutes: request.DurationMinutes,
+            timezone:        request.Timezone,
+            isOnSite:        request.IsOnSite,
+            remoteCallLink:  request.RemoteCallLink,
+            interviewers:    request.Interviewers
+                .Select(i => new InterviewStepInterviewer { Name = i.Name, JobFunction = i.JobFunction })
+                .ToList(),
+            notes:           request.Notes);
+
+        _db.InterviewSteps.Add(step);
+        await _db.SaveChangesAsync(ct);
+
+        return StatusCode(StatusCodes.Status201Created, step.ToResponse());
+    }
+
+    /// <summary>Updates an existing interview step.</summary>
+    [HttpPut("{id:guid}/interview-steps/{stepId:guid}")]
+    [ProducesResponseType(typeof(InterviewStepResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateInterviewStepAsync(
+        Guid id,
+        Guid stepId,
+        [FromBody] UpdateInterviewStepRequest request,
+        CancellationToken ct)
+    {
+        var step = await _db.InterviewSteps
+            .FirstOrDefaultAsync(s => s.Id == stepId && s.ApplicationId == id, ct);
+        if (step is null) return NotFound();
+
+        var date = request.Date is not null && DateOnly.TryParse(request.Date, out var d) ? d : (DateOnly?)null;
+        var time = request.Time is not null && TimeOnly.TryParse(request.Time, out var t) ? t : (TimeOnly?)null;
+
+        step.Update(
+            date:            date,
+            time:            time,
+            durationMinutes: request.DurationMinutes,
+            timezone:        request.Timezone,
+            isOnSite:        request.IsOnSite,
+            remoteCallLink:  request.RemoteCallLink,
+            interviewers:    request.Interviewers
+                .Select(i => new InterviewStepInterviewer { Name = i.Name, JobFunction = i.JobFunction })
+                .ToList(),
+            notes:           request.Notes);
+
+        await _db.SaveChangesAsync(ct);
+        return Ok(step.ToResponse());
+    }
+
+    /// <summary>Deletes an interview step.</summary>
+    [HttpDelete("{id:guid}/interview-steps/{stepId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteInterviewStepAsync(
+        Guid id,
+        Guid stepId,
+        CancellationToken ct)
+    {
+        var step = await _db.InterviewSteps
+            .FirstOrDefaultAsync(s => s.Id == stepId && s.ApplicationId == id, ct);
+        if (step is null) return NotFound();
+
+        _db.InterviewSteps.Remove(step);
+
+        // Renumber remaining steps so they stay contiguous (1, 2, 3, …).
+        var remaining = await _db.InterviewSteps
+            .Where(s => s.ApplicationId == id && s.Id != stepId)
+            .OrderBy(s => s.StepNumber)
+            .ToListAsync(ct);
+
+        for (var i = 0; i < remaining.Count; i++)
+            remaining[i].Renumber(i + 1);
+
+        await _db.SaveChangesAsync(ct);
+        return NoContent();
+    }
+
     private static InterviewDrillResponse MapDrillToResponse(InterviewDrillPlan plan) =>
         new(
             plan.Id,

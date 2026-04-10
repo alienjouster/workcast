@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Workcast.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using Workcast.Infrastructure.Persistence;
 namespace Workcast.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410154244_AddInterviewSteps")]
+    partial class AddInterviewSteps
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -511,10 +514,6 @@ namespace Workcast.Infrastructure.Persistence.Migrations
                     b.Property<DateOnly?>("Date")
                         .HasColumnType("date")
                         .HasColumnName("date");
-
-                    b.Property<int?>("DurationMinutes")
-                        .HasColumnType("integer")
-                        .HasColumnName("duration_minutes");
 
                     b.Property<string>("Interviewers")
                         .IsRequired()
