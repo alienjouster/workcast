@@ -57,7 +57,7 @@ docker compose up --build
 
 The first build takes a few minutes. Then open the app on http://localhost:3000(http://localhost:3000)
 
-## 4. Import Community Board Configurations (or create your own)
+### 4. Import Community Board Configurations (or create your own)
 
 Pre-built scraper configurations for common job boards are available in the [`community-boards/`](community-boards/) folder. See [community-boards/README.md](community-boards/README.md) for import instructions and contribution guidelines.
 
