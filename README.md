@@ -55,7 +55,7 @@ cd docker
 docker compose up --build
 ```
 
-The first build takes a few minutes. Then open the app on http://localhost:3000(http://localhost:3000)
+The first build takes a few minutes. Then open the app on http://localhost:3000
 
 ### 4. Import Community Board Configurations (or create your own)
 
