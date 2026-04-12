@@ -264,6 +264,12 @@ function ImportForm({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="space-y-4">
+      {/* Info note */}
+      <p className="text-sm text-gray-500">
+        Ready-to-use scraper configurations for common job boards are available in the{' '}
+        <code className="bg-gray-100 px-1 rounded text-xs">/community-boards</code> folder of the repository.
+      </p>
+
       {/* File input */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
