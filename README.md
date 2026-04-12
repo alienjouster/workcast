@@ -9,11 +9,9 @@ Workcast is an AI-powered job board aggregation platform. Users register a job b
 | Tool | Minimum version | Purpose |
 |---|---|---|
 | [Docker Desktop](https://www.docker.com/products/docker-desktop/) | 4.x (Compose v2) | Runs all services |
-| [.NET SDK](https://dotnet.microsoft.com/download) | 10.0 | Local API development / EF migrations |
-| [Node.js](https://nodejs.org/) | 20 LTS | Local frontend development |
 | [Anthropic API key](https://console.anthropic.com/) | — | AI analysis, scoring, generation |
 
-Docker is the only hard requirement to **run** the stack. .NET SDK and Node.js are only needed if you want to develop or run migrations outside of Docker.
+[.NET SDK](https://dotnet.microsoft.com/download) and [Node.js](https://nodejs.org/) are also needed if you want to develop or run migrations outside of Docker.
 
 ---
 
@@ -28,8 +26,14 @@ cd workcast
 
 ### 2. Configure environment variables
 
+Linux:
 ```bash
 cp docker/.env.example docker/.env
+```
+
+Windows:
+```bash
+copy "docker\.env.example" "docker\.env"
 ```
 
 Open `docker/.env` and fill in your values:
@@ -42,7 +46,7 @@ POSTGRES_PASSWORD=changeme           # change this
 ANTHROPIC_API_KEY=sk-ant-...         # your Anthropic API key (required)
 ```
 
-The `ANTHROPIC_API_KEY` is required for board analysis, ad scoring, resume and letter generation. Get one at [platform.claude.com](https://platform.claude.com/).
+The `ANTHROPIC_API_KEY` is required for board analysis, ad scoring, resume and letter generation. Get one at [platform.claude.com](https://platform.claude.com/) and buy some credit.
 
 ### 3. Start the stack
 
@@ -51,17 +55,13 @@ cd docker
 docker compose up --build
 ```
 
-The first build takes a few minutes — it compiles the .NET API and downloads Playwright's Chromium binaries.
+The first build takes a few minutes. Then open the app on http://localhost:3000(http://localhost:3000)
 
-### 4. Open the app
+## 4. Import Community Board Configurations (or create your own)
 
-| Service | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
-| API / Swagger | http://localhost:8080/swagger |
-| Hangfire dashboard | http://localhost:8080/hangfire |
-| Prometheus | http://localhost:9090 |
-| Grafana | http://localhost:3001 (admin / admin) |
+Pre-built scraper configurations for common job boards are available in the [`community-boards/`](community-boards/) folder. See [community-boards/README.md](community-boards/README.md) for import instructions and contribution guidelines.
+
+---
 
 ---
 
@@ -132,12 +132,6 @@ The frontend expects the API at `http://localhost:8080` by default. Override wit
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8080 npm run dev
 ```
-
----
-
-## Community Board Configurations
-
-Pre-built scraper configurations for common job boards are available in the [`community-boards/`](community-boards/) folder. See [community-boards/README.md](community-boards/README.md) for import instructions and contribution guidelines.
 
 ---
 
