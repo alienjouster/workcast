@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "FIA",
+  "url": "https://careers.fia.com/",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "url_param",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "div.offers-item",
+    "fieldSelectors": {
+      "detailUrl": "a.read-more",
+      "title": "div.offers-title",
+      "company": null,
+      "location": null,
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": "p",
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 200,
+    "confidenceScore": 1,
+    "analyzerNotes": "FIA eRecruiting system with custom HTML structure. Job listings are contained in div.offers-item elements within a div.offers-list container. Each job has a title in div.offers-title, description paragraphs, and a detail link with class read-more. The detail URL uses ?page=advertisement_display&id=X format. No company, location, salary, or posting date fields are visible in the listing view. Pagination appears to use URL parameters based on the form structure and navigation links visible in the page. The site uses jQuery and Bootstrap, but job listings appear to be server-rendered without requiring JavaScript execution.",
+    "generatedAt": "2026-03-28T15:07:54.9276053+00:00"
+  }
+}

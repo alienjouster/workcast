@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Proton",
+  "url": "https://proton.me/careers#jobslist",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "article.rounded-2xl.bg-white.p-8.shadow-l",
+    "fieldSelectors": {
+      "detailUrl": "a[href*='greenhouse.io']",
+      "title": "h3.text-2xl",
+      "company": null,
+      "location": "div.mt-2.text-m",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.9,
+    "analyzerNotes": "The Proton careers page uses a React-based job listing component (JobsListSection) that renders job cards dynamically. Each job card is an article element with class 'rounded-2xl bg-white p-8 shadow-l'. The job title is in an h3 with class 'text-2xl', location is in a div with class 'mt-2 text-m', and the detail URL is an anchor tag linking to greenhouse.io. The department/category is shown in a badge with class 'inline-block rounded-md text-sm px-3 py-1 text-body bg-purple-200 font-bold'. There is no salary, posting date, or description snippet visible on the listing page. The company name is not shown per job (it's Proton for all). Jobs are filtered by tabs but all appear on a single page with no pagination. JavaScript is required to render the job listings.",
+    "generatedAt": "2026-03-13T14:29:06.3569966+00:00"
+  }
+}

@@ -21,6 +21,7 @@ import type {
   InterviewStep,
   CreateInterviewStepRequest,
   UpdateInterviewStepRequest,
+  BoardExchangeDto,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -108,6 +109,13 @@ export const api = {
       }),
     listRuns: (id: string, limit?: number) =>
       apiFetch<ScrapeRun[]>(`/api/job-boards/${id}/runs${limit ? `?limit=${limit}` : ''}`),
+    export: (id: string) =>
+      apiFetch<BoardExchangeDto>(`/api/job-boards/${id}/export`),
+    import: (data: BoardExchangeDto) =>
+      apiFetch<JobBoard>('/api/job-boards/import', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
   ads: {
     list: (params: {

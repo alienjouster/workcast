@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Audemars Piguet",
+  "url": "https://careers.audemarspiguet.com/en/job-listing?department=9026871&location=Le+Brassus%2CLe+Locle%2CMeyrin%2CTolochenaz%2CZ%C3%BCrich",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": ".ap-job-listing-item-wrapper",
+    "fieldSelectors": {
+      "detailUrl": "a.ap-job-listing-item",
+      "title": ".ap-job-listing-item__title",
+      "company": null,
+      "location": ".ap-job-listing-item__location",
+      "salaryRaw": null,
+      "postedAt": ".ap-job-listing-item__release-date",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.85,
+    "analyzerNotes": "Audemars Piguet careers site. Job listings are contained in .ap-job-listing-item-wrapper elements. Each job card contains a link (a.ap-job-listing-item) with href to the job detail page. The page shows \"3 of 71 job openings\" indicating filtering is active via URL parameters (department and location). The site appears to be a single-page application with JavaScript-driven filtering and search functionality. No traditional pagination controls are visible - the page likely loads all filtered results or uses infinite scroll. Company name is not displayed per job (it's Audemars Piguet for all). No salary information is shown. Posted date is in DD/MM/YYYY format. Department tags are shown but are part of the filter context. Employment type (Full-time, Part-time, etc.) is displayed. No external job ID is readily visible in the HTML structure.",
+    "generatedAt": "2026-03-20T16:43:37.1805111+00:00"
+  }
+}

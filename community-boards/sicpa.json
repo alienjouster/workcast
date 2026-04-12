@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "SICPA",
+  "url": "https://jobs.sicpa.com/search/?createNewAlert=false&q=&locationsearch=prilly&optionsFacetsDD_title=&optionsFacetsDD_location=&optionsFacetsDD_dept=",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "tr.data-row",
+    "fieldSelectors": {
+      "detailUrl": "a.jobTitle-link",
+      "title": "a.jobTitle-link",
+      "company": null,
+      "location": "span.jobLocation",
+      "salaryRaw": null,
+      "postedAt": "span.jobDate",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 1500,
+    "confidenceScore": 0.95,
+    "analyzerNotes": "SICPA SA job board using a table-based layout. Each job listing is a tr.data-row element within a table. The page shows \"Results 1 – 13 of 13\" with no pagination controls, indicating all results are on a single page. Job details include title (with link), department, location, and posting date. No salary information or description snippets are present. Company name is not shown per listing (it's SICPA SA for all). The site uses standard HTML table structure with semantic class names. No JavaScript appears required for initial rendering of job listings.",
+    "generatedAt": "2026-03-25T18:06:41.7515699+00:00"
+  }
+}

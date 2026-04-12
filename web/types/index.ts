@@ -324,6 +324,20 @@ export interface UpdateInterviewStepRequest {
   notes?: string | null;
 }
 
+/**
+ * Portable job board configuration used for community sharing via the /community-boards/ folder.
+ * Shape matches GET /api/job-boards/{id}/export and POST /api/job-boards/import.
+ * User-specific fields (id, status, timestamps, ad counts) are intentionally absent.
+ */
+export interface BoardExchangeDto {
+  schemaVersion: string;
+  name: string;
+  url: string;
+  scheduleCron: string;
+  /** Full scraper configuration including all selectors and pagination settings. */
+  scraperConfig: ScraperConfig;
+}
+
 export interface UpdateScraperConfigRequest {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;

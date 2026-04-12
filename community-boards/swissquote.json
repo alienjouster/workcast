@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Swissquote",
+  "url": "https://www.jobup.ch/fr/societes/1177-swissquote-bank-sa/emplois/",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "div[data-cy=\"serp-item\"]",
+    "fieldSelectors": {
+      "detailUrl": "a[data-cy=\"job-link\"]",
+      "title": "span.c_purple\\.900",
+      "company": null,
+      "location": "div.d_grid.ai_start.gap_s12.grid-tc_\\[auto_1fr\\]:has(span.icon.icon--iconSize_xxs:first-child) p.textStyle_caption1",
+      "salaryRaw": null,
+      "postedAt": "div[data-cy^=\"serp-item-\"] span.c_gray\\.700 p.textStyle_caption1",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 1500,
+    "confidenceScore": 0.9,
+    "analyzerNotes": "This is a company-specific job listing page on jobup.ch for Swissquote Bank SA showing 5 job postings. The page uses React rendering (requires JS). Each job card is wrapped in a div with data-cy=\"serp-item\". The company name is not displayed within individual job cards since this is a company-specific page. Location is extracted from the first grid item containing a location icon. Posted date is in the header section of each card. No salary information or description snippets are visible in the listing cards. No pagination is present - all 5 jobs are displayed on a single page. The site uses utility-first CSS classes making selectors somewhat verbose but stable via data-cy attributes and structural patterns.",
+    "generatedAt": "2026-03-27T18:13:02.0591491+00:00"
+  }
+}

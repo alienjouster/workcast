@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "FIM",
+  "url": "https://www.fim-moto.com/en/career",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "section.frame-type-textmedia",
+    "fieldSelectors": {
+      "detailUrl": null,
+      "title": "strong",
+      "company": null,
+      "location": null,
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": "p",
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 1500,
+    "confidenceScore": 0.65,
+    "analyzerNotes": "This is a simple career page with a single job listing embedded directly in the page content. The job listing is contained within a section.frame-type-textmedia element. The job title \"Event Assistant\" is in a strong tag. There is no structured job card layout - the entire job description is in a single content block with paragraphs. No company name is shown (it's the FIM organization itself). No location, salary, or posting date fields are explicitly marked. The description snippet selector points to paragraph tags, though this will capture all paragraphs in the section. There is no pagination - all jobs (currently just one) are on a single page. No detail URL links to individual job pages. The page appears to be static HTML rendered server-side, so JavaScript is not required. Confidence is moderate because the structure is very basic and not designed as a typical job board with multiple listings.",
+    "generatedAt": "2026-03-23T17:30:07.3420813+00:00"
+  }
+}

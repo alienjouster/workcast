@@ -1,3 +1,4 @@
+using Workcast.Api.DTOs.Exchange;
 using Workcast.Api.DTOs.Requests;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Core.Entities;
@@ -299,6 +300,98 @@ public static class MappingExtensions
                 .ToList(),
             Notes           = step.Notes,
             CreatedAt       = step.CreatedAt,
+        };
+    }
+
+    /// <summary>
+    /// Maps a <see cref="JobBoard"/> entity (which must have a non-null <see cref="JobBoard.ScraperConfig"/>)
+    /// to a portable <see cref="BoardExchangeDto"/> suitable for export or community sharing.
+    /// User-specific fields (id, status, ad counts, timestamps) are excluded.
+    /// </summary>
+    /// <param name="board">The board to export. Caller must ensure <c>ScraperConfig</c> is not null.</param>
+    /// <returns>A <see cref="BoardExchangeDto"/> containing only site-specific, shareable data.</returns>
+    public static BoardExchangeDto ToExchangeDto(this JobBoard board)
+    {
+        return new BoardExchangeDto
+        {
+            Name          = board.Name ?? board.Url,
+            Url           = board.Url,
+            ScheduleCron  = board.ScheduleCron,
+            ScraperConfig = board.ScraperConfig!.ToExchangeDto(),
+        };
+    }
+
+    /// <summary>
+    /// Maps a <see cref="ScraperConfig"/> domain model to a <see cref="ScraperConfigExchangeDto"/>.
+    /// </summary>
+    public static ScraperConfigExchangeDto ToExchangeDto(this ScraperConfig config)
+    {
+        return new ScraperConfigExchangeDto
+        {
+            PaginationType   = ToSnakeCase(config.PaginationType),
+            NextPageSelector = config.NextPageSelector,
+            UrlParamName     = config.UrlParamName,
+            UrlParamIsOffset = config.UrlParamIsOffset,
+            MaxPages         = config.MaxPages,
+            JobCardSelector  = config.JobCardSelector,
+            FieldSelectors   = new FieldSelectorMapExchangeDto
+            {
+                DetailUrl           = config.FieldSelectors.DetailUrl,
+                Title               = config.FieldSelectors.Title,
+                Company             = config.FieldSelectors.Company,
+                Location            = config.FieldSelectors.Location,
+                SalaryRaw           = config.FieldSelectors.SalaryRaw,
+                PostedAt            = config.FieldSelectors.PostedAt,
+                DescriptionSnippet  = config.FieldSelectors.DescriptionSnippet,
+                ExternalId          = config.FieldSelectors.ExternalId,
+            },
+            RequiresJs       = config.RequiresJs,
+            SuggestedDelayMs = config.SuggestedDelayMs,
+            ConfidenceScore  = config.ConfidenceScore,
+            AnalyzerNotes    = config.AnalyzerNotes,
+            GeneratedAt      = config.GeneratedAt,
+        };
+    }
+
+    /// <summary>
+    /// Maps a <see cref="ScraperConfigExchangeDto"/> from an import request to a <see cref="ScraperConfig"/>
+    /// domain model. The <c>PaginationType</c> string is parsed from snake_case to the enum value.
+    /// </summary>
+    /// <param name="dto">The exchange DTO to convert.</param>
+    /// <returns>A domain <see cref="ScraperConfig"/> ready to be passed to <c>JobBoard.Activate()</c>.</returns>
+    public static ScraperConfig ToScraperConfig(this ScraperConfigExchangeDto dto)
+    {
+        return new ScraperConfig
+        {
+            PaginationType = dto.PaginationType switch
+            {
+                "url_param"        => PaginationType.UrlParam,
+                "next_button"      => PaginationType.NextButton,
+                "infinite_scroll"  => PaginationType.InfiniteScroll,
+                "load_more_button" => PaginationType.LoadMoreButton,
+                _                  => PaginationType.None,
+            },
+            NextPageSelector = dto.NextPageSelector,
+            UrlParamName     = dto.UrlParamName,
+            UrlParamIsOffset = dto.UrlParamIsOffset,
+            MaxPages         = dto.MaxPages,
+            JobCardSelector  = dto.JobCardSelector,
+            FieldSelectors   = new FieldSelectorMap
+            {
+                DetailUrl           = dto.FieldSelectors.DetailUrl,
+                Title               = dto.FieldSelectors.Title,
+                Company             = dto.FieldSelectors.Company,
+                Location            = dto.FieldSelectors.Location,
+                SalaryRaw           = dto.FieldSelectors.SalaryRaw,
+                PostedAt            = dto.FieldSelectors.PostedAt,
+                DescriptionSnippet  = dto.FieldSelectors.DescriptionSnippet,
+                ExternalId          = dto.FieldSelectors.ExternalId,
+            },
+            RequiresJs       = dto.RequiresJs,
+            SuggestedDelayMs = dto.SuggestedDelayMs,
+            ConfidenceScore  = dto.ConfidenceScore,
+            AnalyzerNotes    = dto.AnalyzerNotes,
+            GeneratedAt      = dto.GeneratedAt == default ? DateTimeOffset.UtcNow : dto.GeneratedAt,
         };
     }
 

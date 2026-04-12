@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Skyguide",
+  "url": "https://jobs.skyguide.ch/search/?createNewAlert=false&q=&locationsearch=gen%C3%A8ve%2C+geneva&optionsFacetsDD_department=&optionsFacetsDD_location=",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "tr.data-row",
+    "fieldSelectors": {
+      "detailUrl": "a.jobTitle-link",
+      "title": "a.jobTitle-link",
+      "company": null,
+      "location": "span.jobLocation",
+      "salaryRaw": null,
+      "postedAt": "span.jobDate",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 1500,
+    "confidenceScore": 0.95,
+    "analyzerNotes": "Skyguide job board using a custom platform. Job listings are displayed in a table structure with class 'data-row' for each job. The pagination shows \"Results 1 – 4 of 4\" indicating all results are on a single page with no pagination mechanism. Each job card contains title with link, location, department (not company - this is a single employer site for Skyguide), and posting date. No salary information or description snippets are visible in the listing view. The site appears to be server-side rendered and does not require JavaScript for basic content display.",
+    "generatedAt": "2026-03-25T11:53:27.9236755+00:00"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Richemont",
+  "url": "https://careers.richemont.com/en/jobs/?search=&country=Switzerland&location=Bellevue&location=Le+Sentier&location=Geneva&location=Meyrin&team=Technology&pagesize=20#results",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": 1,
+    "jobCardSelector": "div.card.card-job",
+    "fieldSelectors": {
+      "detailUrl": "h2.card-title a",
+      "title": "h2.card-title a",
+      "company": "ul.job-meta li.list-inline-item:nth-child(1)",
+      "location": "ul.job-meta li.list-inline-item:nth-child(3)",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 1500,
+    "confidenceScore": 1,
+    "analyzerNotes": "The page displays all 17 matching jobs in a single page with no pagination controls visible (job count shows \"1 to 17 of 17\"). Each job card is a div.card.card-job with a data-id attribute holding the job reference (e.g. \"jr126863\"). The external_id can be read from the card's data-id attribute, but since field_selectors are CSS selectors for text/href content, it is noted here: use the attribute [data-id] on the card itself. The job-meta list has 3 items: company (1st), job function (2nd), location (3rd). The detail_url href is relative (e.g. /en/jobs/jr126863/...) and should be resolved against the base URL https://careers.richemont.com. No salary, posted date, or description snippet is present in the listing cards. The pagesize=20 URL param controls results per page but since all 17 results fit on one page, pagination_type is none.",
+    "generatedAt": "2026-04-01T21:08:13.251395+00:00"
+  }
+}

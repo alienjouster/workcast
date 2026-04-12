@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Anthropic",
+  "url": "https://www.anthropic.com/careers/jobs?office=4029282008",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": 1,
+    "jobCardSelector": "a.JobsPage-module-scss-module__8DFgsW__jobItem",
+    "fieldSelectors": {
+      "detailUrl": null,
+      "title": ".JobsPage-module-scss-module__8DFgsW__jobRole p.caption",
+      "company": null,
+      "location": ".JobsPage-module-scss-module__8DFgsW__jobLocation p.caption",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 200,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is Anthropic's careers page filtered by office location (Zürich). The page uses a collapsible team-based structure where jobs are grouped by department. Each job listing is an anchor tag with class 'JobsPage-module-scss-module__8DFgsW__jobItem' that links directly to Greenhouse (external ATS). The href attribute contains the full job detail URL to Greenhouse. Company name is not displayed (it's Anthropic's own site). No salary, posting date, or description snippets are shown. The page appears to use client-side filtering via dropdowns and search, suggesting JavaScript is required. External IDs could potentially be extracted from the Greenhouse URLs (e.g., '5135168008' from the href), but there's no direct selector for this within the job card itself. Pagination doesn't appear to be present - all jobs for the filtered location are shown on one page.",
+    "generatedAt": "2026-03-22T17:16:01.0685874+00:00"
+  }
+}

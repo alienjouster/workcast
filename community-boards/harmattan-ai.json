@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Harmattan AI",
+  "url": "https://www.harmattan.ai/open-roles",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "ul.jobs-list > li",
+    "fieldSelectors": {
+      "detailUrl": "a.job-card",
+      "title": "div.title",
+      "company": null,
+      "location": "div.tags div.tag:first-child",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 250,
+    "confidenceScore": 1,
+    "analyzerNotes": "Harmattan AI careers page with all job listings visible on a single page. Each job card is an <li> element within ul.jobs-list. The page uses Ashby ATS with external links to jobs.ashbyhq.com. Job cards contain location and department tags, with the first tag being the location. The page requires JavaScript to render the job listings. No pagination mechanism is present - all jobs are loaded on initial page load. Company name is not displayed on individual cards (it's Harmattan AI for all positions). No salary, posting date, or description snippets are shown on the listing page.",
+    "generatedAt": "2026-03-28T09:18:29.3165724+00:00"
+  }
+}

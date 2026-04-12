@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "CTS Data Center",
+  "url": "https://careers.cts-group.co/jobs?split_view=true&geobound_coordinates%5Btop_left_lat%5D=46.38666120813241&geobound_coordinates%5Btop_left_lon%5D=6.213192343711853&geobound_coordinates%5Bbottom_right_lat%5D=46.382849753915025&geobound_coordinates%5Bbottom_right_lon%5D=6.216282248497009&query=",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "ul#jobs_list_container > li",
+    "fieldSelectors": {
+      "detailUrl": "a",
+      "title": "a",
+      "company": "div.mt-1 span",
+      "location": "div.mt-1 span",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 4000,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is a Teamtailor-powered career site. The page shows 3 jobs (out of 56 total) filtered by map area. Job cards are in a ul#jobs_list_container with li elements. Each job has a title link and location/company info. The page uses JavaScript for rendering (data-controller attributes, Turbo frames). No pagination controls are visible on this filtered view - it shows \"3 jobs (out of 56)\" suggesting the full list would have pagination, but this specific map-filtered view shows all matching results on one page. The company field and location field both use the same selector (div.mt-1 span) and appear to show \"CTS Group HQ\" as the location. No salary, posting date, or description snippets are visible in the job cards.",
+    "generatedAt": "2026-03-22T10:31:14.3719975+00:00"
+  }
+}

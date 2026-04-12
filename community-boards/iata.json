@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "IATA",
+  "url": "https://iata.csod.com/ux/ats/careersite/1/home?c=iata&country=ch",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": ".p-panel.p-p-b-md > div > .p-panel.p-bg-white.p-p-md.p-bw-xs.p-bc-grey70.p-bs-solid.rounded-all",
+    "fieldSelectors": {
+      "detailUrl": "a.p-link",
+      "title": "a.p-link > p.p-text.p-f-sz-md.p-t-primary50.p-f-w-6",
+      "company": null,
+      "location": "p.p-text.p-f-sz-sm.p-t-default.p-f-w-n",
+      "salaryRaw": null,
+      "postedAt": "p.p-text.p-f-sz-xs.p-t-muted.p-f-w-n.p-t-wr-fw",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.85,
+    "analyzerNotes": "This is a Cornerstone OnDemand (CSOD) career site. The job listings are rendered dynamically with JavaScript. Each job card is wrapped in a panel with class 'p-panel p-p-b-md' containing a white background panel with the job details. The job title is a link with the detail URL in href attribute. Location is displayed below the title, and posting date is shown at the bottom. No salary information or description snippets are visible. Company name is not shown per job (it's IATA for all jobs on this site). No visible pagination controls in the HTML - all 10 jobs for Switzerland are displayed on a single page. The external_id could potentially be extracted from the detail URL (e.g., '/requisition/3411') but not from a direct selector on the card. Filters are available but appear to work via JavaScript without changing the URL structure.",
+    "generatedAt": "2026-03-21T10:28:48.4316401+00:00"
+  }
+}

@@ -4,12 +4,15 @@ Technical Specification Document
 
 |             |                                |
 |-------------|--------------------------------|
-| **Version** | 1.4                            |
+| **Version** | 1.5                            |
 | **Status**  | Updated — Post-Implementation  |
-| **Date**    | April 10, 2026                 |
+| **Date**    | April 12, 2026                 |
 | **Author**  | Solutions Architecture         |
 
 *CONFIDENTIAL — INTERNAL USE ONLY*
+
+> **Changelog — v1.5 (2026-04-12)**
+> Added community board sharing feature: import/export endpoints (section 6.2.1), `BoardExchangeDto` / `ScraperConfigExchangeDto` exchange DTOs, `/community-boards/` folder convention, and associated frontend UI (multi-file + multi-URL import queue, export button).
 
 > **Changelog — v1.4 (2026-04-10)**
 > Added InterviewStep entity (section 3.10), interview steps API endpoints (section 6.6.1), and Phase 12 implementation notes.
@@ -775,6 +778,45 @@ Note: The Playwright browser binary is bundled in the `playwright/dotnet` base i
 | DELETE /api/job-boards/{id}         | Delete board and cancel Hangfire job. Cascade deletes ads and runs.                                                                                      |
 | POST /api/job-boards/{id}/refresh   | Trigger an immediate scrape run (fire-and-forget Hangfire enqueue). Returns 202.                                                                         |
 | POST /api/job-boards/{id}/reanalyze | Trigger a new board analysis to regenerate scraper_config. Returns 202.                                                                                  |
+| GET /api/job-boards/{id}/export     | Export the board's scraper configuration as a portable `BoardExchangeDto` JSON file. Returns 400 if the board has no scraper config yet.                 |
+| POST /api/job-boards/import         | Import a board from a `BoardExchangeDto`. Creates the board as Active, registers the recurring Hangfire job, and enqueues an immediate first scrape. Returns 201. |
+
+**6.2.1 Community Board Sharing**
+
+Workcast supports sharing scraper configurations between users via a `/community-boards/` folder in the repository. Each file is a `BoardExchangeDto` JSON document that can be committed to the repo and shared via GitHub pull request.
+
+**Export flow**
+
+1. User clicks **Export config** on the board detail page (only shown when a scraper config exists).
+2. Frontend calls `GET /api/job-boards/{id}/export`.
+3. Backend maps the `JobBoard` entity to a `BoardExchangeDto`, sets `Content-Disposition: attachment`, and returns the JSON. User-specific fields (`id`, `status`, `lastScrapedAt`, `createdAt`, `updatedAt`, `adCount`) are excluded.
+4. Browser downloads the file as `{board-name}.json`.
+
+**Import flow**
+
+1. User clicks **+ Add Board** → **Import Boards** tab.
+2. User selects one or more local `.json` files and/or pastes one or more raw GitHub URLs (one per line) and clicks **Load**.
+3. Frontend parses/fetches all sources in parallel and displays a queue. Each entry shows name, URL, parse status, and a remove button.
+4. User reviews the queue and clicks **Import Boards**.
+5. Frontend calls `POST /api/job-boards/import` for every valid entry in parallel (`Promise.allSettled`).
+6. Backend validates the request, creates the `JobBoard` via `JobBoard.Create()`, calls `board.Activate(scraperConfig)`, persists, registers the recurring Hangfire scrape job, and enqueues an immediate first scrape (`TriggerSource.Manual`). Returns `201 Created`.
+7. After all requests settle, the `job-boards` TanStack Query cache is invalidated once. The form closes only if every entry succeeded; otherwise it stays open showing per-item errors.
+
+**`BoardExchangeDto` shape**
+
+| Field | Type | Notes |
+|---|---|---|
+| `schemaVersion` | string | Currently `"1"`. Import rejects unknown versions with 400. |
+| `name` | string | Board display name. |
+| `url` | string | Canonical seed URL. |
+| `scheduleCron` | string | Suggested scrape schedule. Importer uses it as-is; user can change it afterwards. |
+| `scraperConfig` | `ScraperConfigExchangeDto` | Full scraper configuration (see below). |
+
+**`ScraperConfigExchangeDto` shape** — mirrors `ScraperConfig` exactly and is used for both import and export (round-trip safe). Contains all pagination fields (`paginationType`, `nextPageSelector`, `urlParamName`, `urlParamIsOffset`, `maxPages`), all selector fields (`jobCardSelector`, `fieldSelectors.*`), all behaviour fields (`requiresJs`, `suggestedDelayMs`), and AI metadata (`confidenceScore`, `analyzerNotes`, `generatedAt`). AI metadata is informational and not required for a successful import.
+
+**Community folder**
+
+The `/community-boards/` folder at the repository root holds community-contributed configs. The default URL pre-filled in the import UI points to `community-boards/example.json` in the `alienjouster/workcast` repository on GitHub so new users can verify the import flow without manually finding a file.
 
 **6.3 Job Ads Endpoints**
 

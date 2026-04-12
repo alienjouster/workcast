@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Nvidia",
+  "url": "https://jobs.nvidia.com/careers?start=0&location=Z%C3%BCrich%2C++ZH%2C++Switzerland&pid=893392819501&sort_by=distance&filter_distance=160&filter_include_remote=1",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "next_button",
+    "nextPageSelector": "button.pagination-module_pagination-next__OHCf9:not(.button-module_disabled__c0pm5)",
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "div.cardContainer-GcY1a[data-test-id=\"job-listing\"]",
+    "fieldSelectors": {
+      "detailUrl": "a.card-F1ebU",
+      "title": "div.title-1aNJK",
+      "company": null,
+      "location": "div.fieldsContainer-3Jtts div.fieldValue-3kEar:has(+ div.fieldsContainer-3Jtts)",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": "div.fieldsContainer-3Jtts:first-child div.fieldValue-3kEar"
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.85,
+    "analyzerNotes": "NVIDIA careers site using a custom React-based job board. Job cards are clearly identified with data-test-id=\"job-listing\". The external_id is the job requisition number (e.g., JR2007151) displayed in the first fieldValue element. Location is in the second fieldsContainer. Pagination uses a \"Next\" button that becomes disabled on the last page. The site requires JavaScript to render content. No company name is shown on cards (it's NVIDIA throughout). No salary, posted date, or description snippet visible on cards. The URL contains a \"start\" parameter but pagination appears to work via the Next button rather than URL manipulation.",
+    "generatedAt": "2026-03-25T13:20:51.9760134+00:00"
+  }
+}

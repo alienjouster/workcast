@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Trafigura",
+  "url": "https://trafigura.wd3.myworkdayjobs.com/TrafiguraCareerSite?locationCountry=187134fccb084a0ea9b4b95f23890dbe&jobFamily=1c43e50354184dd59e50b826df45417d",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "infinite_scroll",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "li.css-1q2dra3",
+    "fieldSelectors": {
+      "detailUrl": "a[data-automation-id='jobTitle']",
+      "title": "a[data-automation-id='jobTitle']",
+      "company": null,
+      "location": "[data-automation-id=\"locations\"] dd",
+      "salaryRaw": null,
+      "postedAt": "[data-automation-id=\"postedOn\"] dd",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is a Workday-based job board (myworkdayjobs.com domain). The HTML shows only a React root div (#root), indicating the entire page is rendered client-side with JavaScript. Based on typical Workday job board structure, job listings are rendered as list items with data-automation-id attributes. Common selectors include: job cards as 'li[data-automation-id=\"compositeContainer\"]', job titles as 'a[data-automation-id=\"jobTitle\"]', locations as 'dd[data-automation-id=\"location\"]', and posted dates as 'dd[data-automation-id=\"postedOn\"]'. Workday boards typically use infinite scroll pagination. Company name is usually not displayed per job card since it's a single-company career site (Trafigura). Salary information is rarely shown on Workday boards. A 2-second delay is recommended to allow for JavaScript rendering and API calls.",
+    "generatedAt": "2026-03-21T13:35:27.0496351+00:00"
+  }
+}

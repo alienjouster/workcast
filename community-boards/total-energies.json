@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Total Energies",
+  "url": "https://jobs.totalenergies.com/fr_FR/careers/SearchJobs/?3834=%5B41579%5D&3834_format=3639&listFilterMode=1&jobRecordsPerPage=20&",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": ".article.article--result",
+    "fieldSelectors": {
+      "detailUrl": ".article__header__text__title a.link",
+      "title": ".article__header__text__title a.link",
+      "company": ".list-item-jobEmployerCompany",
+      "location": ".list-item-jobCountry",
+      "salaryRaw": null,
+      "postedAt": ".list-item-jobCreationDate",
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.9,
+    "analyzerNotes": "TotalEnergies job board using Avature platform. Job cards are clearly structured with class 'article--result'. Each card contains title with link, company name, location (country), employment type, and posting date. No salary information or description snippets are displayed. The page shows \"12 résultats\" with all results on a single page (page 1 in 1), indicating no pagination. The site uses heavy JavaScript (Select2, autocomplete fields, etc.) for filters and dynamic content. External job IDs could potentially be extracted from the href URLs (e.g., /JobDetail/*/78136) but not directly from the card HTML structure. Employment type is available via .list-item-jobEmploymentType selector.",
+    "generatedAt": "2026-03-21T10:39:05.0777651+00:00"
+  }
+}

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Workcast.Api.DTOs.Exchange;
 using Workcast.Api.DTOs.Requests;
 using Workcast.Api.DTOs.Responses;
 using Workcast.Api.Mapping;
@@ -376,6 +377,103 @@ public sealed class JobBoardsController : ControllerBase
     }
 
     /// <summary>
+    /// Exports the scraper configuration for a job board as a portable JSON file.
+    /// The response is a <see cref="BoardExchangeDto"/> that can be committed to the
+    /// <c>/community-boards/</c> folder and shared via GitHub pull request.
+    /// </summary>
+    /// <param name="id">The job board identifier.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpGet("{id:guid}/export")]
+    [ProducesResponseType(typeof(BoardExchangeDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ExportAsync(Guid id, CancellationToken ct)
+    {
+        var board = await _db.JobBoards.FindAsync(new object[] { id }, ct);
+
+        if (board is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}not-found",
+                title: "Not Found",
+                statusCode: StatusCodes.Status404NotFound,
+                detail: $"Job board '{id}' was not found.");
+        }
+
+        if (board.ScraperConfig is null)
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}no-scraper-config",
+                title: "No Scraper Configuration",
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: "This board has no scraper configuration yet. Wait for board analysis to complete before exporting.");
+        }
+
+        var dto = board.ToExchangeDto();
+        var filename = SanitizeFilename(board.Name ?? board.Url) + ".json";
+
+        Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{filename}\"");
+        return Ok(dto);
+    }
+
+    /// <summary>
+    /// Imports a job board from a portable <see cref="BoardExchangeDto"/> exchange file.
+    /// The board is created immediately in the <see cref="BoardStatus.Active"/> state — no AI
+    /// analysis is triggered because the scraper configuration is already supplied.
+    /// </summary>
+    /// <param name="request">The board exchange DTO, typically loaded from a community-boards JSON file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    [HttpPost("import")]
+    [ProducesResponseType(typeof(JobBoardResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ImportAsync(
+        [FromBody] ImportJobBoardRequest request,
+        CancellationToken ct)
+    {
+        var validPaginationTypes = new[] { "url_param", "next_button", "infinite_scroll", "load_more_button", "none" };
+        if (!validPaginationTypes.Contains(request.ScraperConfig.PaginationType))
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}invalid-pagination-type",
+                title: "Invalid Pagination Type",
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"'{request.ScraperConfig.PaginationType}' is not a valid pagination type. Valid values: {string.Join(", ", validPaginationTypes)}.");
+        }
+
+        var knownVersions = new[] { "1" };
+        if (!knownVersions.Contains(request.SchemaVersion))
+        {
+            return Problem(
+                type: $"{ERROR_TYPE_BASE}unsupported-schema-version",
+                title: "Unsupported Schema Version",
+                statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Schema version '{request.SchemaVersion}' is not supported by this installation. Supported versions: {string.Join(", ", knownVersions)}.");
+        }
+
+        var board = JobBoard.Create(request.Url, request.Name, request.ScheduleCron);
+        board.Activate(request.ScraperConfig.ToScraperConfig());
+        _db.JobBoards.Add(board);
+        await _db.SaveChangesAsync(ct);
+
+        // Register the recurring Hangfire scrape job now that the board is Active.
+        var jobId = $"scrape-{board.Id}";
+        _scheduler.AddOrUpdateRecurring<ScrapeJobRunner>(
+            jobId,
+            j => j.ExecuteAsync(board.Id, TriggerSource.Scheduler, null!, CancellationToken.None),
+            board.ScheduleCron);
+
+        // Trigger an immediate first scrape so the board starts populating ads right away.
+        _scheduler.Enqueue<ScrapeJobRunner>(j => j.ExecuteAsync(board.Id, TriggerSource.Manual, null!, CancellationToken.None));
+
+        _logger.LogInformation("Imported job board {BoardId} ({Name}) from exchange file, initial scrape enqueued.", board.Id, board.Name);
+
+        return CreatedAtAction(
+            nameof(GetAsync)[..^"Async".Length],
+            new { id = board.Id },
+            board.ToResponse(adCount: 0, includeScraperConfig: true));
+    }
+
+    /// <summary>
     /// Returns the scrape run history for a specific job board, newest first.
     /// </summary>
     /// <param name="id">The job board identifier.</param>
@@ -408,6 +506,17 @@ public sealed class JobBoardsController : ControllerBase
             .ToListAsync(ct);
 
         return Ok(runs.Select(r => r.ToResponse()).ToList());
+    }
+
+    /// <summary>
+    /// Produces a safe filename stem from a board name or URL by replacing characters
+    /// that are invalid in filenames with hyphens and trimming the result.
+    /// </summary>
+    private static string SanitizeFilename(string input)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = new string(input.Select(c => invalid.Contains(c) || c == ' ' ? '-' : c).ToArray());
+        return sanitized.Trim('-').ToLowerInvariant();
     }
 
     /// <summary>

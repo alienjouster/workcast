@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Sonar",
+  "url": "https://jobs.lever.co/sonarsource?location=Geneva",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": ".posting",
+    "fieldSelectors": {
+      "detailUrl": "a.posting-title",
+      "title": "a.posting-title h5",
+      "company": null,
+      "location": ".sort-by-location.posting-category.small-category-label.location",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 1000,
+    "confidenceScore": 0.95,
+    "analyzerNotes": "Lever.co job board for Sonar (sonarsource). Job cards are clearly structured with class 'posting'. Each posting contains a title link (a.posting-title) with an h5 for the title text, and the href provides the detail URL. Location is in a span with classes 'sort-by-location posting-category small-category-label location'. Work type (commitment) is also available via 'sort-by-commitment' class. Company name is not displayed in individual job cards (it's Sonar/SonarSource for all listings). No salary, posting date, or description snippets are visible. No external ID is readily extractable from the HTML structure. Pagination appears to use URL parameters for filtering (location, department, team, commitment, workplaceType) but all jobs for the filtered location appear on a single page with no pagination controls visible. The page uses filter dropdowns but does not appear to have multi-page navigation.",
+    "generatedAt": "2026-03-20T16:53:18.5156434+00:00"
+  }
+}

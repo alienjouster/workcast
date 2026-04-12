@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Logitech",
+  "url": "https://logitech.wd5.myworkdayjobs.com/fr-CA/Logitech?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "infinite_scroll",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "[data-automation-id=\"jobResults\"] li",
+    "fieldSelectors": {
+      "detailUrl": "a[data-automation-id=\"jobTitle\"]",
+      "title": "a[data-automation-id=\"jobTitle\"]",
+      "company": null,
+      "location": "[data-automation-id=\"locations\"] dd",
+      "salaryRaw": null,
+      "postedAt": "[data-automation-id=\"postedOn\"] dd",
+      "descriptionSnippet": null,
+      "externalId": "[data-automation-id=\"subtitle\"] li"
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 500,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is a Workday-based job board (logitech.wd5.myworkdayjobs.com). The HTML provided shows only the initial page shell with an empty #root div, indicating the content is rendered entirely via JavaScript. \n\nBased on typical Workday ATS structure, job listings are usually rendered as list items with data-automation-id=\"compositeContainer\". Field selectors are based on common Workday patterns:\n- Job titles typically use a[data-automation-id=\"jobTitle\"]\n- Locations use dd[data-automation-id=\"locations\"]\n- Posted dates use dd[data-automation-id=\"postedOn\"]\n\nCompany name is set to null as Workday career sites typically show only the host company (Logitech) and don't display it per job card.\n\nPagination is typically infinite scroll on Workday platforms.\n\nConfidence score is 0.6 because the HTML provided does not contain the actual rendered job listing markup - only the initial page shell. The selectors are based on standard Workday patterns but cannot be verified against the actual DOM structure without JavaScript execution. A live inspection of the rendered page would be needed to confirm these selectors and adjust if this Workday tenant uses custom data-automation-id values.",
+    "generatedAt": "2026-03-22T11:09:29.6404073+00:00"
+  }
+}

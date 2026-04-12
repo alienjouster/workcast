@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Example Job Board",
+  "url": "https://example-jobs.com/careers",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "url_param",
+    "jobCardSelector": ".job-card",
+    "fieldSelectors": {
+      "detailUrl": "a.job-link",
+      "title": ".job-title",
+      "company": ".company-name",
+      "location": ".job-location",
+      "salaryRaw": ".salary",
+      "postedAt": ".posted-date",
+      "descriptionSnippet": ".job-summary",
+      "externalId": null
+    },
+    "nextPageSelector": null,
+    "urlParamName": "page",
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "requiresJs": false,
+    "suggestedDelayMs": 1000,
+    "confidenceScore": 0.0,
+    "analyzerNotes": "This is an example configuration file for testing the import feature. Replace with a real board configuration.",
+    "generatedAt": "2026-04-12T00:00:00Z"
+  }
+}

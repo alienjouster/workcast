@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Rolex",
+  "url": "https://www.carrieres-rolex.com/Rolex/go/Toutes-nos-offres-Rolex/2901501?q=&department=Syst%C3%A8mes+d%E2%80%99information&facility=Gen%C3%A8ve&shifttype=",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "tr.data-row",
+    "fieldSelectors": {
+      "detailUrl": "a.jobTitle-link",
+      "title": "a.jobTitle-link",
+      "company": null,
+      "location": "span.jobFacility",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": false,
+    "suggestedDelayMs": 500,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is a Rolex careers job board powered by SuccessFactors. Job listings are displayed in a table format with each job as a row (tr.data-row). The page shows 19 results with pagination indicating \"Page 1 sur 1\", meaning all results fit on one page with no pagination needed. The company name is not displayed per job (it's always Rolex), and there are no salary, posting date, or description snippet fields visible in the listing. The location (Genève) and department (Systèmes d'information) are shown. Job URLs can be extracted from the href attribute of a.jobTitle-link elements. The site uses filters rather than traditional pagination. No JavaScript appears to be required for basic scraping as the job data is present in the initial HTML.",
+    "generatedAt": "2026-03-28T15:35:27.047301+00:00"
+  }
+}

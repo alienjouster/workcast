@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Google",
+  "url": "https://www.google.com/about/careers/applications/jobs/results?location=Switzerland",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "next_button",
+    "nextPageSelector": "a.WpHeLc.VfPpkd-mRLv6[href*=\"page=\"]",
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "li.lLd3Je",
+    "fieldSelectors": {
+      "detailUrl": "a.WpHeLc",
+      "title": "h3.QJPWVe",
+      "company": "span.RP7SMd span",
+      "location": "span.pwO9Dc span.r0wTof",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": "div.Xsxa1e",
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 500,
+    "confidenceScore": 1,
+    "analyzerNotes": "Google Careers job board. Each job is in an li.lLd3Je element. The page uses JavaScript rendering. Pagination is via a next button with href containing page parameter (e.g., page=2). The next button is nested inside a button element with class VfPpkd-Bz112c-LgbsSe, and the actual link is in an anchor with class WpHeLc VfPpkd-mRLv6. Company name is within span.RP7SMd span. Location is in span.pwO9Dc span.r0wTof (primary location). Detail URL is in a.WpHeLc with href attribute. No salary or posted date visible. Description snippet is in div.Xsxa1e (minimum qualifications section).",
+    "generatedAt": "2026-03-25T08:15:56.2760982+00:00"
+  }
+}

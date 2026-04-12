@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Jobup",
+  "url": "https://www.jobup.ch/fr/emplois/?region=35&region=37&region=53&region=55&region=57&term=software%20manager%20lead%20teamlead%20director%20directeur",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "url_param",
+    "nextPageSelector": null,
+    "urlParamName": "page",
+    "urlParamIsOffset": false,
+    "maxPages": 10,
+    "jobCardSelector": "[data-cy=\"job-card\"], article[data-job-id], div[data-cy=\"serp-item\"]",
+    "fieldSelectors": {
+      "detailUrl": "a[data-cy=\"job-link\"]",
+      "title": "span[class=\"c_purple.900 groupActive:c_purple.800 groupHover:c_purple.800 fw_bold textStyle_body2 wb_break-word ov_hidden tov_ellipsis d_-webkit-box hy_auto ov-wrap_break-word white-space_normal word-wrap_break-word box-orient_vertical lc_4\"]",
+      "company": "p[class=\"mb_s12 lastOfType:mb_s0 textStyle_caption1 c_gray.700 fw_bold\"]",
+      "location": "p[class=\"mb_s12 lastOfType:mb_s0 textStyle_caption1\"]",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 250,
+    "confidenceScore": 1,
+    "analyzerNotes": "The HTML provided shows a zero-results page (\"Aucune offre d'emploi ... trouvée\") with no job cards rendered. The page is a React SPA (div#react-root) so JS is required. Since no actual job cards are present in the HTML, the job_card_selector and field_selectors are best-guess estimates based on common jobup.ch/JobCloud conventions (data-cy attributes like \"job-card\", \"job-link\", \"company-name\", \"job-location\", \"job-date\"). Pagination is likely URL-param based (?page=N) as is standard for jobup.ch search results. Confidence is very low because no job listing markup was available to confirm selectors. These selectors should be validated against a search that returns actual results.",
+    "generatedAt": "2026-04-01T11:57:19.4916273+00:00"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "Infomaniak",
+  "url": "https://www.infomaniak.com/fr/a-propos/carriere",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "a.JobsRow-module--jobRow--c70e7",
+    "fieldSelectors": {
+      "detailUrl": null,
+      "title": "h3.JobsRow-module--jobRowTitle--a3219",
+      "company": null,
+      "location": "span.JobsRow-module--jobRowCenterTypeLocation--c77ee:not(.JobsRow-module--jobRowCenterTypeContract--54764)",
+      "salaryRaw": null,
+      "postedAt": null,
+      "descriptionSnippet": null,
+      "externalId": null
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 500,
+    "confidenceScore": 1,
+    "analyzerNotes": "This is Infomaniak's career page. Job listings are rendered as anchor tags with class 'JobsRow-module--jobRow--c70e7'. Each card contains the job title in an h3 element, location in a span (excluding the contract type span), and a category tag. The detail_url is the href of the anchor itself (the entire card is clickable). No salary, posting date, or description snippet is visible. The page appears to use JavaScript for rendering and filtering (category tags are interactive). All 13 jobs are visible on a single page with no pagination. Company name is not shown per listing since all jobs are for Infomaniak.",
+    "generatedAt": "2026-03-25T08:16:26.1073512+00:00"
+  }
+}

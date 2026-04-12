@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { CreateJobBoardRequest, UpdateJobBoardRequest, UpdateScraperConfigRequest } from '@/types';
+import type { BoardExchangeDto, CreateJobBoardRequest, UpdateJobBoardRequest, UpdateScraperConfigRequest } from '@/types';
 
 export function useJobBoards() {
   return useQuery({
@@ -82,5 +82,33 @@ export function useReanalyzeBoard() {
   return useMutation({
     mutationFn: (id: string) => api.boards.reanalyze(id),
     onSuccess: (_data, id) => qc.invalidateQueries({ queryKey: ['job-boards', id] }),
+  });
+}
+
+/**
+ * Returns a callback that fetches the export DTO for a board and triggers a browser
+ * file download. No persistent cache entry is needed — the download is one-shot.
+ */
+export function useExportBoard() {
+  return async (id: string, boardName: string) => {
+    const dto = await api.boards.export(id);
+    const json = JSON.stringify(dto, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${boardName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+}
+
+export function useImportBoard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: BoardExchangeDto) => api.boards.import(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['job-boards'] }),
   });
 }
