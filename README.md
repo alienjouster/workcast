@@ -63,8 +63,6 @@ Pre-built scraper configurations for common job boards are available in the [`co
 
 ---
 
----
-
 ## Services
 
 The stack runs six Docker containers:
