@@ -435,22 +435,22 @@ export function SettingsClient() {
                 {
                   label: 'Grafana',
                   description: 'Backend metrics dashboards — HTTP, jobs, .NET process, PostgreSQL',
-                  href: process.env.NEXT_PUBLIC_GRAFANA_URL,
+                  href: process.env.NEXT_PUBLIC_GRAFANA_URL || 'http://localhost:3001',
                 },
                 {
                   label: 'Prometheus',
                   description: 'Raw metrics explorer and scrape target status',
-                  href: process.env.NEXT_PUBLIC_PROMETHEUS_URL,
+                  href: process.env.NEXT_PUBLIC_PROMETHEUS_URL || 'http://localhost:9090',
                 },
                 {
                   label: 'Swagger',
                   description: 'Interactive REST API documentation and request tester',
-                  href: process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/swagger` : undefined,
+                  href: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/swagger`,
                 },
                 {
                   label: 'Hangfire',
                   description: 'Background job queue monitoring and management',
-                  href: process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/hangfire` : undefined,
+                  href: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/hangfire`,
                 },
               ].map(({ label, description, href }) => (
                 <tr key={label} className="border-t border-gray-100 hover:bg-gray-50">

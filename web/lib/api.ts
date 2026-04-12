@@ -186,7 +186,7 @@ export const api = {
     get: (id: string) => apiFetch<ScrapeRun>(`/api/runs/${id}`),
   },
   status: {
-    get: () => apiFetch<{ isProcessing: boolean; unreadCount: number }>('/api/status'),
+    get: () => apiFetch<{ isProcessing: boolean; unreadCount: number; aiKeyError: string | null }>('/api/status'),
   },
   scoring: {
     get: (adId: string) => apiFetch<AdScoring>(`/api/job-ads/${adId}/scoring`),

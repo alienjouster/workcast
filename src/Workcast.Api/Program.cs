@@ -1,9 +1,13 @@
+using System.Text.Json;
 using Hangfire;
 using Hangfire.Dashboard;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Prometheus;
 using Workcast.Core.Enums;
 using Workcast.Infrastructure;
+using Workcast.Infrastructure.AI;
+using Workcast.Infrastructure.AI.Options;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
 
@@ -36,6 +40,54 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+}
+
+// Validate the Anthropic API key by calling a minimal prompt on the cheapest Haiku model.
+// The result is stored in the AnthropicHealthState singleton and surfaced via GET /api/status.
+{
+    var healthState = app.Services.GetRequiredService<AnthropicHealthState>();
+    var anthropicOptions = app.Services.GetRequiredService<IOptions<AnthropicOptions>>().Value;
+
+    try
+    {
+        using var pingClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        pingClient.DefaultRequestHeaders.Add("x-api-key", anthropicOptions.ApiKey);
+        pingClient.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+
+        var payload = new
+        {
+            model = "claude-haiku-4-5-20251001",
+            max_tokens = 5,
+            messages = new[] { new { role = "user", content = "hi" } },
+        };
+
+        var response = await pingClient.PostAsJsonAsync("https://api.anthropic.com/v1/messages", payload);
+
+        if (response.IsSuccessStatusCode)
+        {
+            healthState.SetHealthy();
+        }
+        else
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            var errorMessage = $"HTTP {(int)response.StatusCode}";
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("error", out var err) &&
+                    err.TryGetProperty("message", out var msg))
+                {
+                    errorMessage = msg.GetString() ?? errorMessage;
+                }
+            }
+            catch { /* keep the HTTP status fallback */ }
+            healthState.SetError(errorMessage);
+        }
+    }
+    catch (Exception ex)
+    {
+        healthState.SetError(ex.Message);
+    }
 }
 
 app.UseSwagger();

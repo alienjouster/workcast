@@ -20,3 +20,12 @@ export function useUnreadCount() {
     select: (data) => data.unreadCount,
   });
 }
+
+export function useAiKeyError() {
+  return useQuery({
+    queryKey: ['status'],
+    queryFn: () => api.status.get(),
+    refetchInterval: 10_000,
+    select: (data) => data.aiKeyError,
+  });
+}

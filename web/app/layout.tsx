@@ -6,6 +6,7 @@ import { NavJobAdsLink } from '@/components/ui/NavJobAdsLink';
 import { SSEProvider } from '@/components/ui/SSEProvider';
 import { WorkcastLogo } from '@/components/ui/WorkcastLogo';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { AnthropicKeyBanner } from '@/components/ui/AnthropicKeyBanner';
 
 export const metadata: Metadata = {
   title: 'Workcast',
@@ -56,6 +57,7 @@ export default function RootLayout({
               </div>
             </div>
           </nav>
+          <AnthropicKeyBanner />
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
           </main>

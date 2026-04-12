@@ -80,6 +80,9 @@ public static class DependencyInjection
         services.Configure<AnthropicOptions>(
             configuration.GetSection(AnthropicOptions.SectionName));
 
+        // Holds the result of the startup API key health check.
+        services.AddSingleton<AnthropicHealthState>();
+
         // HttpClient for Claude API — base address and auth header configured here.
         services.AddHttpClient<ClaudeAiProvider>((sp, client) =>
         {
