@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import {
@@ -11,6 +11,7 @@ import {
   useUploadResumeTemplate,
   useDeleteResumeTemplate,
 } from '@/lib/hooks/useSettings';
+import { notificationsEnabled, setNotificationsEnabled } from '@/lib/hooks/useNotifications';
 
 const MODEL_INFO: Record<string, string> = {
   'claude-haiku-4-5-20251001': 'Fastest & cheapest',
@@ -51,6 +52,30 @@ export function SettingsClient() {
   const [tokenDraft, setTokenDraft] = useState(0);
 
   const [copied, setCopied] = useState(false);
+
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>('default');
+
+  useEffect(() => {
+    setNotifEnabled(notificationsEnabled());
+    if (typeof Notification !== 'undefined') {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  async function toggleNotifications() {
+    if (notifEnabled) {
+      setNotificationsEnabled(false);
+      setNotifEnabled(false);
+    } else {
+      const permission = await Notification.requestPermission();
+      setNotifPermission(permission);
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        setNotifEnabled(true);
+      }
+    }
+  }
 
   function copyMcpUrl() {
     navigator.clipboard.writeText(MCP_URL).then(() => {
@@ -475,6 +500,40 @@ export function SettingsClient() {
           <p className="mt-2 text-xs text-gray-400">
             Use this URL when adding Workcast as an MCP server in Claude Code (<code className="bg-gray-100 px-1 rounded">.mcp.json</code>) or Claude Desktop (<code className="bg-gray-100 px-1 rounded">claude_desktop_config.json</code>).
           </p>
+        </CardBody>
+      </Card>
+
+      {/* Notifications */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-gray-900">Notifications</h2>
+        </CardHeader>
+        <CardBody>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Enable desktop notifications</p>
+              <p className="text-sm text-gray-500 mt-0.5">Get notified when new job ads are scraped, even when the tab is not focused.</p>
+            </div>
+            <button
+              onClick={toggleNotifications}
+              disabled={notifPermission === 'denied'}
+              title={notifPermission === 'denied' ? 'Notifications blocked by browser' : undefined}
+              className={`relative shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+                notifEnabled ? 'bg-indigo-600' : 'bg-gray-200'
+              } ${notifPermission === 'denied' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                  notifEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          {notifPermission === 'denied' && (
+            <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              Notifications are blocked by your browser. Allow them in your browser&apos;s site settings to enable this feature.
+            </p>
+          )}
         </CardBody>
       </Card>
 

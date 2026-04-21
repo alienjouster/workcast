@@ -180,7 +180,7 @@ public sealed class ScrapeJobRunner
             if (counters.AdsNew > 0)
             {
                 var unreadCount = await _dbContext.JobAds
-                    .CountAsync(a => !a.IsRead && a.IsActive, CancellationToken.None)
+                    .CountAsync(a => !a.IsRead && !a.IsTrashed, CancellationToken.None)
                     .ConfigureAwait(false);
 
                 await _broadcaster.PublishAsync(new WorkcastEvent
