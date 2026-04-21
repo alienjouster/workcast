@@ -4,12 +4,15 @@ Technical Specification Document
 
 |             |                                |
 |-------------|--------------------------------|
-| **Version** | 1.5                            |
+| **Version** | 1.6                            |
 | **Status**  | Updated — Post-Implementation  |
-| **Date**    | April 12, 2026                 |
+| **Date**    | April 21, 2026                 |
 | **Author**  | Solutions Architecture         |
 
 *CONFIDENTIAL — INTERNAL USE ONLY*
+
+> **Changelog — v1.6 (2026-04-21)**
+> Added embedded MCP server: `WorkcastMcpTools` with 8 tools (section 6.10), `ModelContextProtocol.AspNetCore 1.2.0` package, `.mcp.json` config, MCP Server card in the Settings UI. Section renumbering: Error Response Format → 6.11.
 
 > **Changelog — v1.5 (2026-04-12)**
 > Added community board sharing feature: import/export endpoints (section 6.2.1), `BoardExchangeDto` / `ScraperConfigExchangeDto` exchange DTOs, `/community-boards/` folder convention, and associated frontend UI (multi-file + multi-URL import queue, export button).
@@ -119,6 +122,7 @@ The platform is composed of six Docker services communicating over a private net
 │                      │  │   AI Extraction / Scoring Service │  │   │
 │                      │  │   Resume / Letter Generation      │  │   │
 │                      │  │   HangfireMetricsService          │  │   │
+│                      │  │   MCP Server (/mcp)               │  │   │
 │                      │  └───────────────────────────────────┘  │   │
 │                      └──────────────┬───────────────────────────┘   │
 │                                     │                              │
@@ -154,6 +158,7 @@ The platform is composed of six Docker services communicating over a private net
 | API Documentation  | Swashbuckle / Swagger UI                       |
 | Real-Time Events   | Server-Sent Events (SSE)                       |
 | Metrics            | Prometheus + Grafana (provisioned dashboards)  |
+| MCP Server         | ModelContextProtocol.AspNetCore 1.2.0          |
 
 **2.3 Solution Structure**
 
@@ -959,7 +964,34 @@ Note: The `/api/job-ads/{id}/note` endpoint was removed. The `/api/job-ads/unrea
 
 Note: `unread_count` was merged into `/api/status` (previously a separate `/api/job-ads/unread-count` endpoint).
 
-**6.10 Error Response Format**
+**6.10 MCP Server**
+
+The API embeds a Model Context Protocol (MCP) server mounted at `POST /mcp` using the Streamable HTTP transport (MCP spec 2025-03-26). It allows Claude Code or Claude Desktop to connect directly to the user's local Workcast instance and query or act on job search data using natural language.
+
+**Package:** `ModelContextProtocol.AspNetCore 1.2.0` — registered in DI via `AddWorkcastMcp()`, mounted via `MapMcp("/mcp")`.
+
+**Connection:** A `.mcp.json` file at the repository root pre-configures Claude Code. For Claude Desktop, use `mcp-remote` as an stdio bridge pointing to `http://localhost:8080/mcp`.
+
+**Tools exposed** (`src/Workcast.Api/Mcp/WorkcastMcpTools.cs`):
+
+| Tool | Description |
+|---|---|
+| `get_pipeline_summary` | Aggregate stats: total ads, unread, scored, score distribution, applications by status, board health, resume status |
+| `list_job_boards` | All registered boards with status, schedule, ad count, and last scrape timestamp |
+| `list_job_ads` | Filtered list of job ads (title, company, boardId, minScore, isRead, isPinned, isTrashed, limit ≤ 50) |
+| `get_job_ad` | Full ad detail including AI scoring breakdown (per-requirement scores, summary, recommendation) |
+| `list_applications` | Filtered list of applications (status, minScore, isTrashed, limit ≤ 50) |
+| `get_application` | Full application detail including status history and scoring |
+| `score_job_ad` | Enqueue an AI scoring Hangfire job for a specific ad (mirrors `POST /api/ad-scoring/{adId}`) |
+| `trigger_scrape` | Enqueue an immediate manual scrape for an Active board (mirrors `POST /api/job-boards/{id}/refresh`) |
+
+**Return types:** Lightweight records co-located in `WorkcastMcpTools.cs` (`JobAdSummary`, `JobAdDetail`, `ApplicationSummary`, `ApplicationDetail`, `BoardSummary`, `PipelineSummary`, `ScoringDetail`, `ScoringEnqueueResult`, `ScrapeEnqueueResult`). These are distinct from the REST DTOs and are shaped for LLM consumption.
+
+**Auth:** None — consistent with the Hangfire dashboard policy for local dev. Add middleware auth before any non-local deployment.
+
+**Settings UI:** The Settings page includes an MCP Server card (`SettingsClient.tsx`) that displays the server URL with a copy button. The URL is derived from `NEXT_PUBLIC_API_URL`.
+
+**6.11 Error Response Format**
 
 ```
 {
@@ -1289,7 +1321,7 @@ Note: `NoteModal.tsx` was removed (the Note feature was removed from JobAd). `Ne
 | Applications /applications   | Lists tracked applications with filtering (title, location, company, score). Status chips and urgency indicators. Create application from ad. Trash Bin secondary tab.                                                |
 | Application Detail /applications/\[id\] | Full application record: status timeline, job ad tab (full page content), scoring tab, resume generation (AI + WYSIWYG editor, versioned sidebar), letter generation (AI + WYSIWYG editor, versioned sidebar). |
 | Run Detail /runs/\[id\]      | Shows run metadata, pages scraped, ads found/new, and error log (if any) with page URL and error message.                                                                                                             |
-| Settings /settings           | Configure model IDs and MaxTokens per operation. Upload/delete resume file and HTML resume template. Sample file download links.                                                                                       |
+| Settings /settings           | Configure model IDs and MaxTokens per operation. Upload/delete resume file and HTML resume template. Sample file download links. MCP Server card with copyable server URL.                                            |
 | Hangfire Dashboard /hangfire | Exposed directly from the API container. Linked from the admin nav.                                                                                                                                                   |
 | Grafana /grafana (port 3001) | Pre-provisioned performance dashboard for Hangfire metrics, HTTP latency, and PostgreSQL stats.                                                                                                                        |
 

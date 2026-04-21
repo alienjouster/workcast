@@ -34,6 +34,8 @@ const DEFAULT_MAX_TOKENS: Record<TokenField, number> = {
   interviewAnswerEvaluationTokens:  1024,
 };
 
+const MCP_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/mcp`;
+
 export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
   const { mutate: updateSettings, isPending } = useUpdateSettings();
@@ -47,6 +49,15 @@ export function SettingsClient() {
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
   const [tokenDraft, setTokenDraft] = useState(0);
+
+  const [copied, setCopied] = useState(false);
+
+  function copyMcpUrl() {
+    navigator.clipboard.writeText(MCP_URL).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
 
   function startEdit(field: ModelField) {
     const value =
@@ -420,6 +431,50 @@ export function SettingsClient() {
               </tr>
             </tbody>
           </table>
+        </CardBody>
+      </Card>
+
+      {/* MCP Server */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-gray-900">MCP Server</h2>
+        </CardHeader>
+        <CardBody>
+          <p className="text-sm text-gray-500 mb-4">
+            Connect Claude Code or Claude Desktop to your Workcast data and ask natural-language questions about your job search — <em>"Which unread ads have a score above 70?"</em>, <em>"Summarise my application pipeline"</em>, or <em>"Trigger a scrape on my Stack Overflow board"</em>. Claude reads your boards, ads, applications, and scoring results in real time and can act on them directly.
+          </p>
+          <div className="flex items-center bg-gray-100 rounded border border-gray-200">
+            <code className="flex-1 text-xs font-mono px-3 py-2 text-gray-800 select-all">
+              {MCP_URL}
+            </code>
+            <div className="relative shrink-0">
+              <button
+                onClick={copyMcpUrl}
+                title="Copy URL"
+                className="flex items-center justify-center px-2.5 py-2 text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors border-l border-gray-200 rounded-r"
+              >
+                {copied ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-green-500">
+                    <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                    <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v9A1.5 1.5 0 0 0 3.5 14h6a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 9.5 4H9V3.5A1.5 1.5 0 0 0 7.5 2h-4Z" />
+                    <path d="M6.5 6A1.5 1.5 0 0 0 5 7.5v5A1.5 1.5 0 0 0 6.5 14H12a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 12 6H6.5Z" />
+                  </svg>
+                )}
+              </button>
+              {copied && (
+                <div className="absolute bottom-full right-0 mb-1.5 px-2 py-1 rounded bg-gray-800 text-white text-xs whitespace-nowrap pointer-events-none">
+                  Copied to clipboard
+                  <span className="absolute top-full right-3 border-4 border-transparent border-t-gray-800" />
+                </div>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">
+            Use this URL when adding Workcast as an MCP server in Claude Code (<code className="bg-gray-100 px-1 rounded">.mcp.json</code>) or Claude Desktop (<code className="bg-gray-100 px-1 rounded">claude_desktop_config.json</code>).
+          </p>
         </CardBody>
       </Card>
 

@@ -9,6 +9,7 @@ using Workcast.Infrastructure;
 using Workcast.Infrastructure.AI;
 using Workcast.Infrastructure.AI.Options;
 using Workcast.Infrastructure.Persistence;
+using Workcast.Api.Mcp;
 using Workcast.Jobs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +24,7 @@ builder.Services.AddProblemDetails();
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddJobs();
+builder.Services.AddWorkcastMcp();
 
 builder.Services.AddHttpClient("UrlValidation")
     .ConfigureHttpClient(c =>
@@ -136,6 +138,7 @@ using (var scope = app.Services.CreateScope())
 app.UseHttpMetrics();  // captures per-route request count, duration, and in-flight requests
 app.UseExceptionHandler();
 app.MapControllers();
+app.MapMcp("/mcp");
 app.MapMetrics("/metrics");  // exposes the Prometheus scrape endpoint
 
 app.Run();
