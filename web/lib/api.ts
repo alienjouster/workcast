@@ -213,6 +213,11 @@ export const api = {
     },
     deleteResume: () =>
       apiFetch<AppSettings>('/api/settings/resume', { method: 'DELETE' }),
+    getResumeContent: async (): Promise<string> => {
+      const res = await fetch(`${API_BASE}/api/settings/resume/content`);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      return res.text();
+    },
     uploadResumeTemplate: async (file: File): Promise<AppSettings> => {
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);

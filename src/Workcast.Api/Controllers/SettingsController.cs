@@ -245,6 +245,19 @@ public sealed class SettingsController : ControllerBase
         return Ok(ToResponse(settings));
     }
 
+    /// <summary>Returns the stored resume as a UTF-8 string. 404 if no resume is stored.</summary>
+    [HttpGet("resume/content")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetResumeContentAsync(CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+        if (!settings.HasResume)
+            return NotFound();
+
+        return Ok(System.Text.Encoding.UTF8.GetString(settings.ResumeContent!));
+    }
+
     /// <summary>
     /// Uploads or replaces the resume HTML template. Accepted format: HTML text (max 2 MB).
     /// File content must be base64-encoded in the request body.

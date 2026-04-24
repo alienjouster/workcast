@@ -12,6 +12,7 @@ import {
   useDeleteResumeTemplate,
 } from '@/lib/hooks/useSettings';
 import { notificationsEnabled, setNotificationsEnabled } from '@/lib/hooks/useNotifications';
+import { api } from '@/lib/api';
 
 const MODEL_INFO: Record<string, string> = {
   'claude-haiku-4-5-20251001': 'Fastest & cheapest',
@@ -40,7 +41,7 @@ const MCP_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/m
 export function SettingsClient() {
   const { data: settings, isLoading } = useSettings();
   const { mutate: updateSettings, isPending } = useUpdateSettings();
-  const { mutate: uploadResume, isPending: isUploading, error: uploadError } = useUploadResume();
+  const { mutate: uploadResume, mutateAsync: uploadResumeAsync, isPending: isUploading, error: uploadError } = useUploadResume();
   const { mutate: deleteResume, isPending: isDeleting } = useDeleteResume();
   const { mutate: uploadTemplate, isPending: isUploadingTemplate, error: uploadTemplateError } = useUploadResumeTemplate();
   const { mutate: deleteTemplate, isPending: isDeletingTemplate } = useDeleteResumeTemplate();
@@ -50,6 +51,11 @@ export function SettingsClient() {
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
   const [tokenDraft, setTokenDraft] = useState(0);
+
+  const [editingResume, setEditingResume] = useState(false);
+  const [resumeDraft, setResumeDraft] = useState('');
+  const [resumeJsonError, setResumeJsonError] = useState<string | null>(null);
+  const [isFetchingResume, setIsFetchingResume] = useState(false);
 
   const [copied, setCopied] = useState(false);
 
@@ -298,12 +304,41 @@ export function SettingsClient() {
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
                   ) : settings?.hasResume ? (
-                    <span className="inline-flex items-baseline gap-2">
+                    <span className="inline-flex items-center gap-2">
                       <span className="text-sm text-gray-900">{settings.resumeFileName}</span>
                       {settings.resumeUploadedAt && (
                         <span className="text-xs text-gray-400">
                           uploaded {new Date(settings.resumeUploadedAt).toLocaleString()}
                         </span>
+                      )}
+                      {!editingResume && !settings.resumeFileName?.toLowerCase().endsWith('.pdf') && (
+                        <button
+                          className="text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-40"
+                          disabled={isFetchingResume}
+                          onClick={async () => {
+                            setIsFetchingResume(true);
+                            try {
+                              const content = await api.settings.getResumeContent();
+                              setResumeDraft(content);
+                              setResumeJsonError(null);
+                              setEditingResume(true);
+                            } finally {
+                              setIsFetchingResume(false);
+                            }
+                          }}
+                        >
+                          {isFetchingResume ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5 animate-spin">
+                              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.2" />
+                              <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          )}
+                        </button>
                       )}
                     </span>
                   ) : (
@@ -326,17 +361,61 @@ export function SettingsClient() {
                     }}
                   />
                   <div className="flex items-center justify-end gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()} loading={isUploading}>
-                      {settings?.hasResume ? 'Replace' : 'Upload'}
-                    </Button>
-                    {settings?.hasResume && (
-                      <Button size="sm" variant="ghost" onClick={() => deleteResume()} loading={isDeleting} className="text-red-500 hover:text-red-700">
-                        Remove
-                      </Button>
+                    {!editingResume && (
+                      <>
+                        <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()} loading={isUploading}>
+                          {settings?.hasResume ? 'Replace' : 'Upload'}
+                        </Button>
+                        {settings?.hasResume && (
+                          <Button size="sm" variant="ghost" onClick={() => deleteResume()} loading={isDeleting} className="text-red-500 hover:text-red-700">
+                            Remove
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </td>
               </tr>
+              {editingResume && (
+                <tr className="border-t border-gray-100 bg-gray-50">
+                  <td colSpan={3} className="px-4 py-3">
+                    <textarea
+                      className="w-full h-96 font-mono text-xs border border-gray-200 rounded p-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-y"
+                      value={resumeDraft}
+                      onChange={(e) => {
+                        setResumeDraft(e.target.value);
+                        setResumeJsonError(null);
+                      }}
+                      spellCheck={false}
+                    />
+                    {resumeJsonError && (
+                      <p className="text-xs text-red-600 mt-1">{resumeJsonError}</p>
+                    )}
+                    <div className="flex justify-end gap-2 mt-2">
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingResume(false); setResumeJsonError(null); }}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" variant="primary" loading={isUploading}
+                        onClick={async () => {
+                          const isJson = settings?.resumeFileName?.toLowerCase().endsWith('.json');
+                          if (isJson) {
+                            try { JSON.parse(resumeDraft); } catch {
+                              setResumeJsonError('Invalid JSON — fix the syntax before saving.');
+                              return;
+                            }
+                          }
+                          const mimeType = isJson ? 'application/json' : 'text/plain';
+                          const file = new File([resumeDraft], settings!.resumeFileName!, { type: mimeType });
+                          await uploadResumeAsync(file);
+                          setEditingResume(false);
+                          setResumeJsonError(null);
+                        }}>
+                        Save
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {/* Template row */}
               <tr className="border-t border-gray-100 hover:bg-gray-50">
                 <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Template</td>
