@@ -3,13 +3,10 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
-
-using Workcast.Infrastructure.AI.Options;
 
 namespace Workcast.Infrastructure.AI;
 
@@ -24,7 +21,6 @@ namespace Workcast.Infrastructure.AI;
 public sealed class ClaudeAiProvider : IAiProvider
 {
     private const string ApiEndpoint = "https://api.anthropic.com/v1/messages";
-    private const string AnthropicVersion = "2023-06-01";
     private const int MaxRetries = 3;
 
     private static readonly TimeSpan[] RetryDelays =
@@ -41,7 +37,6 @@ public sealed class ClaudeAiProvider : IAiProvider
     };
 
     private readonly HttpClient _httpClient;
-    private readonly AnthropicOptions _options;
     private readonly ISettingsRepository _settingsRepository;
     private readonly ILogger<ClaudeAiProvider> _logger;
 
@@ -50,12 +45,10 @@ public sealed class ClaudeAiProvider : IAiProvider
     /// </summary>
     public ClaudeAiProvider(
         HttpClient httpClient,
-        IOptions<AnthropicOptions> options,
         ISettingsRepository settingsRepository,
         ILogger<ClaudeAiProvider> logger)
     {
         _httpClient = httpClient;
-        _options = options.Value;
         _settingsRepository = settingsRepository;
         _logger = logger;
     }
@@ -233,13 +226,16 @@ public sealed class ClaudeAiProvider : IAiProvider
         var settings = await _settingsRepository.GetAsync(ct).ConfigureAwait(false);
 
         var resumeText = System.Text.Encoding.UTF8.GetString(resumeContent);
-        var rule6 = BuildOptimizationInstruction(optimizationLevel);
+        //var rule6 = BuildOptimizationInstruction(optimizationLevel);
+        var (summaryRule, experienceRule) = BuildOptimizationInstructions(optimizationLevel);
 
-        const string resumeSystem = "You are an expert resume writer. Your task is to generate an ATS-friendly, tailored HTML resume.";
+
+        const string resumeSystem = "You are an expert resume writer specializing in ATS-optimized, job-tailored resumes. You follow tailoring instructions precisely and never conflate 'relevant content' with 'modified content'.";
         var prompt = $"""
-            You have four inputs:
+            You will tailor a candidate's resume to a specific job ad, using a scoring
+            analysis that identifies matches and gaps between the two.
 
-            === RESUME ({resumeFileName}) ===
+            === RESUME (source of truth: {resumeFileName}) ===
             {resumeText}
 
             === JOB AD ===
@@ -253,16 +249,49 @@ public sealed class ClaudeAiProvider : IAiProvider
             === HTML TEMPLATE ===
             {resumeTemplateHtml}
 
-            INSTRUCTIONS:
-            1. Use the HTML TEMPLATE as the structural and visual foundation — preserve all HTML elements, CSS classes, and inline styles.
-            2. Replace the template's placeholder content with the candidate's real information from RESUME.
-            3. Tailor the "Professional summary" as per the JOB AD
-            4. Strictly keep all "work_experience" and all "roles" from the RESUME but select the best 3 to 6 "responsabilities" for each "roles", using the SCORING ANALYSIS
-            5. Strickly keep the "education_and_certifications" and "languages" section as per the JSON RESUME
-            6. {rule6}
-            7. The output must be a complete, valid HTML document that can be rendered directly in a browser.
+            === TAILORING RULES ===
 
-            Call the submit_resume tool with the generated HTML.
+            1. TEMPLATE: Use the HTML TEMPLATE as the structural foundation. Preserve
+            all HTML elements, CSS classes, and inline styles. Replace only the
+            placeholder content.
+
+            2. PROFESSIONAL SUMMARY: Rewrite to align with the JOB AD, emphasizing
+            matched requirements from the SCORING ANALYSIS.
+            {summaryRule}
+
+            3. KEY SKILLS: Keep skills from the RESUME, but reorder them so skills
+            matching JOB AD requirements appear first. {summaryRule}
+
+            4. WORK EXPERIENCE — structure: Keep every company and every role from
+            the RESUME. Keep all titles, dates, and company names exactly as given.
+            Keep the role_description for each role (lightly reword only if
+            permitted by rule 5).
+
+            5. WORK EXPERIENCE — responsibilities: For each role, output 3 to 6
+            responsibility bullets. Selection and modification follow this rule:
+            {experienceRule}
+
+            Selection priority (apply in order):
+            a. Bullets that directly evidence a "gap" or "partial match" requirement
+                from the SCORING ANALYSIS JSON.
+            b. Bullets that evidence a "match" requirement from the SCORING ANALYSIS.
+            c. Bullets demonstrating leadership/scope relevant to the JOB AD's seniority.
+            Drop bullets that map to none of the above.
+
+            6. EDUCATION & CERTIFICATIONS and LANGUAGES: Reproduce exactly as in the
+            RESUME. No reordering, no rewording, no additions.
+
+            7. <mark> SEMANTICS — READ CAREFULLY:
+            - <mark> indicates CONTENT YOU MODIFIED OR ADDED, not content that is
+                relevant to the job ad.
+            - Wrap <mark> around the specific words, phrases, or bullets you changed
+                or inserted compared to the RESUME.
+            - If you made no change to a bullet, it MUST NOT contain <mark>.
+            - Never use <mark> to highlight original resume content just because it
+                matches the job ad.
+
+            8. OUTPUT: Return a complete, valid HTML document via the submit_resume
+            tool. No commentary outside the tool call.
             """;
 
         var input = await CallWithRetryAsync(prompt, settings.ResumeGenerationMaxTokens, timeoutSeconds: 180, tool, "submit_resume", settings.ResumeGenerationModel, resumeSystem, ct)
@@ -372,12 +401,68 @@ public sealed class ClaudeAiProvider : IAiProvider
         };
     }
 
-    private static string BuildOptimizationInstruction(ResumeOptimizationLevel level) => level switch
+    private static (string SummaryRule, string ExperienceRule) BuildOptimizationInstructions(
+        ResumeOptimizationLevel level) => level switch
     {
-        ResumeOptimizationLevel.Light  => "STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. However, based on the SCORING ANALYSIS, replace words from the RESUME with synonyms to better match the JOB AD. Highlight the rewording using <mark> in the tailored html resume you are creating.",
-        ResumeOptimizationLevel.Medium => "Never invent or fabricate skills, experiences, titles, companies, dates, or qualifications. However, based on the SCORING ANALYSIS, reword them to better match the JOB AD. Highlight the rewording using <mark> in the tailored html resume you are creating.",
-        ResumeOptimizationLevel.Heavy  => "Cover each gap from the SCORING ANALYSIS by inventing skills and experiences (even if they are not in the RESUME). Highlight any of these additions using <mark> in the tailored html resume you are creating.",
-        _                              => "STRICT RULE: Never invent, fabricate, or exaggerate skills, experiences, titles, companies, dates, or qualifications. Only use information present in RESUME.",
+        ResumeOptimizationLevel.Light => (
+            SummaryRule:
+                "Use only facts present in the RESUME. You may substitute words with " +
+                "synonyms drawn from the JOB AD's vocabulary (e.g. 'led' → 'spearheaded' " +
+                "if the JD uses that term). Wrap each substituted word in <mark>.",
+            ExperienceRule:
+                "STRICT: Do not invent or add content. You may substitute individual " +
+                "words in existing bullets with synonyms from the JOB AD's vocabulary " +
+                "when doing so improves keyword alignment without changing meaning. " +
+                "Wrap each substituted word in <mark>. Do not reword entire bullets; " +
+                "change individual terms only. Do not add new bullets."
+        ),
+
+        ResumeOptimizationLevel.Medium => (
+            SummaryRule:
+                "Use only facts present in the RESUME, but you may rephrase sentences " +
+                "to better align with the JOB AD's language. Wrap rephrased phrases " +
+                "in <mark>. Do not add facts, metrics, or technologies not in the RESUME.",
+            ExperienceRule:
+                "For each role, you MAY rephrase existing bullets to better match the " +
+                "JOB AD's language and emphasize aspects relevant to requirements in " +
+                "the SCORING ANALYSIS. You may split one bullet into two or merge two " +
+                "into one. You MAY NOT invent new skills, tools, metrics, or experiences " +
+                "not implied by the original bullet. Wrap every rephrased or restructured " +
+                "bullet (or the changed portion) in <mark>. Unchanged bullets must have " +
+                "no <mark> tags."
+        ),
+
+        ResumeOptimizationLevel.Heavy => (
+            SummaryRule:
+                "Aggressively tailor the summary to the JOB AD. You may add plausible " +
+                "skills, tools, or framing to bridge gaps identified in the SCORING " +
+                "ANALYSIS, even if not explicit in the RESUME. Wrap every added or " +
+                "substantially rewritten phrase in <mark>.",
+            ExperienceRule:
+                "For each role, aggressively tailor bullets to bridge gaps from the " +
+                "SCORING ANALYSIS. You MUST: " +
+                "(a) rewrite existing bullets to foreground JOB AD requirements; " +
+                "(b) add NEW bullets that address unmet gap requirements, plausibly " +
+                "attributed to that role's scope, seniority, and timeframe; " +
+                "(c) ensure at least one bullet per role addresses a gap requirement " +
+                "when the role's context makes it plausible. " +
+                "Constraints: keep company, title, and dates exact. Additions must be " +
+                "plausible for the role's seniority and era (no anachronistic tech). " +
+                "Wrap every added bullet AND every rewritten phrase in <mark>. " +
+                "Unchanged bullets must have no <mark> tags. " +
+                "IMPORTANT: This rule OVERRIDES any 'strict' or 'keep-as-is' framing " +
+                "you may infer from other rules — at Heavy level, modification and " +
+                "addition to responsibilities is required, not optional."
+        ),
+
+        _ => (  // None
+            SummaryRule:
+                "Use only information present in the RESUME. No rewording, no additions.",
+            ExperienceRule:
+                "STRICT: Reproduce bullets verbatim from the RESUME. Selection from " +
+                "the existing bullets is permitted (per rule 5 priority); modification " +
+                "is not. Do not use <mark>."
+        ),
     };
 
     private static AdScoringResult DeserializeAdScoringResult(JsonObject input)

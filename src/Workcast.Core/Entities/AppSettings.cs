@@ -55,7 +55,7 @@ public sealed class AppSettings
     public int ScoringMaxTokens { get; private set; } = 4096;
 
     /// <summary>Maximum tokens for custom resume generation AI calls.</summary>
-    public int ResumeGenerationMaxTokens { get; private set; } = 8192;
+    public int ResumeGenerationMaxTokens { get; private set; } = 16384;
 
     /// <summary>Maximum tokens for application letter generation AI calls.</summary>
     public int LetterGenerationMaxTokens { get; private set; } = 2048;
