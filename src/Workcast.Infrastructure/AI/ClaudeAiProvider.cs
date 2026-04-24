@@ -406,62 +406,30 @@ public sealed class ClaudeAiProvider : IAiProvider
     {
         ResumeOptimizationLevel.Light => (
             SummaryRule:
-                "Use only facts present in the RESUME. You may substitute words with " +
-                "synonyms drawn from the JOB AD's vocabulary (e.g. 'led' → 'spearheaded' " +
-                "if the JD uses that term). Wrap each substituted word in <mark>.",
+                "Use only facts present in the RESUME. You may substitute words with synonyms drawn from the JOB AD's vocabulary (e.g. 'led' → 'spearheaded' if the JD uses that term). Wrap each substituted word in <mark>.",
             ExperienceRule:
-                "STRICT: Do not invent or add content. You may substitute individual " +
-                "words in existing bullets with synonyms from the JOB AD's vocabulary " +
-                "when doing so improves keyword alignment without changing meaning. " +
-                "Wrap each substituted word in <mark>. Do not reword entire bullets; " +
-                "change individual terms only. Do not add new bullets."
+                "STRICT: Do not invent or add content. You may substitute individual words in existing bullets with synonyms from the JOB AD's vocabulary when doing so improves keyword alignment without changing meaning. Wrap each substituted word in <mark>. Do not reword entire bullets; change individual terms only. Do not add new bullets."
         ),
 
         ResumeOptimizationLevel.Medium => (
             SummaryRule:
-                "Use only facts present in the RESUME, but you may rephrase sentences " +
-                "to better align with the JOB AD's language. Wrap rephrased phrases " +
-                "in <mark>. Do not add facts, metrics, or technologies not in the RESUME.",
+                "Use only facts present in the RESUME, but you may rephrase sentences to better align with the JOB AD's language. Wrap rephrased phrases in <mark>. Do not add facts, metrics, or technologies not in the RESUME.",
             ExperienceRule:
-                "For each role, you MAY rephrase existing bullets to better match the " +
-                "JOB AD's language and emphasize aspects relevant to requirements in " +
-                "the SCORING ANALYSIS. You may split one bullet into two or merge two " +
-                "into one. You MAY NOT invent new skills, tools, metrics, or experiences " +
-                "not implied by the original bullet. Wrap every rephrased or restructured " +
-                "bullet (or the changed portion) in <mark>. Unchanged bullets must have " +
-                "no <mark> tags."
+                "For each role, you MAY rephrase existing bullets to better match the JOB AD's language and emphasize aspects relevant to requirements in the SCORING ANALYSIS. You may split one bullet into two or merge two into one. You MAY NOT invent new skills, tools, metrics, or experiences not implied by the original bullet. Wrap every rephrased or restructured bullet (or the changed portion) in <mark>. Unchanged bullets must have no <mark> tags."
         ),
 
         ResumeOptimizationLevel.Heavy => (
             SummaryRule:
-                "Aggressively tailor the summary to the JOB AD. You may add plausible " +
-                "skills, tools, or framing to bridge gaps identified in the SCORING " +
-                "ANALYSIS, even if not explicit in the RESUME. Wrap every added or " +
-                "substantially rewritten phrase in <mark>.",
+                "Aggressively tailor the summary to the JOB AD. You may add plausible skills, tools, or framing to bridge gaps identified in the SCORING ANALYSIS, even if not explicit in the RESUME. Wrap every added or substantially rewritten phrase in <mark>.",
             ExperienceRule:
-                "For each role, aggressively tailor bullets to bridge gaps from the " +
-                "SCORING ANALYSIS. You MUST: " +
-                "(a) rewrite existing bullets to foreground JOB AD requirements; " +
-                "(b) add NEW bullets that address unmet gap requirements, plausibly " +
-                "attributed to that role's scope, seniority, and timeframe; " +
-                "(c) ensure at least one bullet per role addresses a gap requirement " +
-                "when the role's context makes it plausible. " +
-                "Constraints: keep company, title, and dates exact. Additions must be " +
-                "plausible for the role's seniority and era (no anachronistic tech). " +
-                "Wrap every added bullet AND every rewritten phrase in <mark>. " +
-                "Unchanged bullets must have no <mark> tags. " +
-                "IMPORTANT: This rule OVERRIDES any 'strict' or 'keep-as-is' framing " +
-                "you may infer from other rules — at Heavy level, modification and " +
-                "addition to responsibilities is required, not optional."
+                "For each role, aggressively tailor bullets to bridge gaps from the SCORING ANALYSIS. You MUST: (a) rewrite existing bullets to foreground JOB AD requirements; (b) add NEW bullets that address unmet gap requirements, plausibly attributed to that role's scope, seniority, and timeframe; (c) ensure at least one bullet per role addresses a gap requirement when the role's context makes it plausible. Constraints: keep company, title, and dates exact. Additions must be plausible for the role's seniority and era (no anachronistic tech). Wrap every added bullet AND every rewritten phrase in <mark>. Unchanged bullets must have no <mark> tags. IMPORTANT: This rule OVERRIDES any 'strict' or 'keep-as-is' framing you may infer from other rules — at Heavy level, modification and addition to responsibilities is required, not optional."
         ),
 
         _ => (  // None
             SummaryRule:
                 "Use only information present in the RESUME. No rewording, no additions.",
             ExperienceRule:
-                "STRICT: Reproduce bullets verbatim from the RESUME. Selection from " +
-                "the existing bullets is permitted (per rule 5 priority); modification " +
-                "is not. Do not use <mark>."
+                "STRICT: Reproduce bullets verbatim from the RESUME. Selection from the existing bullets is permitted (per rule 5 priority); modification is not. Do not use <mark>."
         ),
     };
 
