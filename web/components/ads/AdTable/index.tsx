@@ -221,7 +221,7 @@ export function AdTable({ ads }: AdTableProps) {
                     </td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center">
-                        <ApplyCell adId={ad.id} />
+                        <ApplyCell adId={ad.id} applicationId={ad.applicationId} />
                       </div>
                     </td>
                     <td className="px-4 py-3 overflow-hidden">

@@ -76,6 +76,7 @@ export interface JobAd {
   isTrashed: boolean;
   lastScoringError: string | null;
   isManual: boolean;
+  applicationId: string | null;
 }
 
 export interface ScrapeRunError {

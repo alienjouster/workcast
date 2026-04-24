@@ -195,16 +195,23 @@ public sealed class JobAdsController : ControllerBase
             nextCursor = EncodeCursor(last.IsPinned, last.ScrapedAt, last.Id);
         }
 
-        // Batch-fetch scores for the current page to avoid N+1 queries.
+        // Batch-fetch scores and application IDs for the current page to avoid N+1 queries.
         var adIds = items.Select(a => a.Id).ToList();
         var scores = await _db.Set<Workcast.Core.Entities.AdScoring>()
             .Where(s => adIds.Contains(s.JobAdId))
             .Select(s => new { s.JobAdId, s.OverallScore })
             .ToDictionaryAsync(s => s.JobAdId, s => s.OverallScore, ct);
 
+        var applicationIds = await _db.Set<Workcast.Core.Entities.Application>()
+            .Where(a => a.JobAdId.HasValue && adIds.Contains(a.JobAdId.Value))
+            .Select(a => new { JobAdId = a.JobAdId!.Value, a.Id })
+            .ToDictionaryAsync(a => a.JobAdId, a => a.Id, ct);
+
         var response = new PagedResponse<JobAdResponse>
         {
-            Items = items.Select(a => a.ToResponse(scores.TryGetValue(a.Id, out var sc) ? sc : null)).ToList(),
+            Items = items.Select(a => a.ToResponse(
+                scores.TryGetValue(a.Id, out var sc) ? sc : null,
+                applicationIds.TryGetValue(a.Id, out var appId) ? appId : null)).ToList(),
             NextCursor = nextCursor,
             Count = items.Count,
             TotalCount = totalCount,
@@ -234,7 +241,12 @@ public sealed class JobAdsController : ControllerBase
                 detail: $"Job ad '{id}' was not found.");
         }
 
-        return Ok(ad.ToResponse());
+        var applicationId = await _db.Set<Workcast.Core.Entities.Application>()
+            .Where(a => a.JobAdId == id)
+            .Select(a => (Guid?)a.Id)
+            .FirstOrDefaultAsync(ct);
+
+        return Ok(ad.ToResponse(applicationId: applicationId));
     }
 
     /// <summary>

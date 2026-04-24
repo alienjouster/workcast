@@ -45,7 +45,7 @@ public static class MappingExtensions
     /// <param name="ad">The job ad entity to map.</param>
     /// <param name="overallScore">Optional pre-fetched resume-matching score for this ad.</param>
     /// <returns>A populated <see cref="JobAdResponse"/>.</returns>
-    public static JobAdResponse ToResponse(this JobAd ad, double? overallScore = null)
+    public static JobAdResponse ToResponse(this JobAd ad, double? overallScore = null, Guid? applicationId = null)
     {
         return new JobAdResponse
         {
@@ -69,6 +69,7 @@ public static class MappingExtensions
             IsTrashed = ad.IsTrashed,
             LastScoringError = ad.LastScoringError,
             IsManual = ad.IsManual,
+            ApplicationId = applicationId,
         };
     }
 

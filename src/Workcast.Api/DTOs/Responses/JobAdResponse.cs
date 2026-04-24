@@ -66,4 +66,7 @@ public record JobAdResponse
 
     /// <summary>Gets a value indicating whether this ad was manually entered by the user (not scraped).</summary>
     public required bool IsManual { get; init; }
+
+    /// <summary>Gets the identifier of the existing application for this job ad, or null if none exists.</summary>
+    public Guid? ApplicationId { get; init; }
 }
