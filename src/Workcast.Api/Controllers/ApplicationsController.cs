@@ -12,6 +12,7 @@ using Workcast.Core.Entities;
 using Workcast.Core.Enums;
 using Workcast.Core.Interfaces;
 using Workcast.Core.Models;
+using Workcast.Infrastructure.GoogleDrive;
 using Workcast.Infrastructure.Persistence;
 using Workcast.Jobs;
 using Workcast.Core.Events;
@@ -37,6 +38,7 @@ public sealed class ApplicationsController : ControllerBase
     private readonly IBackgroundJobClient _backgroundJobClient;
     private readonly IAiProvider _aiProvider;
     private readonly IInterviewDrillRepository _drillRepository;
+    private readonly IGoogleDriveService _googleDriveService;
 
     /// <summary>Initializes a new instance of <see cref="ApplicationsController"/>.</summary>
     public ApplicationsController(
@@ -45,7 +47,8 @@ public sealed class ApplicationsController : ControllerBase
         ISettingsRepository settingsRepository,
         IBackgroundJobClient backgroundJobClient,
         IAiProvider aiProvider,
-        IInterviewDrillRepository drillRepository)
+        IInterviewDrillRepository drillRepository,
+        IGoogleDriveService googleDriveService)
     {
         _db = db;
         _scraperEngine = scraperEngine;
@@ -53,6 +56,7 @@ public sealed class ApplicationsController : ControllerBase
         _backgroundJobClient = backgroundJobClient;
         _aiProvider = aiProvider;
         _drillRepository = drillRepository;
+        _googleDriveService = googleDriveService;
     }
 
     /// <summary>
@@ -1032,6 +1036,89 @@ public sealed class ApplicationsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Saves the application's job ad, latest resume, and latest letter to Google Drive.
+    /// Creates a subfolder on first call; subsequent calls update the existing files.
+    /// Returns 422 if Google Drive is not connected.
+    /// </summary>
+    [HttpPost("{id:guid}/save-to-drive")]
+    [ProducesResponseType(typeof(SaveToDriveResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> SaveToDriveAsync(Guid id, CancellationToken ct)
+    {
+        var settings = await _settingsRepository.GetAsync(ct);
+        if (!settings.IsGoogleDriveConnected)
+            return UnprocessableEntity(new ProblemDetails
+            {
+                Title  = "Google Drive not connected",
+                Detail = "Connect Google Drive in Settings first.",
+            });
+
+        var application = await _db.Applications.FindAsync(new object[] { id }, ct);
+        if (application is null) return NotFound();
+
+        var refreshToken = settings.GoogleDriveRefreshToken!;
+
+        var baseFolderId = await _googleDriveService.EnsureBaseFolderAsync(
+            refreshToken, settings.GoogleDriveBasePath, settings.GoogleDriveBaseFolderId, ct);
+        if (baseFolderId != settings.GoogleDriveBaseFolderId)
+        {
+            settings.SetGoogleDriveBaseFolderId(baseFolderId);
+            await _settingsRepository.SaveAsync(ct);
+        }
+
+        string appFolderId;
+        if (application.GoogleDriveFolderId is not null)
+        {
+            appFolderId = application.GoogleDriveFolderId;
+        }
+        else
+        {
+            appFolderId = await _googleDriveService.CreateSubfolderAsync(
+                refreshToken, baseFolderId, BuildSubfolderName(application), ct);
+            application.SetGoogleDriveFolderId(appFolderId);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        if (!string.IsNullOrWhiteSpace(application.JobAdContent))
+        {
+            var plain = Regex.Replace(application.JobAdContent, @"<[^>]+>", "").Trim();
+            await _googleDriveService.UpsertFileAsync(refreshToken, appFolderId, "job-ad.txt", "text/plain", plain, ct);
+        }
+
+        var resume = await _db.GeneratedResumes
+            .Where(r => r.ApplicationId == id)
+            .OrderByDescending(r => r.VersionNumber)
+            .FirstOrDefaultAsync(ct);
+        if (resume is not null)
+            await _googleDriveService.UpsertFileAsync(refreshToken, appFolderId, "resume.html", "text/html", resume.HtmlContent, ct);
+
+        var letter = await _db.GeneratedLetters
+            .Where(l => l.ApplicationId == id)
+            .OrderByDescending(l => l.VersionNumber)
+            .FirstOrDefaultAsync(ct);
+        if (letter is not null)
+            await _googleDriveService.UpsertFileAsync(refreshToken, appFolderId, "letter.html", "text/html", letter.HtmlContent, ct);
+
+        return Ok(new SaveToDriveResponse(appFolderId, IGoogleDriveService.GetFolderWebViewLink(appFolderId)));
+    }
+
+    private static string BuildSubfolderName(Application app)
+    {
+        var date    = app.CreatedAt.ToString("yyyy-MM-dd");
+        var company = SanitizeSegment(app.Company ?? "Unknown company");
+        var title   = SanitizeSegment(app.Title   ?? "Unknown title");
+        return $"{date} - {company} - {title}";
+    }
+
+    private static string SanitizeSegment(string value)
+    {
+        var s = Regex.Replace(value, @"[/\\:*?""<>|]", " ");
+        s = Regex.Replace(s, @"\s{2,}", " ").Trim();
+        return s.Length > 80 ? s[..80].TrimEnd() : s;
+    }
+
     private static InterviewDrillResponse MapDrillToResponse(InterviewDrillPlan plan) =>
         new(
             plan.Id,
@@ -1323,6 +1410,9 @@ public record InterviewQuestionDto(
 
 /// <summary>Request body for saving a drill answer.</summary>
 public record SaveDrillAnswerRequest(string? Answer);
+
+/// <summary>Response returned after a successful "Save to Drive" operation.</summary>
+public record SaveToDriveResponse(string FolderId, string FolderLink);
 
 /// <summary>Response for an interview answer evaluation.</summary>
 public record InterviewAnswerEvaluationResponse(

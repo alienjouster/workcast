@@ -95,6 +95,9 @@ public record ApplicationResponse
     /// <summary>Gets the error message from the most recent failed interview drill generation attempt, or null.</summary>
     public string? LastInterviewDrillError { get; init; }
 
+    /// <summary>Gets the Google Drive folder ID for this application, set after first "Save to Drive".</summary>
+    public string? GoogleDriveFolderId { get; init; }
+
     // ── Status tracking ──────────────────────────────────────────────────────
 
     /// <summary>Gets the current workflow stage of the application as a string (e.g. "ToApply").</summary>

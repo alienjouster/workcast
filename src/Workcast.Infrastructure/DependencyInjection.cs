@@ -11,6 +11,7 @@ using Workcast.Infrastructure.Persistence;
 using Workcast.Infrastructure.Persistence.Interceptors;
 using Workcast.Infrastructure.Observability;
 using Workcast.Infrastructure.Scheduling;
+using Workcast.Infrastructure.GoogleDrive;
 using Workcast.Infrastructure.Scraping;
 
 namespace Workcast.Infrastructure;
@@ -42,6 +43,8 @@ public static class DependencyInjection
         services.AddSingleton<IEventBroadcaster, EventBroadcaster>();
 
         services.AddHostedService<HangfireMetricsService>();
+
+        services.AddScoped<IGoogleDriveService, GoogleDriveService>();
 
         return services;
     }

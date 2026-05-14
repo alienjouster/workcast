@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useResumeVersions, useDeleteResumeVersion, useGenerateResume, useUpdateGeneratedResume, useLetterVersions, useDeleteLetterVersion, useGenerateLetter, useUpdateGeneratedLetter } from '@/lib/hooks/useApplications';
+import { useApplication, useUpdateApplicationJobAdContent, useRunApplicationScoring, useCancelApplicationScoring, useResumeVersions, useDeleteResumeVersion, useGenerateResume, useUpdateGeneratedResume, useLetterVersions, useDeleteLetterVersion, useGenerateLetter, useUpdateGeneratedLetter, useSaveToDrive } from '@/lib/hooks/useApplications';
 import type { ResumeOptimizationLevel } from '@/types';
 import { useSettings } from '@/lib/hooks/useSettings';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -1013,6 +1013,67 @@ function ResumeTab({ app }: { app: ReturnType<typeof useApplication>['data'] }) 
   );
 }
 
+// ── Save to Drive button ──────────────────────────────────────────────────────
+
+function SaveToDriveButton({ appId }: { appId: string }) {
+  const { data: settings } = useSettings();
+  const { mutate: saveToDrive, isPending, error } = useSaveToDrive(appId);
+  const connected = settings?.isGoogleDriveConnected ?? false;
+
+  const driveIcon = (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 87.3 78" className="w-3.5 h-3.5" fill="currentColor">
+      <path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3L27.5 53H0c0 1.55.4 3.1 1.2 4.5z" style={{opacity:.8}}/>
+      <path d="M43.65 25L29.9 1.2C28.55.4 27 0 25.45 0c-1.55 0-3.1.4-4.5 1.2L6.6 25z" style={{opacity:.9}}/>
+      <path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.45 10z" style={{opacity:.8}}/>
+      <path d="M43.65 25L57.4 1.2C56 .4 54.45 0 52.9 0H34.4c-1.55 0-3.1.4-4.5 1.2z" style={{opacity:.6}}/>
+      <path d="M59.8 53H27.5L13.75 76.8c1.4.8 2.95 1.2 4.5 1.2h50.8c1.55 0 3.1-.4 4.5-1.2z"/>
+      <path d="M73.4 25.45L59.65 1.65C58.85.3 57.75-.8 56.4-1.6L43.65 20.5 57.4 44l16-27.55c-.8-1.35-1.9-2.45-3.3-3.25z" style={{opacity:.8}}/>
+    </svg>
+  );
+
+  const button = (
+    <button
+      onClick={connected ? () => saveToDrive() : undefined}
+      disabled={isPending || !connected}
+      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+        connected
+          ? 'text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed'
+          : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+      }`}
+    >
+      {isPending ? (
+        <>
+          <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+          Saving…
+        </>
+      ) : (
+        <>
+          {driveIcon}
+          Save to Google Drive
+        </>
+      )}
+    </button>
+  );
+
+  if (!connected) {
+    return (
+      <Tooltip content="Connect Google Drive in Settings to use this feature" position="bottom" wrapperAs="div">
+        {button}
+      </Tooltip>
+    );
+  }
+
+  return (
+    <div>
+      {button}
+      {error && <p className="mt-1 text-xs text-red-600">{(error as Error).message}</p>}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ApplicationDetailClient() {
@@ -1034,23 +1095,45 @@ export function ApplicationDetailClient() {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <Link href="/applications" className="text-sm text-indigo-500 hover:text-indigo-700 hover:underline">
-          ← Applications
-        </Link>
-        <div className="flex items-center gap-3 mt-2">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {app.title ?? '(no title)'}
-          </h1>
-          <StatusBadge status={app.status} />
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <Link href="/applications" className="text-sm text-indigo-500 hover:text-indigo-700 hover:underline">
+              ← Applications
+            </Link>
+            <div className="flex items-center gap-3 mt-2">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {app.title ?? '(no title)'}
+              </h1>
+              <StatusBadge status={app.status} />
+            </div>
+            {app.company && (
+              <p className="text-sm text-gray-500 mt-0.5">{app.company}</p>
+            )}
+            {app.isTrashed && (
+              <span className="inline-block mt-2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+                In trash
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-2 shrink-0">
+            <SaveToDriveButton appId={app.id} />
+            {app.googleDriveFolderId && (
+              <a
+                href={`https://drive.google.com/drive/folders/${app.googleDriveFolderId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:underline"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                  <polyline points="15 3 21 3 21 9"/>
+                  <line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+                Open in Drive
+              </a>
+            )}
+          </div>
         </div>
-        {app.company && (
-          <p className="text-sm text-gray-500 mt-0.5">{app.company}</p>
-        )}
-        {app.isTrashed && (
-          <span className="inline-block mt-2 text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-            In trash
-          </span>
-        )}
       </div>
 
       {/* Status timeline — always visible */}

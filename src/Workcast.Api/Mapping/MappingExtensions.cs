@@ -275,6 +275,7 @@ public static class MappingExtensions
             LastLetterGenerationError    = app.LastLetterGenerationError,
             IsInterviewDrillPending      = app.IsInterviewDrillPending,
             LastInterviewDrillError      = app.LastInterviewDrillError,
+            GoogleDriveFolderId          = app.GoogleDriveFolderId,
             Status           = app.Status.ToString(),
             StatusHistory    = app.StatusHistory
                 .Select(e => new StatusHistoryEntryResponse { Status = e.Status.ToString(), AchievedAt = e.AchievedAt })

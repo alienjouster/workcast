@@ -102,6 +102,20 @@ internal sealed class AppSettingsConfiguration : IEntityTypeConfiguration<AppSet
             .IsRequired()
             .HasDefaultValue(1024);
 
+        builder.Property(s => s.GoogleDriveRefreshToken)
+            .HasColumnName("google_drive_refresh_token")
+            .HasColumnType("text");
+
+        builder.Property(s => s.GoogleDriveBasePath)
+            .HasColumnName("google_drive_base_path")
+            .HasMaxLength(512)
+            .IsRequired()
+            .HasDefaultValue("jobs");
+
+        builder.Property(s => s.GoogleDriveBaseFolderId)
+            .HasColumnName("google_drive_base_folder_id")
+            .HasMaxLength(256);
+
         // Seed the single default row so the table is never empty.
         builder.HasData(AppSettings.CreateDefault());
     }

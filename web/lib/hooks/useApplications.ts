@@ -380,3 +380,15 @@ export function useDeleteInterviewStep(id: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
   });
 }
+
+export function useSaveToDrive(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.applications.saveToDrive(id),
+    onSuccess: (data) => {
+      queryClient.setQueryData<Application>(['applications', id], (old) =>
+        old ? { ...old, googleDriveFolderId: data.folderId } : old
+      );
+    },
+  });
+}

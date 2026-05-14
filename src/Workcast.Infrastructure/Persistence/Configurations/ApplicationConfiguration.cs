@@ -138,6 +138,10 @@ internal sealed class ApplicationConfiguration : IEntityTypeConfiguration<Applic
                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
                 v => JsonSerializer.Deserialize<List<StatusHistoryEntry>>(v, (JsonSerializerOptions?)null) ?? new List<StatusHistoryEntry>());
 
+        builder.Property(a => a.GoogleDriveFolderId)
+            .HasColumnName("google_drive_folder_id")
+            .HasMaxLength(256);
+
         builder.HasIndex(a => a.CreatedAt)
             .IsDescending()
             .HasDatabaseName("ix_applications_created_at_desc");

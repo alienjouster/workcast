@@ -22,6 +22,7 @@ import type {
   CreateInterviewStepRequest,
   UpdateInterviewStepRequest,
   BoardExchangeDto,
+  SaveToDriveResponse,
 } from '@/types';
 
 // Use relative URLs so browser requests go to the Next.js proxy at /api/[...path]
@@ -232,6 +233,15 @@ export const api = {
     deleteResumeTemplate: () =>
       apiFetch<AppSettings>('/api/settings/resume-template', { method: 'DELETE' }),
   },
+  googleDrive: {
+    getAuthUrl: () => apiFetch<{ url: string }>('/api/google-drive/auth-url'),
+    disconnect: () => apiFetch<void>('/api/google-drive/connection', { method: 'DELETE' }),
+    updateBasePath: (basePath: string) =>
+      apiFetch<void>('/api/google-drive/base-path', {
+        method: 'PUT',
+        body: JSON.stringify({ basePath }),
+      }),
+  },
   applications: {
     create: (jobAdId: string) =>
       apiFetch<Application>('/api/applications', {
@@ -341,5 +351,7 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({ status, achievedAt }),
       }),
+    saveToDrive: (id: string) =>
+      apiFetch<SaveToDriveResponse>(`/api/applications/${id}/save-to-drive`, { method: 'POST' }),
   },
 };

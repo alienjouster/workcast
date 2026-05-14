@@ -139,6 +139,8 @@ export interface AppSettings {
   hasResumeTemplate: boolean;
   resumeTemplateFileName: string | null;
   resumeTemplateUploadedAt: string | null;
+  isGoogleDriveConnected: boolean;
+  googleDriveBasePath: string;
 }
 
 export type ResumeOptimizationLevel = 'None' | 'Light' | 'Medium' | 'Heavy';
@@ -225,8 +227,14 @@ export interface Application {
   lastLetterGenerationError: string | null;
   isInterviewDrillPending: boolean;
   lastInterviewDrillError: string | null;
+  googleDriveFolderId: string | null;
   status: ApplicationStatus;
   statusHistory: StatusHistoryEntry[];
+}
+
+export interface SaveToDriveResponse {
+  folderId: string;
+  folderLink: string;
 }
 
 export type InterviewQuestionCategory = 'warm_up' | 'easy' | 'medium' | 'challenging';

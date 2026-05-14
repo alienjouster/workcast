@@ -42,6 +42,18 @@ public sealed class AppSettings
     /// <summary>True when a resume template has been uploaded.</summary>
     public bool HasResumeTemplate => ResumeTemplateContent is not null;
 
+    /// <summary>OAuth2 refresh token for Google Drive. Null when not connected.</summary>
+    public string? GoogleDriveRefreshToken { get; private set; }
+
+    /// <summary>Base folder name in Google Drive where application subfolders are created. Default: "jobs".</summary>
+    public string GoogleDriveBasePath { get; private set; } = "jobs";
+
+    /// <summary>Cached Drive folder ID for the base folder to avoid repeated list calls.</summary>
+    public string? GoogleDriveBaseFolderId { get; private set; }
+
+    /// <summary>True when a valid Google Drive refresh token is stored.</summary>
+    public bool IsGoogleDriveConnected => GoogleDriveRefreshToken is not null;
+
     /// <summary>Anthropic model identifier used for custom resume generation.</summary>
     public string ResumeGenerationModel { get; private set; } = "claude-sonnet-4-6";
 
@@ -147,4 +159,26 @@ public sealed class AppSettings
         ResumeTemplateContent = null;
         ResumeTemplateUploadedAt = null;
     }
+
+    /// <summary>Stores the Google Drive OAuth2 refresh token.</summary>
+    public void SetGoogleDriveRefreshToken(string refreshToken) =>
+        GoogleDriveRefreshToken = refreshToken;
+
+    /// <summary>Clears the refresh token and invalidates the cached base folder ID.</summary>
+    public void ClearGoogleDriveRefreshToken()
+    {
+        GoogleDriveRefreshToken = null;
+        GoogleDriveBaseFolderId = null;
+    }
+
+    /// <summary>Updates the base folder path and invalidates the cached folder ID.</summary>
+    public void SetGoogleDriveBasePath(string basePath)
+    {
+        GoogleDriveBasePath = basePath;
+        GoogleDriveBaseFolderId = null;
+    }
+
+    /// <summary>Caches the resolved Drive folder ID for the base folder.</summary>
+    public void SetGoogleDriveBaseFolderId(string folderId) =>
+        GoogleDriveBaseFolderId = folderId;
 }

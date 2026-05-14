@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import {
@@ -10,6 +11,8 @@ import {
   useDeleteResume,
   useUploadResumeTemplate,
   useDeleteResumeTemplate,
+  useGoogleDriveDisconnect,
+  useUpdateGoogleDriveBasePath,
 } from '@/lib/hooks/useSettings';
 import { notificationsEnabled, setNotificationsEnabled } from '@/lib/hooks/useNotifications';
 import { api } from '@/lib/api';
@@ -39,14 +42,20 @@ const DEFAULT_MAX_TOKENS: Record<TokenField, number> = {
 const MCP_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/mcp`;
 
 export function SettingsClient() {
+  const queryClient = useQueryClient();
   const { data: settings, isLoading } = useSettings();
   const { mutate: updateSettings, isPending } = useUpdateSettings();
   const { mutate: uploadResume, mutateAsync: uploadResumeAsync, isPending: isUploading, error: uploadError } = useUploadResume();
   const { mutate: deleteResume, isPending: isDeleting } = useDeleteResume();
   const { mutate: uploadTemplate, isPending: isUploadingTemplate, error: uploadTemplateError } = useUploadResumeTemplate();
   const { mutate: deleteTemplate, isPending: isDeletingTemplate } = useDeleteResumeTemplate();
+  const { mutate: disconnectDrive, isPending: isDisconnecting } = useGoogleDriveDisconnect();
+  const { mutate: updateBasePath, isPending: isUpdatingBasePath } = useUpdateGoogleDriveBasePath();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const templateInputRef = useRef<HTMLInputElement>(null);
+
+  const [driveBasePathDraft, setDriveBasePathDraft] = useState('');
+  const [editingBasePath, setEditingBasePath] = useState(false);
 
   const [editingField, setEditingField] = useState<EditingField>(null);
   const [draft, setDraft] = useState('');
@@ -613,6 +622,103 @@ export function SettingsClient() {
               Notifications are blocked by your browser. Allow them in your browser&apos;s site settings to enable this feature.
             </p>
           )}
+        </CardBody>
+      </Card>
+
+      {/* Google Drive */}
+      <Card>
+        <CardHeader>
+          <h2 className="font-semibold text-gray-900">Google Drive</h2>
+        </CardHeader>
+        <CardBody className="p-0">
+          <table className="min-w-full text-sm">
+            <tbody>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Connection</td>
+                <td className="px-4 py-2.5">
+                  {isLoading ? (
+                    <span className="text-gray-400">Loading…</span>
+                  ) : settings?.isGoogleDriveConnected ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm text-green-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm13.36-1.814a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+                      </svg>
+                      Connected
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400 italic">Not connected</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                  {!isLoading && (settings?.isGoogleDriveConnected ? (
+                    <Button size="sm" variant="ghost" loading={isDisconnecting}
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => disconnectDrive()}>
+                      Disconnect
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="secondary"
+                      onClick={async () => {
+                        const { url } = await api.googleDrive.getAuthUrl();
+                        const w = 600, h = 700;
+                        window.open(
+                          url,
+                          'google-drive-auth',
+                          `width=${w},height=${h},left=${Math.round(window.screenX + (window.outerWidth - w) / 2)},top=${Math.round(window.screenY + (window.outerHeight - h) / 2)},resizable=yes,scrollbars=yes`
+                        );
+                        const handler = (e: MessageEvent) => {
+                          if (e.origin !== window.location.origin) return;
+                          if (e.data?.type === 'google-drive-connected')
+                            queryClient.invalidateQueries({ queryKey: ['settings'] });
+                          window.removeEventListener('message', handler);
+                        };
+                        window.addEventListener('message', handler);
+                      }}>
+                      Connect
+                    </Button>
+                  ))}
+                </td>
+              </tr>
+              <tr className="border-t border-gray-100 hover:bg-gray-50">
+                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Path</td>
+                <td className="px-4 py-2.5">
+                  {isLoading ? (
+                    <span className="text-gray-400">Loading…</span>
+                  ) : editingBasePath ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={driveBasePathDraft}
+                      onChange={(e) => setDriveBasePathDraft(e.target.value)}
+                      className="text-sm border border-gray-300 rounded px-2 py-1 w-64 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      placeholder="jobs"
+                    />
+                  ) : (
+                    <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                      {settings?.googleDriveBasePath ?? 'jobs'}
+                    </span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                  {!isLoading && (editingBasePath ? (
+                    <div className="flex items-center justify-end gap-2">
+                      <Button size="sm" variant="primary" loading={isUpdatingBasePath}
+                        onClick={() => updateBasePath(driveBasePathDraft || 'jobs', { onSuccess: () => setEditingBasePath(false) })}>
+                        Save
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingBasePath(false)}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setDriveBasePathDraft(settings?.googleDriveBasePath ?? 'jobs'); setEditingBasePath(true); }}
+                      className="text-xs text-indigo-500 hover:underline">
+                      Edit
+                    </button>
+                  ))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </CardBody>
       </Card>
 

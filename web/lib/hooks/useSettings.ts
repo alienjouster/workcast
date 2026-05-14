@@ -70,3 +70,19 @@ export function useDeleteResumeTemplate() {
   });
 }
 
+export function useGoogleDriveDisconnect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.googleDrive.disconnect(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+
+export function useUpdateGoogleDriveBasePath() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (basePath: string) => api.googleDrive.updateBasePath(basePath),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),
+  });
+}
+

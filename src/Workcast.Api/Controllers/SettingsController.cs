@@ -334,7 +334,9 @@ public sealed class SettingsController : ControllerBase
         s.ResumeUploadedAt,
         s.HasResumeTemplate,
         s.ResumeTemplateFileName,
-        s.ResumeTemplateUploadedAt);
+        s.ResumeTemplateUploadedAt,
+        s.IsGoogleDriveConnected,
+        s.GoogleDriveBasePath);
 
     // ── Inline DTOs (settings has no shared domain model) ────────────────────
 
@@ -357,6 +359,8 @@ public sealed class SettingsController : ControllerBase
     /// <param name="HasResumeTemplate">True when an HTML resume template has been uploaded.</param>
     /// <param name="ResumeTemplateFileName">Original file name of the uploaded template, or null.</param>
     /// <param name="ResumeTemplateUploadedAt">UTC timestamp of the last template upload, or null.</param>
+    /// <param name="IsGoogleDriveConnected">True when a Google Drive refresh token has been stored.</param>
+    /// <param name="GoogleDriveBasePath">Base folder path used for new application saves.</param>
     public sealed record SettingsResponse(
         string BoardAnalyzerModel,
         string ScoringModel,
@@ -376,7 +380,9 @@ public sealed class SettingsController : ControllerBase
         DateTimeOffset? ResumeUploadedAt,
         bool HasResumeTemplate,
         string? ResumeTemplateFileName,
-        DateTimeOffset? ResumeTemplateUploadedAt);
+        DateTimeOffset? ResumeTemplateUploadedAt,
+        bool IsGoogleDriveConnected,
+        string GoogleDriveBasePath);
 
     /// <param name="BoardAnalyzerModel">Model identifier for board analysis.</param>
     /// <param name="ScoringModel">Model identifier for job ad scoring.</param>

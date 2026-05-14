@@ -132,6 +132,9 @@ public sealed class Application
     /// <summary>Error message from the most recent failed interview drill generation attempt, or null if it succeeded or was never run.</summary>
     public string? LastInterviewDrillError { get; private set; }
 
+    /// <summary>Google Drive folder ID for this application's subfolder. Set after the first "Save to Drive" operation.</summary>
+    public string? GoogleDriveFolderId { get; private set; }
+
     // ── Status tracking ───────────────────────────────────────────────────────
 
     /// <summary>Current workflow stage of the application.</summary>
@@ -235,6 +238,10 @@ public sealed class Application
         IsInterviewDrillPending = false;
         LastInterviewDrillError = error;
     }
+
+    /// <summary>Records the Google Drive folder ID created for this application.</summary>
+    public void SetGoogleDriveFolderId(string folderId) =>
+        GoogleDriveFolderId = folderId;
 
     /// <summary>Applies a fresh scoring result to this application's snapshot fields.</summary>
     public void UpdateScoring(
