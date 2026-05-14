@@ -18,9 +18,11 @@ type FlatRow = { type: 'ad'; ad: JobAd } | { type: 'expand'; ad: JobAd };
 
 interface AdTableProps {
   ads: JobAd[];
+  pendingNewCount?: number;
+  onRefreshNewAds?: () => void;
 }
 
-export function AdTable({ ads }: AdTableProps) {
+export function AdTable({ ads, pendingNewCount = 0, onRefreshNewAds }: AdTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editAdId, setEditAdId] = useState<string | null>(null);
@@ -96,14 +98,27 @@ export function AdTable({ ads }: AdTableProps) {
           onDone={() => setSelectedIds(new Set())}
           disabled={!someSelected}
         />
-        {someSelected && (
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="ml-auto text-xs text-indigo-500 hover:text-indigo-700"
-          >
-            Clear selection
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {pendingNewCount > 0 && onRefreshNewAds && (
+            <button
+              onClick={onRefreshNewAds}
+              className="flex items-center gap-1.5 bg-white border border-red-200 hover:bg-red-50 text-gray-700 pl-1.5 pr-3 py-1 rounded-full text-xs font-medium transition-colors shadow-sm animate-pulse-glow"
+            >
+              <span className="bg-red-500 text-white font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {pendingNewCount}
+              </span>
+              new ad{pendingNewCount !== 1 ? 's' : ''} — click to refresh the list
+            </button>
+          )}
+          {someSelected && (
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs text-indigo-500 hover:text-indigo-700"
+            >
+              Clear selection
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Virtualised scrollable table */}

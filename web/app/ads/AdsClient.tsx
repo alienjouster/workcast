@@ -12,7 +12,8 @@ import { TabToggle, TrashTabIcon } from '@/components/ui/TabToggle';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { useState } from 'react';
+import { useState, useMemo, useRef } from 'react';
+import type { JobAd } from '@/types';
 
 type View = 'ads' | 'trash';
 
@@ -77,7 +78,64 @@ export function AdsClient() {
   const markAllReadBoardId = filters.boardIds.length === 1 ? filters.boardIds[0] : undefined;
 
   const activeQuery = view === 'ads' ? adsQuery : trashQuery;
-  const allAds = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const trashAds = trashQuery.data?.pages.flatMap((p) => p.items) ?? [];
+
+  const latestAds = useMemo(
+    () => adsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [adsQuery.data]
+  );
+
+  const committedAdsRef = useRef<JobAd[] | null>(null);
+  const committedIdsRef = useRef<Set<string>>(new Set());
+  const prevEfRef = useRef(ef);
+  const [, forceUpdate] = useState(0);
+
+  // Reset the committed snapshot whenever filter params change (synchronous, safe to do in render).
+  if (prevEfRef.current !== ef) {
+    prevEfRef.current = ef;
+    committedAdsRef.current = null;
+    committedIdsRef.current = new Set();
+  }
+
+  // Detect new ads synchronously during render (no useEffect lag).
+  // We only inspect the first page: scrapes add new ads there, pagination appends new pages.
+  // Set-membership avoids false negatives from pinned ads or non-scrapedAt sort orders.
+  let pendingNewCount = 0;
+  if (!adsQuery.isLoading && !adsQuery.isError && latestAds.length > 0) {
+    if (committedAdsRef.current === null) {
+      committedAdsRef.current = latestAds;
+      committedIdsRef.current = new Set(latestAds.map((a) => a.id));
+    } else {
+      const firstPageItems = adsQuery.data?.pages[0]?.items ?? [];
+      const newInFirstPage = firstPageItems.filter((a) => !committedIdsRef.current.has(a.id));
+      if (newInFirstPage.length > 0) {
+        pendingNewCount = newInFirstPage.length;
+        // Keep the committed view current (deletions, scoring) while holding new ads back.
+        // committedIdsRef is NOT updated so the new ads stay excluded.
+        committedAdsRef.current = latestAds.filter((a) => committedIdsRef.current.has(a.id));
+      } else {
+        committedAdsRef.current = latestAds;
+        committedIdsRef.current = new Set(latestAds.map((a) => a.id));
+      }
+    }
+  }
+
+  const displayedAds =
+    pendingNewCount > 0 && committedAdsRef.current !== null ? committedAdsRef.current : latestAds;
+
+  const handleRefreshNewAds = () => {
+    committedAdsRef.current = latestAds;
+    committedIdsRef.current = new Set(latestAds.map((a) => a.id));
+    forceUpdate((n) => n + 1);
+  };
+
+  const handleLoadMore = () => {
+    committedAdsRef.current = latestAds;
+    committedIdsRef.current = new Set(latestAds.map((a) => a.id));
+    forceUpdate((n) => n + 1);
+    adsQuery.fetchNextPage();
+  };
+
   const totalAdsCount = adsFiltersActive
     ? (totalAdsQuery.data?.pages[0]?.totalCount ?? 0)
     : (adsQuery.data?.pages[0]?.totalCount ?? 0);
@@ -156,13 +214,13 @@ export function AdsClient() {
         </div>
       ) : view === 'trash' ? (
         <>
-          {allAds.length === 0 ? (
+          {trashAds.length === 0 ? (
             <EmptyState
               title="Trash bin is empty"
               description={hasActiveFilters(trashFilters) ? 'No trashed ads match your current filters.' : 'No ads have been trashed.'}
             />
           ) : (
-            <TrashTable ads={allAds} />
+            <TrashTable ads={trashAds} />
           )}
           {trashQuery.hasNextPage && (
             <div className="px-4 py-4 flex justify-center">
@@ -176,19 +234,19 @@ export function AdsClient() {
             </div>
           )}
         </>
-      ) : allAds.length === 0 ? (
+      ) : displayedAds.length === 0 ? (
         <EmptyState
           title="No ads found"
           description="No job ads match your current filters. Try adjusting your search."
         />
       ) : (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-          <AdTable ads={allAds} />
+          <AdTable ads={displayedAds} pendingNewCount={pendingNewCount} onRefreshNewAds={handleRefreshNewAds} />
           {adsQuery.hasNextPage && (
             <div className="px-4 py-4 border-t border-gray-200 flex justify-center">
               <Button
                 variant="secondary"
-                onClick={() => adsQuery.fetchNextPage()}
+                onClick={handleLoadMore}
                 loading={adsQuery.isFetchingNextPage}
               >
                 Load more
