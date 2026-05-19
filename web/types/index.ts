@@ -347,6 +347,21 @@ export interface BoardExchangeDto {
   scraperConfig: ScraperConfig;
 }
 
+export interface ApplicationStats {
+  totalApplications:        number;
+  totalSubmitted:           number;
+  totalInterviewed:         number;
+  totalHired:               number;
+  interviewHitRatio:        number | null;
+  averageDaysToApply:       number | null;
+  averageDaysToInterview:   number | null;
+  averageInterviewSteps:    number | null;
+  averageScore:             number | null;
+  averageScoreInterviewed:  number | null;
+  applicationsPerStatus:    Array<{ status: ApplicationStatus; count: number }>;
+  applicationsPerMonth:     Array<{ month: string; count: number }>;
+}
+
 export interface UpdateScraperConfigRequest {
   paginationType: 'url_param' | 'next_button' | 'infinite_scroll' | 'load_more_button' | 'none';
   jobCardSelector: string;

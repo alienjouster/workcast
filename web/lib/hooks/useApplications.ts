@@ -4,7 +4,7 @@ import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tansta
 import type { InfiniteData } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { STALE_TIMES } from '@/lib/constants';
-import type { Application, ApplicationStatus, InterviewAnswerEvaluation, InterviewDrillPlan, InterviewStep, CreateInterviewStepRequest, UpdateInterviewStepRequest, PagedResponse, ResumeOptimizationLevel } from '@/types';
+import type { Application, ApplicationStats, ApplicationStatus, InterviewAnswerEvaluation, InterviewDrillPlan, InterviewStep, CreateInterviewStepRequest, UpdateInterviewStepRequest, PagedResponse, ResumeOptimizationLevel } from '@/types';
 
 export interface ApplicationsFilter {
   titles?: string[];
@@ -43,6 +43,7 @@ export function useCreateApplication() {
     mutationFn: (jobAdId: string) => api.applications.create(jobAdId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
     },
   });
 }
@@ -51,7 +52,10 @@ export function useTrashApplication() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.applications.trash(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applications'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
+    },
   });
 }
 
@@ -59,7 +63,10 @@ export function useRestoreApplication() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.applications.restore(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applications'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
+    },
   });
 }
 
@@ -67,7 +74,10 @@ export function useDeleteApplication() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.applications.delete(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['applications'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['applications'] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
+    },
   });
 }
 
@@ -231,6 +241,7 @@ export function useUpdateApplicationScrapedAt(id: string) {
     mutationFn: (scrapedAt: string) => api.applications.updateScrapedAt(id, scrapedAt),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
     },
   });
 }
@@ -242,6 +253,7 @@ export function useUpdateApplicationStatus(id: string) {
       api.applications.updateStatus(id, status, achievedAt),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
       queryClient.setQueriesData<InfiniteData<PagedResponse<Application>>>(
         { queryKey: ['applications'], predicate: (q) => typeof q.queryKey[1] !== 'string' },
         (old) => {
@@ -266,6 +278,7 @@ export function useUpdateApplicationStatusDate(id: string) {
       api.applications.updateStatusDate(id, status, achievedAt),
     onSuccess: (updated) => {
       queryClient.setQueryData(['applications', id], updated);
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
     },
   });
 }
@@ -360,7 +373,10 @@ export function useCreateInterviewStep(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateInterviewStepRequest) => api.applications.createInterviewStep(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interview-steps', id] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
+    },
   });
 }
 
@@ -377,7 +393,10 @@ export function useDeleteInterviewStep(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (stepId: string) => api.applications.deleteInterviewStep(id, stepId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['interview-steps', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['interview-steps', id] });
+      queryClient.invalidateQueries({ queryKey: ['application-stats'] });
+    },
   });
 }
 
@@ -390,5 +409,13 @@ export function useSaveToDrive(id: string) {
         old ? { ...old, googleDriveFolderId: data.folderId } : old
       );
     },
+  });
+}
+
+export function useApplicationStats() {
+  return useQuery({
+    queryKey: ['application-stats'],
+    queryFn: () => api.applications.stats(),
+    staleTime: STALE_TIMES.MEDIUM,
   });
 }

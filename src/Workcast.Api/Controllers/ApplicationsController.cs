@@ -123,6 +123,7 @@ public sealed class ApplicationsController : ControllerBase
     {
         limit = Math.Clamp(limit, 1, 200);
 
+        int? cursorStatusPriority = null;
         DateTimeOffset? cursorCreatedAt = null;
         Guid? cursorId = null;
 
@@ -137,7 +138,7 @@ public sealed class ApplicationsController : ControllerBase
                     statusCode: StatusCodes.Status400BadRequest,
                     detail: "The provided cursor value is invalid or corrupted.");
             }
-            (cursorCreatedAt, cursorId) = decoded.Value;
+            (cursorStatusPriority, cursorCreatedAt, cursorId) = decoded.Value;
         }
 
         var query = _db.Applications.AsQueryable()
@@ -160,17 +161,32 @@ public sealed class ApplicationsController : ControllerBase
 
         var totalCount = await query.CountAsync(ct);
 
-        if (cursorCreatedAt is not null && cursorId is not null)
+        if (cursorStatusPriority is not null && cursorCreatedAt is not null && cursorId is not null)
         {
+            var cPriority = cursorStatusPriority.Value;
             var cAt = cursorCreatedAt.Value;
             var cId = cursorId.Value;
             query = query.Where(a =>
-                a.CreatedAt < cAt ||
-                (a.CreatedAt == cAt && a.Id.CompareTo(cId) < 0));
+                (a.Status == ApplicationStatus.ToApply ? 0 :
+                 a.Status == ApplicationStatus.Interviewing ? 1 :
+                 a.Status == ApplicationStatus.Applied ? 2 : 3) > cPriority
+                || ((a.Status == ApplicationStatus.ToApply ? 0 :
+                     a.Status == ApplicationStatus.Interviewing ? 1 :
+                     a.Status == ApplicationStatus.Applied ? 2 : 3) == cPriority
+                    && a.CreatedAt < cAt)
+                || ((a.Status == ApplicationStatus.ToApply ? 0 :
+                     a.Status == ApplicationStatus.Interviewing ? 1 :
+                     a.Status == ApplicationStatus.Applied ? 2 : 3) == cPriority
+                    && a.CreatedAt == cAt
+                    && a.Id.CompareTo(cId) < 0));
         }
 
         var items = await query
-            .OrderByDescending(a => a.CreatedAt)
+            .OrderBy(a =>
+                a.Status == ApplicationStatus.ToApply ? 0 :
+                a.Status == ApplicationStatus.Interviewing ? 1 :
+                a.Status == ApplicationStatus.Applied ? 2 : 3)
+            .ThenByDescending(a => a.CreatedAt)
             .ThenByDescending(a => a.Id)
             .Take(limit + 1)
             .ToListAsync(ct);
@@ -180,7 +196,7 @@ public sealed class ApplicationsController : ControllerBase
         {
             items.RemoveAt(limit);
             var last = items[^1];
-            nextCursor = EncodeCursor(last.CreatedAt, last.Id);
+            nextCursor = EncodeCursor(StatusSortPriority(last.Status), last.CreatedAt, last.Id);
         }
 
         return Ok(new PagedResponse<ApplicationResponse>
@@ -189,6 +205,109 @@ public sealed class ApplicationsController : ControllerBase
             NextCursor = nextCursor,
             Count = items.Count,
             TotalCount = totalCount,
+        });
+    }
+
+    /// <summary>
+    /// Returns pre-computed statistics across all non-trashed applications.
+    /// All aggregations are performed in-process after loading the full dataset.
+    /// </summary>
+    [HttpGet("stats")]
+    [ProducesResponseType(typeof(ApplicationStatsResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetStatsAsync(CancellationToken ct)
+    {
+        var apps = await _db.Applications
+            .Where(a => !a.IsTrashed)
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        var appIds = apps.Select(a => a.Id).ToHashSet();
+        var stepCounts = await _db.InterviewSteps
+            .Where(s => appIds.Contains(s.ApplicationId))
+            .GroupBy(s => s.ApplicationId)
+            .Select(g => new { Id = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        var stepsByApp = stepCounts.ToDictionary(x => x.Id, x => x.Count);
+
+        var totalApplications = apps.Count;
+        var totalSubmitted    = apps.Count(a => a.Status != ApplicationStatus.ToApply);
+        var totalInterviewed  = apps.Count(a => a.StatusHistory.Any(e => e.Status == ApplicationStatus.Interviewing));
+        var totalHired        = apps.Count(a => a.Status == ApplicationStatus.ClosedHired);
+
+        double? interviewHitRatio = totalSubmitted == 0 ? null
+            : (double)totalInterviewed / totalSubmitted * 100;
+
+        var daysToApply = apps
+            .Select(a =>
+            {
+                var applied = a.StatusHistory.FirstOrDefault(e => e.Status == ApplicationStatus.Applied);
+                return applied is null ? (double?)null : (applied.AchievedAt - a.ScrapedAt).TotalDays;
+            })
+            .Where(d => d is >= 0)
+            .Select(d => d!.Value)
+            .ToList();
+        double? averageDaysToApply = daysToApply.Count == 0 ? null : daysToApply.Average();
+
+        var daysToInterview = apps
+            .Select(a =>
+            {
+                var applied      = a.StatusHistory.FirstOrDefault(e => e.Status == ApplicationStatus.Applied);
+                var interviewed  = a.StatusHistory.FirstOrDefault(e => e.Status == ApplicationStatus.Interviewing);
+                return applied is null || interviewed is null
+                    ? (double?)null
+                    : (interviewed.AchievedAt - applied.AchievedAt).TotalDays;
+            })
+            .Where(d => d is >= 0)
+            .Select(d => d!.Value)
+            .ToList();
+        double? averageDaysToInterview = daysToInterview.Count == 0 ? null : daysToInterview.Average();
+
+        var appsWithSteps = stepsByApp.Values.Where(c => c >= 1).ToList();
+        double? averageInterviewSteps = appsWithSteps.Count == 0 ? null
+            : appsWithSteps.Average(c => (double)c);
+
+        var scored = apps.Where(a => a.OverallScore is not null).Select(a => a.OverallScore!.Value).ToList();
+        double? averageScore = scored.Count == 0 ? null : scored.Average();
+
+        var scoredInterviewed = apps
+            .Where(a => a.OverallScore is not null &&
+                        a.StatusHistory.Any(e => e.Status == ApplicationStatus.Interviewing))
+            .Select(a => a.OverallScore!.Value)
+            .ToList();
+        double? averageScoreInterviewed = scoredInterviewed.Count == 0 ? null : scoredInterviewed.Average();
+
+        var perStatus = apps
+            .GroupBy(a => a.Status.ToString())
+            .Select(g => new StatusCountDto(g.Key, g.Count()))
+            .ToList();
+
+        var now = DateTimeOffset.UtcNow;
+        var months = Enumerable.Range(0, 6)
+            .Select(i => now.AddMonths(-i))
+            .Select(d => $"{d.Year:D4}-{d.Month:D2}")
+            .OrderBy(m => m)
+            .ToList();
+        var countsByMonth = apps
+            .GroupBy(a => $"{a.CreatedAt.Year:D4}-{a.CreatedAt.Month:D2}")
+            .ToDictionary(g => g.Key, g => g.Count());
+        var perMonth = months
+            .Select(m => new MonthlyApplicationCountDto(m, countsByMonth.TryGetValue(m, out var c) ? c : 0))
+            .ToList();
+
+        return Ok(new ApplicationStatsResponse
+        {
+            TotalApplications       = totalApplications,
+            TotalSubmitted          = totalSubmitted,
+            TotalInterviewed        = totalInterviewed,
+            TotalHired              = totalHired,
+            InterviewHitRatio       = interviewHitRatio,
+            AverageDaysToApply      = averageDaysToApply,
+            AverageDaysToInterview  = averageDaysToInterview,
+            AverageInterviewSteps   = averageInterviewSteps,
+            AverageScore            = averageScore,
+            AverageScoreInterviewed = averageScoreInterviewed,
+            ApplicationsPerStatus   = perStatus,
+            ApplicationsPerMonth    = perMonth,
         });
     }
 
@@ -1291,16 +1410,21 @@ public sealed class ApplicationsController : ControllerBase
         return anyMatch is null ? query : query.Where(Expression.Lambda<Func<Application, bool>>(Expression.Not(anyMatch), param));
     }
 
-    private static string EncodeCursor(DateTimeOffset createdAt, Guid id)
+    private static int StatusSortPriority(ApplicationStatus status) =>
+        status == ApplicationStatus.ToApply ? 0 :
+        status == ApplicationStatus.Interviewing ? 1 :
+        status == ApplicationStatus.Applied ? 2 : 3;
+
+    private static string EncodeCursor(int statusPriority, DateTimeOffset createdAt, Guid id)
     {
-        var raw = $"{createdAt.UtcTicks}|{id}";
+        var raw = $"{statusPriority}|{createdAt.UtcTicks}|{id}";
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(raw))
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
     }
 
-    private static (DateTimeOffset CreatedAt, Guid Id)? DecodeCursor(string cursor)
+    private static (int StatusPriority, DateTimeOffset CreatedAt, Guid Id)? DecodeCursor(string cursor)
     {
         try
         {
@@ -1312,10 +1436,11 @@ public sealed class ApplicationsController : ControllerBase
             }
             var raw = Encoding.UTF8.GetString(Convert.FromBase64String(padded));
             var parts = raw.Split('|');
-            if (parts.Length != 2) return null;
-            var createdAt = new DateTimeOffset(long.Parse(parts[0]), TimeSpan.Zero);
-            var id = Guid.Parse(parts[1]);
-            return (createdAt, id);
+            if (parts.Length != 3) return null;
+            var statusPriority = int.Parse(parts[0]);
+            var createdAt = new DateTimeOffset(long.Parse(parts[1]), TimeSpan.Zero);
+            var id = Guid.Parse(parts[2]);
+            return (statusPriority, createdAt, id);
         }
         catch
         {

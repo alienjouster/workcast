@@ -13,6 +13,7 @@ import type {
   UpdateSettingsRequest,
   Application,
   ApplicationStatus,
+  ApplicationStats,
   GeneratedResume,
   GeneratedLetter,
   ResumeOptimizationLevel,
@@ -353,5 +354,7 @@ export const api = {
       }),
     saveToDrive: (id: string) =>
       apiFetch<SaveToDriveResponse>(`/api/applications/${id}/save-to-drive`, { method: 'POST' }),
+    stats: () =>
+      apiFetch<ApplicationStats>('/api/applications/stats'),
   },
 };

@@ -5,13 +5,14 @@ import { useTabbedListState } from '@/lib/hooks/useTabbedListState';
 import { FilterBar, hasActiveFilters, effectiveFilters } from '@/components/ads/FilterBar';
 import { ApplicationTable } from '@/components/applications/ApplicationTable';
 import { ApplicationTrashTable } from '@/components/applications/ApplicationTrashTable';
+import { ApplicationStatsTab } from '@/components/applications/ApplicationStatsTab';
 import { TabToggle, TrashTabIcon } from '@/components/ui/TabToggle';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { api } from '@/lib/api';
 
-type View = 'applications' | 'trash';
+type View = 'applications' | 'trash' | 'stats';
 
 export function ApplicationsClient() {
   const { view, setView, filters, setFilters, trashFilters, setTrashFilters } = useTabbedListState<View>(
@@ -54,7 +55,7 @@ export function ApplicationsClient() {
   const totalAppsQuery = useApplications({ trashed: false }, { enabled: appsFiltered });
   const totalTrashQuery = useApplications({ trashed: true }, { enabled: trashFiltered });
 
-  const activeQuery = view === 'applications' ? appsQuery : trashQuery;
+  const activeQuery = view === 'trash' ? trashQuery : appsQuery;
   const allItems = activeQuery.data?.pages.flatMap((p) => p.items) ?? [];
   const filteredAppsCount = appsQuery.data?.pages[0]?.totalCount ?? 0;
   const totalAppsCount = appsFiltered ? (totalAppsQuery.data?.pages[0]?.totalCount ?? 0) : filteredAppsCount;
@@ -80,32 +81,37 @@ export function ApplicationsClient() {
         tabs={[
           { key: 'applications', label: 'Applications', count: totalAppsCount },
           { key: 'trash', label: 'Trash bin', count: totalTrashCount, icon: TrashTabIcon },
+          { key: 'stats', label: 'Stats' },
         ]}
         activeKey={view}
         onChange={(key) => setView(key as View)}
       />
 
-      {/* Filters */}
-      <div className="mb-4">
-        <FilterBar
-          filters={activeFilters}
-          onChange={setActiveFilters}
-          features={['title', 'location', 'company', 'score']}
-          suggestionFetchers={suggestionFetchers}
-        />
-        {view === 'applications' && hasActiveFilters(filters) && !appsQuery.isLoading && (
-          <p className="mt-2 text-sm text-gray-500">
-            Displaying <span className="font-medium text-gray-700">{filteredAppsCount}</span> applications out of <span className="font-medium text-gray-700">{totalAppsCount}</span>
-          </p>
-        )}
-        {view === 'trash' && hasActiveFilters(trashFilters) && !trashQuery.isLoading && (
-          <p className="mt-2 text-sm text-gray-500">
-            Displaying <span className="font-medium text-gray-700">{filteredTrashCount}</span> applications out of <span className="font-medium text-gray-700">{totalTrashCount}</span>
-          </p>
-        )}
-      </div>
+      {/* Filters — hidden on the Stats tab */}
+      {view !== 'stats' && (
+        <div className="mb-4">
+          <FilterBar
+            filters={activeFilters}
+            onChange={setActiveFilters}
+            features={['title', 'location', 'company', 'score']}
+            suggestionFetchers={suggestionFetchers}
+          />
+          {view === 'applications' && hasActiveFilters(filters) && !appsQuery.isLoading && (
+            <p className="mt-2 text-sm text-gray-500">
+              Displaying <span className="font-medium text-gray-700">{filteredAppsCount}</span> applications out of <span className="font-medium text-gray-700">{totalAppsCount}</span>
+            </p>
+          )}
+          {view === 'trash' && hasActiveFilters(trashFilters) && !trashQuery.isLoading && (
+            <p className="mt-2 text-sm text-gray-500">
+              Displaying <span className="font-medium text-gray-700">{filteredTrashCount}</span> applications out of <span className="font-medium text-gray-700">{totalTrashCount}</span>
+            </p>
+          )}
+        </div>
+      )}
 
-      {activeQuery.isLoading ? (
+      {view === 'stats' ? (
+        <ApplicationStatsTab />
+      ) : activeQuery.isLoading ? (
         <LoadingSpinner />
       ) : activeQuery.error ? (
         <div className="text-red-600 text-sm bg-red-50 rounded-md p-4">
