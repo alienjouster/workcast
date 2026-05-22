@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Application, ApplicationStatus, StatusHistoryEntry } from '@/types';
 import {
   useUpdateApplicationStatus,
@@ -212,13 +212,98 @@ function StepNode({
   );
 }
 
+// ── Confetti ──────────────────────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ['#0066da', '#00ac47', '#ea4335', '#ffba00', '#2684fc', '#00832d', '#ff6b6b', '#ffd93d', '#a855f7'];
+
+function Confetti({ onDone }: { onDone: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const stableDone = useCallback(onDone, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const particles = Array.from({ length: 140 }, () => ({
+      x:       Math.random() * canvas.width,
+      y:       -10 - Math.random() * 200,
+      vx:      (Math.random() - 0.5) * 5,
+      vy:      2 + Math.random() * 5,
+      w:       6 + Math.random() * 8,
+      h:       4 + Math.random() * 5,
+      angle:   Math.random() * Math.PI * 2,
+      spin:    (Math.random() - 0.5) * 0.25,
+      color:   CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      opacity: 1,
+    }));
+
+    const DURATION = 3200;
+    const start = performance.now();
+    let raf: number;
+
+    function draw(now: number) {
+      const elapsed  = now - start;
+      const progress = elapsed / DURATION;
+
+      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
+
+      let anyVisible = false;
+      for (const p of particles) {
+        p.x      += p.vx;
+        p.y      += p.vy;
+        p.vy     += 0.12;
+        p.angle  += p.spin;
+        p.opacity = progress > 0.55 ? Math.max(0, 1 - (progress - 0.55) / 0.45) : 1;
+
+        if (p.y < canvas!.height + 30) anyVisible = true;
+
+        ctx!.save();
+        ctx!.globalAlpha = p.opacity;
+        ctx!.translate(p.x, p.y);
+        ctx!.rotate(p.angle);
+        ctx!.fillStyle = p.color;
+        ctx!.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx!.restore();
+      }
+
+      if (elapsed < DURATION && anyVisible) {
+        raf = requestAnimationFrame(draw);
+      } else {
+        stableDone();
+      }
+    }
+
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [stableDone]);
+
+  return <canvas ref={canvasRef} className="fixed inset-0 z-50 pointer-events-none" />;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ApplicationStatusTimeline({ app }: { app: Application }) {
   const updateStatus    = useUpdateApplicationStatus(app.id);
   const updateDate      = useUpdateApplicationStatusDate(app.id);
   const updateScrapedAt = useUpdateApplicationScrapedAt(app.id);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownOpen,  setDropdownOpen]  = useState(false);
+  const [showConfetti,  setShowConfetti]  = useState(false);
+  const prevStatusRef = useRef<ApplicationStatus | null>(null);
+
+  useEffect(() => {
+    if (prevStatusRef.current !== null &&
+        prevStatusRef.current !== 'ClosedHired' &&
+        app.status === 'ClosedHired') {
+      setShowConfetti(true);
+    }
+    prevStatusRef.current = app.status;
+  }, [app.status]);
 
   const history       = app.statusHistory;
   const currentStatus = app.status;
@@ -268,6 +353,8 @@ export function ApplicationStatusTimeline({ app }: { app: Application }) {
   const activeWidthPct = (reachedInterval / totalIntervals) * 100;
 
   return (
+    <>
+    {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
     <div className="bg-white rounded-lg border border-gray-200 px-6 py-5">
 
       {/* Timeline */}
@@ -340,6 +427,7 @@ export function ApplicationStatusTimeline({ app }: { app: Application }) {
       </div>
 
     </div>
+    </>
   );
 }
 
