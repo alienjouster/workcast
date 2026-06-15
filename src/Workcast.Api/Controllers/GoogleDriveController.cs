@@ -108,7 +108,7 @@ public sealed class GoogleDriveController : ControllerBase
             "  try { if (window.opener) { window.opener.postMessage(" + payload + ", window.location.origin); } } catch(e) {}\n" +
             "  window.close();\n" +
             "</script>\n" +
-            "<p>" + bodyText + "</p>\n" +
+            "<p>" + HtmlEncode(bodyText) + "</p>\n" +
             "</body></html>";
     }
 
