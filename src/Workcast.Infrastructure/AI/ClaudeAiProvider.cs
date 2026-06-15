@@ -839,7 +839,6 @@ public sealed class ClaudeAiProvider : IAiProvider
                 {
                     Model = model,
                     MaxTokens = maxTokens,
-                    Temperature = 0,
                     System = system,
                     Tools = new[] { tool },
                     ToolChoice = new ClaudeToolChoice { Type = "tool", Name = toolName },
@@ -860,6 +859,12 @@ public sealed class ClaudeAiProvider : IAiProvider
                     .PostAsJsonAsync(ApiEndpoint, request, JsonOptions, cts.Token)
                     .ConfigureAwait(false);
 
+                if (!response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
+                    _logger.LogError("Anthropic API returned {StatusCode} for model '{Model}': {Body}",
+                        (int)response.StatusCode, model, body);
+                }
                 response.EnsureSuccessStatusCode();
 
                 var claudeResponse = await response.Content

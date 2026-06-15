@@ -17,12 +17,6 @@ import {
 import { notificationsEnabled, setNotificationsEnabled } from '@/lib/hooks/useNotifications';
 import { api } from '@/lib/api';
 
-const MODEL_INFO: Record<string, string> = {
-  'claude-haiku-4-5-20251001': 'Fastest & cheapest',
-  'claude-sonnet-4-5':         'Balanced speed and accuracy — recommended default',
-  'claude-sonnet-4-6':         'Latest Sonnet — stronger reasoning, slightly higher cost',
-  'claude-opus-4-6':           'Most capable — best for complex or unusual board layouts, highest cost',
-};
 
 type ModelField = 'boardAnalyzer' | 'scoring' | 'resumeGeneration' | 'letterGeneration' | 'interviewTrainer' | 'interviewAnswerEvaluation';
 type TokenField = 'boardAnalyzerTokens' | 'scoringTokens' | 'resumeGenerationTokens' | 'letterGenerationTokens' | 'interviewTrainerTokens' | 'interviewAnswerEvaluationTokens';
@@ -160,15 +154,12 @@ export function SettingsClient() {
               onChange={(e) => setDraft(e.target.value)}
               className="text-sm border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {settings!.availableModels.map((model) => (
-                <option key={model} value={model}>
-                  {model}
+              {settings!.availableModels.map(({ id, displayName }) => (
+                <option key={id} value={id}>
+                  {displayName}
                 </option>
               ))}
             </select>
-            {MODEL_INFO[draft] && (
-              <p className="mt-1 text-xs text-gray-400">{MODEL_INFO[draft]}</p>
-            )}
           </td>
           <td className="px-4 py-2.5 text-right whitespace-nowrap">
             <div className="flex items-center justify-end gap-2">
@@ -188,9 +179,12 @@ export function SettingsClient() {
           ) : (
             <span className="inline-flex items-baseline gap-2">
               <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">{currentValue}</span>
-              {currentValue && MODEL_INFO[currentValue] && (
-                <span className="text-xs text-gray-400">{MODEL_INFO[currentValue]}</span>
-              )}
+              {currentValue && (() => {
+                const dn = settings?.availableModels.find(m => m.id === currentValue)?.displayName;
+                return dn && dn !== currentValue
+                  ? <span className="text-xs text-gray-400">{dn}</span>
+                  : null;
+              })()}
             </span>
           )}
         </td>

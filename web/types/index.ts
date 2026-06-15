@@ -132,7 +132,7 @@ export interface AppSettings {
   letterGenerationMaxTokens: number;
   interviewTrainerMaxTokens: number;
   interviewAnswerEvaluationMaxTokens: number;
-  availableModels: string[];
+  availableModels: Array<{ id: string; displayName: string }>;
   hasResume: boolean;
   resumeFileName: string | null;
   resumeUploadedAt: string | null;

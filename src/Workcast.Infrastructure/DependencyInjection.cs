@@ -86,6 +86,9 @@ public static class DependencyInjection
         // Holds the result of the startup API key health check.
         services.AddSingleton<AnthropicHealthState>();
 
+        // IMemoryCache is used by AnthropicModelsService to cache the model list for 1 hour.
+        services.AddMemoryCache();
+
         // HttpClient for Claude API — base address and auth header configured here.
         services.AddHttpClient<ClaudeAiProvider>((sp, client) =>
         {
@@ -99,6 +102,17 @@ public static class DependencyInjection
         // IAiProvider resolves to the typed-client registration above.
         // Do NOT add a second AddScoped here — that would inject a plain HttpClient with no headers.
         services.AddScoped<IAiProvider>(sp => sp.GetRequiredService<ClaudeAiProvider>());
+
+        // AnthropicModelsService uses the same API key headers as ClaudeAiProvider.
+        services.AddHttpClient<AnthropicModelsService>((sp, client) =>
+        {
+            var apiKey = configuration[$"{AnthropicOptions.SectionName}:ApiKey"]
+                ?? string.Empty;
+
+            client.DefaultRequestHeaders.Add("x-api-key", apiKey);
+            client.DefaultRequestHeaders.Add("anthropic-version", "2023-06-01");
+        });
+        services.AddScoped<IAnthropicModelsService>(sp => sp.GetRequiredService<AnthropicModelsService>());
 
         // Named HttpClient used by AdScoringJob to fetch job ad detail pages.
         services.AddHttpClient("JobAdFetcher", client =>

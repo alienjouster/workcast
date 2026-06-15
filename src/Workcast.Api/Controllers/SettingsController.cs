@@ -11,14 +11,6 @@ namespace Workcast.Api.Controllers;
 [Route("api/[controller]")]
 public sealed class SettingsController : ControllerBase
 {
-    private static readonly string[] AllowedModels =
-    [
-        "claude-haiku-4-5-20251001",
-        "claude-sonnet-4-5",
-        "claude-sonnet-4-6",
-        "claude-opus-4-6",
-    ];
-
     private static readonly string[] AllowedResumeTypes =
     [
         "application/pdf",
@@ -30,13 +22,15 @@ public sealed class SettingsController : ControllerBase
     private const long MaxTemplateBytes = 2 * 1024 * 1024; // 2 MB
 
     private readonly ISettingsRepository _settingsRepository;
+    private readonly IAnthropicModelsService _modelsService;
 
     /// <summary>
     /// Initializes a new instance of <see cref="SettingsController"/>.
     /// </summary>
-    public SettingsController(ISettingsRepository settingsRepository)
+    public SettingsController(ISettingsRepository settingsRepository, IAnthropicModelsService modelsService)
     {
         _settingsRepository = settingsRepository;
+        _modelsService = modelsService;
     }
 
     /// <summary>Returns the current global settings.</summary>
@@ -45,7 +39,8 @@ public sealed class SettingsController : ControllerBase
     public async Task<IActionResult> GetAsync(CancellationToken ct)
     {
         var settings = await _settingsRepository.GetAsync(ct);
-        return Ok(ToResponse(settings));
+        var models = await _modelsService.GetModelsAsync(ct);
+        return Ok(ToResponse(settings, models));
     }
 
     /// <summary>Updates the AI models used for board analysis, scoring, and/or resume generation.</summary>
@@ -56,59 +51,35 @@ public sealed class SettingsController : ControllerBase
         [FromBody] UpdateSettingsRequest request,
         CancellationToken ct)
     {
-        if (!AllowedModels.Contains(request.BoardAnalyzerModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid board analyzer model",
-                Detail = $"'{request.BoardAnalyzerModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        static bool IsValidModel(string id) =>
+            !string.IsNullOrWhiteSpace(id) &&
+            id.StartsWith("claude-", StringComparison.OrdinalIgnoreCase);
 
-        if (!AllowedModels.Contains(request.ScoringModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid scoring model",
-                Detail = $"'{request.ScoringModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        if (!IsValidModel(request.BoardAnalyzerModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid board analyzer model",
+                Detail = $"'{request.BoardAnalyzerModel}' is not a recognised Anthropic model." });
 
-        if (!AllowedModels.Contains(request.ResumeGenerationModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid resume generation model",
-                Detail = $"'{request.ResumeGenerationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        if (!IsValidModel(request.ScoringModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid scoring model",
+                Detail = $"'{request.ScoringModel}' is not a recognised Anthropic model." });
 
-        if (!AllowedModels.Contains(request.LetterGenerationModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid letter generation model",
-                Detail = $"'{request.LetterGenerationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        if (!IsValidModel(request.ResumeGenerationModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid resume generation model",
+                Detail = $"'{request.ResumeGenerationModel}' is not a recognised Anthropic model." });
 
-        if (!AllowedModels.Contains(request.InterviewTrainerModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid interview trainer model",
-                Detail = $"'{request.InterviewTrainerModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        if (!IsValidModel(request.LetterGenerationModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid letter generation model",
+                Detail = $"'{request.LetterGenerationModel}' is not a recognised Anthropic model." });
 
-        if (!AllowedModels.Contains(request.InterviewAnswerEvaluationModel))
-        {
-            return UnprocessableEntity(new ProblemDetails
-            {
-                Title = "Invalid interview answer evaluation model",
-                Detail = $"'{request.InterviewAnswerEvaluationModel}' is not a recognised Anthropic model. Allowed values: {string.Join(", ", AllowedModels)}",
-            });
-        }
+        if (!IsValidModel(request.InterviewTrainerModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid interview trainer model",
+                Detail = $"'{request.InterviewTrainerModel}' is not a recognised Anthropic model." });
+
+        if (!IsValidModel(request.InterviewAnswerEvaluationModel))
+            return UnprocessableEntity(new ProblemDetails { Title = "Invalid interview answer evaluation model",
+                Detail = $"'{request.InterviewAnswerEvaluationModel}' is not a recognised Anthropic model." });
+
+        var models = await _modelsService.GetModelsAsync(ct);
 
         if (request.BoardAnalyzerMaxTokens <= 0)
         {
@@ -179,7 +150,7 @@ public sealed class SettingsController : ControllerBase
         settings.SetInterviewAnswerEvaluationMaxTokens(request.InterviewAnswerEvaluationMaxTokens);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(ToResponse(settings));
+        return Ok(ToResponse(settings, models));
     }
 
     /// <summary>
@@ -230,7 +201,8 @@ public sealed class SettingsController : ControllerBase
         settings.SetResume(request.FileName, content, contentType);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(ToResponse(settings));
+        var models = await _modelsService.GetModelsAsync(ct);
+        return Ok(ToResponse(settings, models));
     }
 
     /// <summary>Removes the stored resume.</summary>
@@ -242,7 +214,8 @@ public sealed class SettingsController : ControllerBase
         settings.ClearResume();
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(ToResponse(settings));
+        var models = await _modelsService.GetModelsAsync(ct);
+        return Ok(ToResponse(settings, models));
     }
 
     /// <summary>Returns the stored resume as a UTF-8 string. 404 if no resume is stored.</summary>
@@ -298,7 +271,8 @@ public sealed class SettingsController : ControllerBase
         settings.SetResumeTemplate(request.FileName, htmlContent);
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(ToResponse(settings));
+        var models = await _modelsService.GetModelsAsync(ct);
+        return Ok(ToResponse(settings, models));
     }
 
     /// <summary>Removes the stored resume template.</summary>
@@ -310,12 +284,13 @@ public sealed class SettingsController : ControllerBase
         settings.ClearResumeTemplate();
         await _settingsRepository.SaveAsync(ct);
 
-        return Ok(ToResponse(settings));
+        var models = await _modelsService.GetModelsAsync(ct);
+        return Ok(ToResponse(settings, models));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static SettingsResponse ToResponse(Core.Entities.AppSettings s) => new(
+    private static SettingsResponse ToResponse(Core.Entities.AppSettings s, IReadOnlyList<AvailableModelDto> models) => new(
         s.BoardAnalyzerModel,
         s.ScoringModel,
         s.ResumeGenerationModel,
@@ -328,7 +303,7 @@ public sealed class SettingsController : ControllerBase
         s.LetterGenerationMaxTokens,
         s.InterviewTrainerMaxTokens,
         s.InterviewAnswerEvaluationMaxTokens,
-        AllowedModels,
+        models,
         s.HasResume,
         s.ResumeFileName,
         s.ResumeUploadedAt,
@@ -352,7 +327,7 @@ public sealed class SettingsController : ControllerBase
     /// <param name="LetterGenerationMaxTokens">Max tokens for letter generation AI calls.</param>
     /// <param name="InterviewTrainerMaxTokens">Max tokens for interview drill generation AI calls.</param>
     /// <param name="InterviewAnswerEvaluationMaxTokens">Max tokens for interview answer evaluation AI calls.</param>
-    /// <param name="AvailableModels">All selectable model identifiers.</param>
+    /// <param name="AvailableModels">All selectable models with their display names.</param>
     /// <param name="HasResume">True when a resume file has been uploaded.</param>
     /// <param name="ResumeFileName">Original file name of the uploaded resume, or null.</param>
     /// <param name="ResumeUploadedAt">UTC timestamp of the last resume upload, or null.</param>
@@ -374,7 +349,7 @@ public sealed class SettingsController : ControllerBase
         int LetterGenerationMaxTokens,
         int InterviewTrainerMaxTokens,
         int InterviewAnswerEvaluationMaxTokens,
-        IEnumerable<string> AvailableModels,
+        IEnumerable<AvailableModelDto> AvailableModels,
         bool HasResume,
         string? ResumeFileName,
         DateTimeOffset? ResumeUploadedAt,
