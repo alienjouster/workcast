@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1",
+  "name": "ELCA",
+  "url": "https://iaaras.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs?keyword=manager&lastSelectedFacet=LOCATIONS&selectedLocationsFacet=300000003769048%3B100000007654384",
+  "scheduleCron": "0 * * * *",
+  "scraperConfig": {
+    "paginationType": "none",
+    "nextPageSelector": null,
+    "urlParamName": null,
+    "urlParamIsOffset": false,
+    "maxPages": null,
+    "jobCardSelector": "li[data-qa=\"searchResultItem\"]",
+    "fieldSelectors": {
+      "detailUrl": "a.job-list-item__link",
+      "title": ".job-tile__title",
+      "company": null,
+      "location": ".job-list-item__job-info-label--locations + .job-list-item__job-info-value-container .job-list-item__job-info-value",
+      "salaryRaw": null,
+      "postedAt": ".job-list-item__job-info-label--posting-date + .job-list-item__job-info-value-container .job-list-item__job-info-value",
+      "descriptionSnippet": null,
+      "externalId": "search-result-item-header[id]"
+    },
+    "requiresJs": true,
+    "suggestedDelayMs": 2000,
+    "confidenceScore": 0.78,
+    "analyzerNotes": "Oracle HCM Cloud Candidate Experience (Fusion Recruiting) site for ELCA. This is a JS-rendered Knockout/React SPA, so requires_js=true. Job cards are li[data-qa=\"searchResultItem\"] (one talent-community CTA tile li[data-qa=\"searchResultTalentCommunityItem\"] is excluded by the data-qa value). Detail URL is the href on a.job-list-item__link (e.g. .../job/2809/?...). Title is in span.job-tile__title. The external job ID is exposed as the id attribute on the inner search-result-item-header element (e.g. id=\"2809\"), which matches the /job/{id}/ path segment. Location and posting date appear as labeled rows; selectors target the value next to the matching label. Note: some cards render location as plain text directly inside li.job-list-item__job-info-item (e.g. \"Locations, Pully, Geneva\") rather than the labeled .job-list-item__job-info-value structure, so the location selector may miss those — a fallback on the first .job-list-item__job-info-item text may be needed. Pagination: the visible page shows all 16 results at once with no Next/Load-more button in the markup; Oracle CX normally loads ~25 per request and uses a load-more button, but none is present here, so pagination_type=none. Company is not shown per-card (only as a facet/Organizations filter), so null. The keyword/location filters are passed via URL query params but these are search filters, not pagination, so url_param is not used.",
+    "generatedAt": "2026-06-15T09:36:13.302939+00:00"
+  }
+}
