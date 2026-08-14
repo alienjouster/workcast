@@ -13,9 +13,9 @@
 
   <ItemGroup>
     <!-- Hangfire.Core provides AutomaticRetry and job activation infrastructure. -->
-    <PackageReference Include="Hangfire.Core" Version="1.8.14" />
+    <PackageReference Include="Hangfire.Core" Version="1.8.24" />
     <!-- Override transitive Newtonsoft.Json from Hangfire.Core to resolve NU1903 (CVE in 11.0.1) -->
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <!--
       AngleSharp: CSS selector-based HTML parsing used to extract job ad links from listing
       pages and to locate next-page button hrefs. No BCL mechanism exists for CSS selector
@@ -23,9 +23,9 @@
       a standards-compliant selector engine matching what Playwright itself uses.
       Justification per CONVENTIONS.md: no equivalent approved package covers this need.
     -->
-    <PackageReference Include="AngleSharp" Version="1.1.2" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="AngleSharp" Version="1.7.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
   </ItemGroup>
 
 </Project>
