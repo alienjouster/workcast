@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Workcast.Api", "Workcast.Ap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Workcast.Core.Tests", "..\tests\Workcast.Core.Tests\Workcast.Core.Tests.csproj", "{95B401D6-3ED9-44A9-A53E-49B942DAF622}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Workcast.Jobs.Tests", "..\tests\Workcast.Jobs.Tests\Workcast.Jobs.Tests.csproj", "{28D55952-E881-45F8-920C-A07EB164CC3C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{95B401D6-3ED9-44A9-A53E-49B942DAF622}.Release|x64.Build.0 = Release|Any CPU
 		{95B401D6-3ED9-44A9-A53E-49B942DAF622}.Release|x86.ActiveCfg = Release|Any CPU
 		{95B401D6-3ED9-44A9-A53E-49B942DAF622}.Release|x86.Build.0 = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|x64.Build.0 = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Debug|x86.Build.0 = Debug|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|x64.ActiveCfg = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|x64.Build.0 = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|x86.ActiveCfg = Release|Any CPU
+		{28D55952-E881-45F8-920C-A07EB164CC3C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
