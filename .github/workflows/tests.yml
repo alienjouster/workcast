@@ -1,0 +1,29 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-restore
+
+      - name: Run tests
+        run: dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-build --verbosity normal
