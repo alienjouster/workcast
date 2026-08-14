@@ -4,9 +4,10 @@ const API_INTERNAL = process.env.API_INTERNAL_URL ?? 'http://localhost:8080';
 
 async function proxy(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ): Promise<NextResponse> {
-  const path = params.path.join('/');
+  const { path: segments } = await params;
+  const path = segments.join('/');
   const { search } = new URL(request.url);
   const target = `${API_INTERNAL}/api/${path}${search}`;
 
