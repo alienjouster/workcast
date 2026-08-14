@@ -20,10 +20,16 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj
+        run: |
+          dotnet restore tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj
+          dotnet restore tests/Workcast.Jobs.Tests/Workcast.Jobs.Tests.csproj
 
       - name: Build
-        run: dotnet build tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-restore
+        run: |
+          dotnet build tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-restore
+          dotnet build tests/Workcast.Jobs.Tests/Workcast.Jobs.Tests.csproj --no-restore
 
       - name: Run tests
-        run: dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-build --verbosity normal
+        run: |
+          dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-build --verbosity normal
+          dotnet test tests/Workcast.Jobs.Tests/Workcast.Jobs.Tests.csproj --no-build --verbosity normal
