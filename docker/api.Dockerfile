@@ -8,7 +8,7 @@ RUN dotnet publish src/Workcast.Api/Workcast.Api.csproj \
 # (which is .NET 8). The aspnet:10.0-jammy stage below provides the runtime.
 # Both stages are Ubuntu 22.04 (jammy) so the Chromium binary's shared-library
 # dependencies are satisfied without version-skew.
-FROM mcr.microsoft.com/playwright/dotnet:v1.44.0-jammy AS playwright-browsers
+FROM mcr.microsoft.com/playwright:v1.62.0-jammy AS playwright-browsers
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
