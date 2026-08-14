@@ -202,8 +202,43 @@ export function useJobBoard(id: string) {
 
 ---
 
-## Git Conventions
+## Testing Conventions
 
+### Frameworks
+- **xUnit** for test runner
+- **FluentAssertions** for readable assertions
+- Test projects live under `tests/` and are named `Workcast.{Layer}.Tests`
+
+### Structure
+- One test class per production class, mirroring the source folder structure
+- File naming: `{ClassName}Tests.cs` (e.g. `JobBoardTests.cs`)
+- Test method naming: `MethodName_Scenario_ExpectedResult` (e.g. `Create_WithDefaults_SetsStatusPendingAndHourlyCron`)
+
+### Guidelines
+- Entity unit tests must not depend on EF Core or any infrastructure — test via factory methods and public API
+- Use `[Theory]` with `[InlineData]` for parameterized tests when testing multiple inputs
+- All tests must be deterministic and independent — no shared mutable state between tests
+
+### Running Tests
+```bash
+dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj
+```
+
+---
+
+## Git & CI Conventions
+
+### Branching
+- `main` is the protected branch — direct pushes are blocked
+- All changes go through a **pull request** from a feature branch
+- Branch naming: `feature/...`, `fix/...`, or descriptive names (e.g. `add-scoring-tests`)
+- Keep branches short-lived — merge and delete after PR approval
+
+### CI Pipeline
+- GitHub Actions runs unit tests on every PR targeting `main` (`.github/workflows/tests.yml`)
+- PRs cannot be merged until the `Unit Tests` check passes (branch protection rule)
+
+### Commits
 - Commit message format: `short description`
   - e.g. `Add JobBoard entity and IAiProvider interface`
 - One commit per logical unit of work — not one giant commit per agent
