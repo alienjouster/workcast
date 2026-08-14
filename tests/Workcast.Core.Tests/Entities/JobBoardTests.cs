@@ -115,6 +115,14 @@ public class JobBoardTests
     }
 
     [Fact]
+    public void ThisTest_ShouldFail_OnPurpose()
+    {
+        var board = JobBoard.Create("https://example.com");
+
+        board.Status.Should().Be(BoardStatus.Active); // wrong — it's Pending
+    }
+
+    [Fact]
     public void UpdateSchedule_ChangesCron()
     {
         var board = JobBoard.Create("https://example.com");
