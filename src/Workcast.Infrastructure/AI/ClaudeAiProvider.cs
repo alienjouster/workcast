@@ -436,9 +436,8 @@ public sealed class ClaudeAiProvider : IAiProvider
     private static AdScoringResult DeserializeAdScoringResult(JsonObject input)
     {
         var requirements = new List<AdScoringRequirementResult>();
-        var reqs = input["requirements"]?.AsArray();
 
-        if (reqs is not null)
+        if (input["requirements"] is JsonArray reqs)
         {
             foreach (var req in reqs)
             {
@@ -596,14 +595,19 @@ public sealed class ClaudeAiProvider : IAiProvider
     private static InterviewAnswerEvaluationResult DeserializeAnswerEvaluationResult(JsonObject input)
     {
         var tips = new List<string>();
-        var tipsArray = input["tips"]?.AsArray();
-        if (tipsArray is not null)
+        var tipsNode = input["tips"];
+        if (tipsNode is JsonArray tipsArray)
         {
             foreach (var tip in tipsArray)
             {
                 var tipText = tip?.GetValue<string>();
                 if (!string.IsNullOrWhiteSpace(tipText)) tips.Add(tipText);
             }
+        }
+        else if (tipsNode is not null)
+        {
+            var single = tipsNode.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(single)) tips.Add(single);
         }
 
         return new InterviewAnswerEvaluationResult
@@ -756,9 +760,8 @@ public sealed class ClaudeAiProvider : IAiProvider
     private static InterviewDrillResult DeserializeInterviewDrillResult(JsonObject input)
     {
         var questions = new List<InterviewQuestionResult>();
-        var items = input["questions"]?.AsArray();
 
-        if (items is not null)
+        if (input["questions"] is JsonArray items)
         {
             foreach (var item in items)
             {
