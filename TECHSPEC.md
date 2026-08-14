@@ -159,10 +159,12 @@ The platform is composed of six Docker services communicating over a private net
 | Real-Time Events   | Server-Sent Events (SSE)                       |
 | Metrics            | Prometheus + Grafana (provisioned dashboards)  |
 | MCP Server         | ModelContextProtocol.AspNetCore 1.2.0          |
+| Testing            | xUnit, FluentAssertions                        |
+| CI/CD              | GitHub Actions — unit tests on every PR        |
 
 **2.3 Solution Structure**
 
-The backend follows Clean Architecture with four projects. The frontend is a separate Next.js application.
+The backend follows Clean Architecture with four projects. The frontend is a separate Next.js application. Automated tests live in a parallel `tests/` directory.
 
 ```
 Workcast.sln
@@ -172,7 +174,12 @@ Workcast.sln
 │ ├── Workcast.Jobs/          # Background jobs — board analysis, scraping, scoring, resume/letter generation, cleanup
 │ └── Workcast.Api/           # Presentation layer — controllers, DTOs, mapping, Program.cs
 │
+├── tests/
+│ └── Workcast.Core.Tests/    # Unit tests — entities, HtmlCleaningService (xUnit, FluentAssertions)
+│
 ├── web/                      # Next.js 14 frontend (App Router, TanStack Query, Tailwind)
+│
+├── .github/workflows/        # CI — GitHub Actions (unit tests on every PR)
 │
 └── docker/                   # Docker Compose, Dockerfiles, .env.example
 ```

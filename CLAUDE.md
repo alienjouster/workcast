@@ -41,6 +41,8 @@ Provided in the 'TECHSPEC.md' file.
 | Background jobs | Hangfire 1.8 (in-process, PostgreSQL storage) |
 | AI provider | Anthropic Claude API Tool Use only |
 | Frontend | Next.js 14 App Router, TanStack Query v5, Tailwind CSS |
+| Testing | xUnit, FluentAssertions |
+| CI/CD | GitHub Actions — tests run on every PR to `main` |
 | Infrastructure | Docker + Docker Compose v2, external volumes |
 
 ---
@@ -52,6 +54,8 @@ Provided in the 'TECHSPEC.md' file.
 3. **Migrations are generated, not hand-written** — run `dotnet ef migrations add`
 4. **No TODO comments** — implement it or document the decision explicitly
 5. **Use coding conventions** — from `CONVENTIONS.md`
+6. **All changes go through PRs** — create a feature branch, push, open a PR against `main`. CI must pass before merging. Never push directly to `main`.
+7. **Tests must pass** — run `dotnet test` before committing. Add tests for new domain logic.
 
 **Mandatory sequence — follow this every time:**
 1. Implement the change.

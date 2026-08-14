@@ -133,6 +133,29 @@ NEXT_PUBLIC_API_URL=http://localhost:8080 npm run dev
 
 ---
 
+## Testing
+
+Unit tests run automatically on every pull request via GitHub Actions. The `main` branch is protected — PRs cannot be merged until tests pass.
+
+```bash
+# Run all tests locally
+dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj
+```
+
+---
+
+## Contributing
+
+All changes go through pull requests:
+
+1. Create a branch from `main` (`git checkout -b feature/my-change`)
+2. Make your changes and commit
+3. Push and open a PR against `main`
+4. CI runs tests automatically — fix any failures
+5. Merge after review and green checks
+
+---
+
 ## Project Structure
 
 ```
@@ -143,7 +166,11 @@ Workcast.sln
 │   ├── Workcast.Jobs/           # Background jobs — scraping, analysis, scoring
 │   └── Workcast.Api/            # Controllers, DTOs, mapping, Program.cs
 │
+├── tests/
+│   └── Workcast.Core.Tests/     # Unit tests — entities, services
+│
 ├── web/                         # Next.js 14 frontend
+├── .github/workflows/           # CI — GitHub Actions (test on PR)
 ├── docker/                      # Docker Compose, Dockerfiles, .env.example
 ├── community-boards/            # Shareable scraper config JSON files
 └── volumes/                     # Runtime data (git-ignored)
