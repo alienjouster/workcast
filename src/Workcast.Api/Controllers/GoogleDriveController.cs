@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Mvc;
 using Workcast.Core.Interfaces;
 
@@ -95,12 +96,13 @@ public sealed class GoogleDriveController : ControllerBase
 
     private static string CallbackHtml(bool success, string? message = null)
     {
+        var safeMessage = JavaScriptEncoder.Default.Encode(message ?? "Unknown error");
         var payload = success
             ? "{ type: 'google-drive-connected' }"
-            : "{ type: 'google-drive-error', message: '" + EscapeJs(message ?? "Unknown error") + "' }";
+            : "{ type: 'google-drive-error', message: '" + safeMessage + "' }";
         var bodyText = success
             ? "Connected. You may close this window."
-            : "Error: " + HtmlEncode(message ?? "");
+            : "Error: " + System.Net.WebUtility.HtmlEncode(message ?? "");
 
         return
             "<!DOCTYPE html><html><head><title>Google Drive</title></head><body>\n" +
@@ -108,15 +110,9 @@ public sealed class GoogleDriveController : ControllerBase
             "  try { if (window.opener) { window.opener.postMessage(" + payload + ", window.location.origin); } } catch(e) {}\n" +
             "  window.close();\n" +
             "</script>\n" +
-            "<p>" + HtmlEncode(bodyText) + "</p>\n" +
+            "<p>" + System.Net.WebUtility.HtmlEncode(bodyText) + "</p>\n" +
             "</body></html>";
     }
-
-    private static string EscapeJs(string v) =>
-        v.Replace("\\", "\\\\").Replace("'", "\\'").Replace("\n", "\\n").Replace("\r", "");
-
-    private static string HtmlEncode(string v) =>
-        v.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;");
 
     public sealed record AuthUrlResponse(string Url);
     public sealed record UpdateBasePathRequest(string BasePath);
