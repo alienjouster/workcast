@@ -105,6 +105,16 @@ public class JobBoardTests
     }
 
     [Fact]
+    public void UpdateName_ToNull_ClearsName()
+    {
+        var board = JobBoard.Create("https://example.com", "Named Board");
+
+        board.UpdateName(null);
+
+        board.Name.Should().BeNull();
+    }
+
+    [Fact]
     public void UpdateSchedule_ChangesCron()
     {
         var board = JobBoard.Create("https://example.com");
