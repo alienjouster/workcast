@@ -33,3 +33,24 @@ jobs:
         run: |
           dotnet test tests/Workcast.Core.Tests/Workcast.Core.Tests.csproj --no-build --verbosity normal
           dotnet test tests/Workcast.Jobs.Tests/Workcast.Jobs.Tests.csproj --no-build --verbosity normal
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore tests/Workcast.Api.Tests/Workcast.Api.Tests.csproj
+
+      - name: Build
+        run: dotnet build tests/Workcast.Api.Tests/Workcast.Api.Tests.csproj --no-restore
+
+      - name: Run tests
+        run: dotnet test tests/Workcast.Api.Tests/Workcast.Api.Tests.csproj --no-build --verbosity normal
