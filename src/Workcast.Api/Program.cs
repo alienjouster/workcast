@@ -37,11 +37,14 @@ builder.Services.AddHttpClient("UrlValidation")
 var app = builder.Build();
 
 
-// Section 8.5: Apply pending EF Core migrations on startup
+// Section 8.5: Apply pending EF Core migrations on startup (skipped for InMemory provider)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+    if (db.Database.IsRelational())
+        await db.Database.MigrateAsync();
+    else
+        await db.Database.EnsureCreatedAsync();
 }
 
 // Validate the Anthropic API key by calling a minimal prompt on the cheapest Haiku model.
@@ -142,3 +145,5 @@ app.MapMcp("/mcp");
 app.MapMetrics("/metrics");  // exposes the Prometheus scrape endpoint
 
 app.Run();
+
+public partial class Program;
