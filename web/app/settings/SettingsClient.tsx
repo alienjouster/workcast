@@ -292,7 +292,7 @@ export function SettingsClient() {
             <tbody>
               {/* Content row */}
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Content</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Content</th>
                 <td className="px-4 py-2.5">
                   <p className="text-xs text-gray-400 mb-1.5">
                     JSON format works best. The AI uses this as the source of truth for all resume and cover letter generation. Freely editable — add, remove, or reword any section but try to keep the structure and naming that is matching the Resume HTML template. {' '}
@@ -421,7 +421,7 @@ export function SettingsClient() {
               )}
               {/* Template row */}
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Template</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Template</th>
                 <td className="px-4 py-2.5">
                   <p className="text-xs text-gray-400 mb-1.5">
                     HTML format. Best results when sections mirror the JSON structure — the AI fills in the tags from your resume content.{' '}
@@ -489,51 +489,51 @@ export function SettingsClient() {
           <table className="min-w-full text-sm">
             <tbody>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Board analyzer model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Board analyzer model</th>
                 {renderModelCell('boardAnalyzer', settings?.boardAnalyzerModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('boardAnalyzerTokens', settings?.boardAnalyzerMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Scoring model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Scoring model</th>
                 {renderModelCell('scoring', settings?.scoringModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('scoringTokens', settings?.scoringMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Resume generation model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Resume generation model</th>
                 {renderModelCell('resumeGeneration', settings?.resumeGenerationModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('resumeGenerationTokens', settings?.resumeGenerationMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Letter generation model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Letter generation model</th>
                 {renderModelCell('letterGeneration', settings?.letterGenerationModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('letterGenerationTokens', settings?.letterGenerationMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Interview trainer model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Interview trainer model</th>
                 {renderModelCell('interviewTrainer', settings?.interviewTrainerModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('interviewTrainerTokens', settings?.interviewTrainerMaxTokens)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Answer evaluation model</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Answer evaluation model</th>
                 {renderModelCell('interviewAnswerEvaluation', settings?.interviewAnswerEvaluationModel)}
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-400 w-48 pl-8">Max tokens</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-400 w-48 pl-8 text-left">Max tokens</th>
                 {renderTokenCell('interviewAnswerEvaluationTokens', settings?.interviewAnswerEvaluationMaxTokens)}
               </tr>
             </tbody>
@@ -628,7 +628,7 @@ export function SettingsClient() {
           <table className="min-w-full text-sm">
             <tbody>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Connection</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Connection</th>
                 <td className="px-4 py-2.5">
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
@@ -674,7 +674,7 @@ export function SettingsClient() {
                 </td>
               </tr>
               <tr className="border-t border-gray-100 hover:bg-gray-50">
-                <td className="px-4 py-2.5 text-sm text-gray-500 w-48">Path</td>
+                <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">Path</th>
                 <td className="px-4 py-2.5">
                   {isLoading ? (
                     <span className="text-gray-400">Loading…</span>
@@ -747,7 +747,7 @@ export function SettingsClient() {
                 },
               ].map(({ label, description, href }) => (
                 <tr key={label} className="border-t border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-2.5 text-sm text-gray-500 w-48">{label}</td>
+                  <th scope="row" className="px-4 py-2.5 text-sm font-normal text-gray-500 w-48 text-left">{label}</th>
                   <td className="px-4 py-2.5 text-sm text-gray-900">{description}</td>
                   <td className="px-4 py-2.5 text-right whitespace-nowrap">
                     {href ? (
