@@ -32,6 +32,8 @@ public sealed class ApplicationsController : ControllerBase
 
     private const int MinJobAdContentLength = 250;
 
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
     private readonly AppDbContext _db;
     private readonly IScraperEngine _scraperEngine;
     private readonly ISettingsRepository _settingsRepository;
@@ -1202,7 +1204,7 @@ public sealed class ApplicationsController : ControllerBase
 
         if (!string.IsNullOrWhiteSpace(application.JobAdContent))
         {
-            var plain = Regex.Replace(application.JobAdContent, @"<[^>]+>", "").Trim();
+            var plain = Regex.Replace(application.JobAdContent, @"<[^>]+>", "", RegexOptions.None, RegexTimeout).Trim();
             await _googleDriveService.UpsertFileAsync(refreshToken, appFolderId, "job-ad.txt", "text/plain", plain, ct);
         }
 
@@ -1233,8 +1235,8 @@ public sealed class ApplicationsController : ControllerBase
 
     private static string SanitizeSegment(string value)
     {
-        var s = Regex.Replace(value, @"[/\\:*?""<>|]", " ");
-        s = Regex.Replace(s, @"\s{2,}", " ").Trim();
+        var s = Regex.Replace(value, @"[/\\:*?""<>|]", " ", RegexOptions.None, RegexTimeout);
+        s = Regex.Replace(s, @"\s{2,}", " ", RegexOptions.None, RegexTimeout).Trim();
         return s.Length > 80 ? s[..80].TrimEnd() : s;
     }
 
@@ -1289,7 +1291,7 @@ public sealed class ApplicationsController : ControllerBase
             var html = await _scraperEngine.RenderPageAsync(url, ct: ct);
             var sanitized = SanitizePageHtml(html);
             // Measure meaningful text length by stripping tags from the sanitized output.
-            var textLength = Regex.Replace(sanitized, @"<[^>]+>", "").Trim().Length;
+            var textLength = Regex.Replace(sanitized, @"<[^>]+>", "", RegexOptions.None, RegexTimeout).Trim().Length;
             return textLength >= MinJobAdContentLength ? sanitized : null;
         }
         catch
@@ -1318,14 +1320,16 @@ public sealed class ApplicationsController : ControllerBase
             content,
             @"<(script|style|noscript|nav|header|footer|aside|form|iframe|svg|figure)[^>]*>[\s\S]*?</(script|style|noscript|nav|header|footer|aside|form|iframe|svg|figure)>",
             "",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase,
+            RegexTimeout);
 
         // Remove self-closing / void elements that add no readable value.
         content = Regex.Replace(
             content,
             @"<(img|input|select|textarea|button|link|meta|canvas|video|audio|source|track|embed|object)[^>]*/?>",
             "",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase,
+            RegexTimeout);
 
         // ── 3. Strip dangerous attributes; keep only safe ones ────────────────
         // Allow: style, href (filtered below), target, colspan, rowspan, align.
@@ -1333,18 +1337,20 @@ public sealed class ApplicationsController : ControllerBase
             content,
             @"\s(?:class|id|on\w+|data-\w+|aria-\w+|role|tabindex|name|action|method|enctype|autocomplete)[^=]*=(?:""[^""]*""|'[^']*'|[^\s>]*)",
             "",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase,
+            RegexTimeout);
 
         // Remove javascript: hrefs.
         content = Regex.Replace(
             content,
             @"href\s*=\s*(?:""javascript:[^""]*""|'javascript:[^']*')",
             "",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase,
+            RegexTimeout);
 
         // ── 4. Normalise whitespace ───────────────────────────────────────────
-        content = Regex.Replace(content, @"[ \t]{2,}", " ");
-        content = Regex.Replace(content, @"(\s*\n\s*){3,}", "\n\n");
+        content = Regex.Replace(content, @"[ \t]{2,}", " ", RegexOptions.None, RegexTimeout);
+        content = Regex.Replace(content, @"(\s*\n\s*){3,}", "\n\n", RegexOptions.None, RegexTimeout);
 
         return content.Trim();
     }
@@ -1358,7 +1364,8 @@ public sealed class ApplicationsController : ControllerBase
         var match = Regex.Match(
             html,
             $@"<{tag}(?:\s[^>]*)?>(?<content>[\s\S]*?)</{tag}>",
-            RegexOptions.IgnoreCase);
+            RegexOptions.IgnoreCase,
+            RegexTimeout);
         return match.Success ? match.Groups["content"].Value : null;
     }
 
