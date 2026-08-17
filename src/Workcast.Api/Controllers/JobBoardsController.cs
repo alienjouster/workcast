@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Workcast.Api.DTOs.Exchange;
@@ -519,28 +521,59 @@ public sealed class JobBoardsController : ControllerBase
         return sanitized.Trim('-').ToLowerInvariant();
     }
 
+    private static readonly string[] AllowedSchemes = ["http", "https"];
+
     /// <summary>
     /// Checks whether the given URL is reachable via an HTTP HEAD request.
-    /// A 405 Method Not Allowed response is treated as reachable (server exists but rejects HEAD).
+    /// Validates scheme and resolved IP to prevent SSRF against internal networks.
     /// </summary>
     private async Task<bool> IsUrlReachableAsync(string url, CancellationToken ct)
     {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !AllowedSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase))
+            return false;
+
         try
         {
+            var addresses = await Dns.GetHostAddressesAsync(uri.Host, ct);
+            if (addresses.Length == 0 || addresses.Any(IsNonRoutableAddress))
+                return false;
+
             var client = _httpClientFactory.CreateClient("UrlValidation");
-            using var request = new HttpRequestMessage(HttpMethod.Head, url);
+            using var request = new HttpRequestMessage(HttpMethod.Head, uri);
             using var response = await client.SendAsync(request, ct);
 
-            // 405 = server alive but rejects HEAD; 406 = server alive but rejects Accept headers.
-            // Both mean the server is reachable.
             return response.IsSuccessStatusCode
-                || response.StatusCode == System.Net.HttpStatusCode.MethodNotAllowed
-                || response.StatusCode == System.Net.HttpStatusCode.NotAcceptable;
+                || response.StatusCode == HttpStatusCode.MethodNotAllowed
+                || response.StatusCode == HttpStatusCode.NotAcceptable;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "URL reachability check failed for '{Url}'.", url);
             return false;
         }
+    }
+
+    private static bool IsNonRoutableAddress(IPAddress address)
+    {
+        if (IPAddress.IsLoopback(address))
+            return true;
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6 && address.IsIPv6LinkLocal)
+            return true;
+
+        byte[] bytes = address.GetAddressBytes();
+        if (address.AddressFamily != AddressFamily.InterNetwork || bytes.Length != 4)
+            return false;
+
+        return bytes[0] switch
+        {
+            10 => true,                                           // 10.0.0.0/8
+            127 => true,                                          // 127.0.0.0/8
+            172 => bytes[1] >= 16 && bytes[1] <= 31,              // 172.16.0.0/12
+            192 => bytes[1] == 168,                               // 192.168.0.0/16
+            169 => bytes[1] == 254,                               // 169.254.0.0/16 (link-local / cloud metadata)
+            _ => false,
+        };
     }
 }
