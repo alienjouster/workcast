@@ -1,3 +1,5 @@
+[![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=alienjouster_workcast&metric=alert_status&token=630f0d1f5d00d228307dce3771dfb2e5beb100df)](https://sonarcloud.io/summary/new_code?id=alienjouster_workcast)
+
 # Workcast
 
 Workcast is an AI-powered job board aggregation platform. Users register a job board URL — the system handles everything else: AI-driven page analysis, scraper config generation, scheduled scraping, job ad extraction, job vs resume matching score. Workcast then helps you with managing the applications: generates ATS-friendly, job-tailord resume, application letter, and interview questions drill. 
